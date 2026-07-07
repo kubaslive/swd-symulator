@@ -273,11 +273,7 @@ function App() {
     { id: 'ob4', name: 'Kopalnia Wujek', address: 'Katowice, ul. Wincentego Pola 65', lat: 50.2450, lng: 18.9911 },
   ];
 
-  const derivedJrgUnits = (userProfile?.tenantUnits?.jrg || []).map(u => typeof u === 'string' ? u : u.name);
-  const derivedOspUnits = (userProfile?.tenantUnits?.osp || []).map(u => typeof u === 'string' ? u : u.name);
-  const ALL_UNITS = ["KM/KP PSP", ...derivedJrgUnits, ...derivedOspUnits];
-  const JRG_UNITS = derivedJrgUnits.length > 0 ? derivedJrgUnits : ["Brak zdefiniowanych JRG"];
-  const OSP_UNITS = derivedOspUnits.length > 0 ? derivedOspUnits : ["Brak zdefiniowanych OSP"];
+
   const UNIT_VEHICLES = tenantVehicles;
   const MAP_BASES = tenantMapBases;
   const SIMULATED_HYDRANTS = tenantHydrants;
@@ -296,6 +292,12 @@ function App() {
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const derivedJrgUnits = (userProfile?.tenantUnits?.jrg || []).map(u => typeof u === 'string' ? u : u.name);
+  const derivedOspUnits = (userProfile?.tenantUnits?.osp || []).map(u => typeof u === 'string' ? u : u.name);
+  const ALL_UNITS = ["KM/KP PSP", ...derivedJrgUnits, ...derivedOspUnits];
+  const JRG_UNITS = derivedJrgUnits.length > 0 ? derivedJrgUnits : ["Brak zdefiniowanych JRG"];
+  const OSP_UNITS = derivedOspUnits.length > 0 ? derivedOspUnits : ["Brak zdefiniowanych OSP"];
   const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
