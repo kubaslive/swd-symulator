@@ -266,6 +266,15 @@ function App() {
   const [tenantSpecialists, setTenantSpecialists] = useState([]);
   const [tenantEquipment, setTenantEquipment] = useState({});
 
+  const KATALOG_OBIEKTOW = [
+    { id: 'ob1', name: 'Szpital Górniczy Murcki', address: 'Katowice, ul. Sokołowskiego 2', lat: 50.1915, lng: 19.0305 },
+    { id: 'ob2', name: 'Uniwersyteckie Centrum Kliniczne', address: 'Katowice, ul. Medyków 14', lat: 50.2223, lng: 18.9610 },
+    { id: 'ob3', name: 'Spodek', address: 'Katowice, al. Korfantego 35', lat: 50.2662, lng: 19.0252 },
+    { id: 'ob4', name: 'Kopalnia Wujek', address: 'Katowice, ul. Wincentego Pola 65', lat: 50.2450, lng: 18.9911 },
+  ];
+
+  const tenantJrgUnits = (userProfile?.tenantUnits?.jrg || []).map(u => typeof u === 'string' ? u : u.name);
+  const tenantOspUnits = (userProfile?.tenantUnits?.osp || []).map(u => typeof u === 'string' ? u : u.name);
   const ALL_UNITS = ["KM/KP PSP", ...tenantJrgUnits, ...tenantOspUnits];
   const JRG_UNITS = tenantJrgUnits.length > 0 ? tenantJrgUnits : ["Brak zdefiniowanych JRG"];
   const OSP_UNITS = tenantOspUnits.length > 0 ? tenantOspUnits : ["Brak zdefiniowanych OSP"];
@@ -351,6 +360,7 @@ function App() {
 
   // Merge Incidents & Extinguishing Agents (Chapter 7.5.2 & 8.8)
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
   const [agentsInventory, setAgentsInventory] = useState({
@@ -1503,7 +1513,10 @@ TREŚĆ ZGŁOSZENIA:
     // SPA Geocoding precision calculation (Page 55)
     let geoState = 'red';
     if (val.trim().length > 3) {
-      if (/\d/.test(val)) {
+      const matchKatalog = KATALOG_OBIEKTOW.find(ob => norm.includes(ob.name.toLowerCase()));
+      if (matchKatalog) {
+        geoState = 'blue';
+      } else if (/\d/.test(val)) {
         geoState = 'green'; // EMUiA Exact Address point
       } else {
         geoState = 'yellow'; // Street or City level only
@@ -2324,6 +2337,26 @@ TREŚĆ ZGŁOSZENIA:
     }
   };
 
+  // Przekazywanie zdarzenia (Rozdz. 8.9)
+  const handleTransferIncident = async (targetTenantId) => {
+    if (!activeIncident || !targetTenantId) return;
+    try {
+      const incRef = doc(db, 'incidents', activeIncident.id);
+      await updateDoc(incRef, {
+        tenantId: targetTenantId,
+        isFriendly: true, // Mark it friendly from the perspective of original owner if needed (or let new owner handle it)
+        updatedAt: serverTimestamp()
+      });
+      logAction(`Przekazano zdarzenie ${activeIncident.customId} do dyspozytora: ${targetTenantId}.`);
+      setIsTransferModalOpen(false);
+      setContextMenu(null);
+      alert(`Zdarzenie ${activeIncident.customId} zostało pomyślnie przekazane.`);
+    } catch (err) {
+      console.error("Error transferring incident:", err);
+      alert("Błąd podczas przekazywania zdarzenia.");
+    }
+  };
+
   // Zakończenie działań (Context Menu)
   const handleFinishIncident = async (incidentId) => {
     alert("Zgodnie z procedurą SWD, zakończenie zdarzenia wymaga wypełnienia Meldunku (F8) w module EWID.");
@@ -2523,6 +2556,7 @@ TREŚĆ ZGŁOSZENIA:
   };
 
   const getGeocodingDot = (status) => {
+    if (status === 'blue') return <span className="led-indicator blue" style={{ width: 7, height: 7, backgroundColor: '#007bff', boxShadow: 'inset 0px 1px 2px rgba(255,255,255,0.4), 0 0 4px #007bff' }} title="Obiekt z Katalogu SWD (Niebieska)" />;
     if (status === 'green') return <span className="led-indicator green" style={{ width: 7, height: 7 }} title="Geokodowanie EMUiA (Zielona)" />;
     if (status === 'yellow') return <span className="led-indicator yellow" style={{ width: 7, height: 7 }} title="Geokodowanie niedokładne (Żółta)" />;
     return <span className="led-indicator red" style={{ width: 7, height: 7 }} title="Brak geokodowania (Czerwona)" />;
@@ -4462,7 +4496,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
   // Render Katalog Obiektów
   const renderKatalogObiektow = () => {
     return (
-      <div className="tab-content" style={{ padding: '10px', height: '100%', overflowY: 'auto' }}>
+<div className="tab-content" style={{ padding: '10px', height: '100%', overflowY: 'auto' }}>
         <div className="section-header" style={{ marginBottom: '10px', background: '#000080', color: 'white', padding: '5px' }}>
           <span style={{ fontWeight: 'bold' }}>KATALOG OBIEKTÓW (Zgodnie z rozdz. 15.1)</span>
         </div>
@@ -4482,34 +4516,18 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             </tr>
           </thead>
           <tbody>
-            <tr style={{ background: '#fff' }}>
-              <td style={{ border: '1px solid #808080', padding: '4px' }}>Hale sportowe i widowiskowe</td>
-              <td style={{ border: '1px solid #808080', padding: '4px', fontWeight: 'bold' }}>Obiekt 1</td>
-              <td style={{ border: '1px solid #808080', padding: '4px' }}>{tenantName}</td>
-              <td style={{ border: '1px solid #808080', padding: '4px' }}>Aleja Korfantego 35</td>
-              <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center', color: '#155724', fontWeight: 'bold', background: '#d4edda' }}>TAK</td>
-            </tr>
-            <tr style={{ background: '#f8f8f8' }}>
-              <td style={{ border: '1px solid #808080', padding: '4px' }}>Wielkopowierzchniowe Obiekty Handlowe</td>
-              <td style={{ border: '1px solid #808080', padding: '4px', fontWeight: 'bold' }}>Silesia City Center</td>
-              <td style={{ border: '1px solid #808080', padding: '4px' }}>{tenantName}</td>
-              <td style={{ border: '1px solid #808080', padding: '4px' }}>Chorzowska 107</td>
-              <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center', color: '#155724', fontWeight: 'bold', background: '#d4edda' }}>TAK</td>
-            </tr>
-            <tr style={{ background: '#fff' }}>
-              <td style={{ border: '1px solid #808080', padding: '4px' }}>Przemysł - Zakłady Dużego Ryzyka (ZDR)</td>
-              <td style={{ border: '1px solid #808080', padding: '4px', fontWeight: 'bold' }}>Zakłady Metalurgiczne "Baildon"</td>
-              <td style={{ border: '1px solid #808080', padding: '4px' }}>{tenantName}</td>
-              <td style={{ border: '1px solid #808080', padding: '4px' }}>Żelazna 9</td>
-              <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center', color: '#721c24', fontWeight: 'bold', background: '#f8d7da' }}>NIE</td>
-            </tr>
-            <tr style={{ background: '#f8f8f8' }}>
-              <td style={{ border: '1px solid #808080', padding: '4px' }}>Szpitale i obiekty ochrony zdrowia (ZL II)</td>
-              <td style={{ border: '1px solid #808080', padding: '4px', fontWeight: 'bold' }}>Górnośląskie Centrum Medyczne</td>
-              <td style={{ border: '1px solid #808080', padding: '4px' }}>{tenantName}</td>
-              <td style={{ border: '1px solid #808080', padding: '4px' }}>Ziołowa 45/47</td>
-              <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center', color: '#155724', fontWeight: 'bold', background: '#d4edda' }}>TAK</td>
-            </tr>
+            {KATALOG_OBIEKTOW.map((ob, idx) => {
+              const [city, streetPart] = ob.address.split(', ');
+              return (
+                <tr key={ob.id} style={{ background: idx % 2 === 0 ? '#fff' : '#f8f8f8' }}>
+                  <td style={{ border: '1px solid #808080', padding: '4px' }}>Inne</td>
+                  <td style={{ border: '1px solid #808080', padding: '4px', fontWeight: 'bold' }}>{ob.name}</td>
+                  <td style={{ border: '1px solid #808080', padding: '4px' }}>{city}</td>
+                  <td style={{ border: '1px solid #808080', padding: '4px' }}>{streetPart}</td>
+                  <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center', color: '#155724', fontWeight: 'bold', background: '#d4edda' }}>TAK</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         <div style={{ marginTop: '10px', fontSize: '10px', color: '#555' }}>
@@ -6367,6 +6385,54 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
       )}
 
       {/* -------------------------------------------------------------
+          DIALOG MODAL: PRZEKAZYWANIE ZDARZEŃ (Rozdz. 8.9)
+          ------------------------------------------------------------- */}
+      {isTransferModalOpen && activeIncident && (
+        <div className="win-dialog-overlay" style={{ zIndex: 99999 }}>
+          <div className="win-dialog border-double-outset" style={{ width: '440px' }}>
+            <div className="win-dialog-header">
+              <span>Przekazywanie Zdarzenia (Transfer)</span>
+              <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsTransferModalOpen(false)}>X</button>
+            </div>
+            <div className="win-dialog-body">
+              <div style={{ fontSize: '10px', color: '#555', borderBottom: '1px solid #808080', paddingBottom: '4px', marginBottom: '10px' }}>
+                Wybierz jednostkę dyspozytorską (innego Gracza), której chcesz przekazać obsługę zdarzenia <strong>{activeIncident.customId}</strong>.
+                Zdarzenie zniknie z Twojego bufora i pojawi się w buforze docelowej jednostki. (Rozdz. 8.9)
+              </div>
+
+              <div style={{ maxHeight: '160px', overflowY: 'auto', background: '#ffffff', border: '1px solid #808080', padding: '4px' }}>
+                <div 
+                  style={{ padding: '4px 8px', borderBottom: '1px solid #e9ecef', cursor: 'pointer', fontSize: '11px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  onClick={() => handleTransferIncident('KM_Tychy')}
+                >
+                  <span><strong>KM PSP Tychy</strong></span>
+                  <span style={{ color: '#1864ab', fontWeight: 'bold' }}>Przekaż ➔</span>
+                </div>
+                <div 
+                  style={{ padding: '4px 8px', borderBottom: '1px solid #e9ecef', cursor: 'pointer', fontSize: '11px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  onClick={() => handleTransferIncident('KM_Sosnowiec')}
+                >
+                  <span><strong>KM PSP Sosnowiec</strong></span>
+                  <span style={{ color: '#1864ab', fontWeight: 'bold' }}>Przekaż ➔</span>
+                </div>
+                <div 
+                  style={{ padding: '4px 8px', borderBottom: '1px solid #e9ecef', cursor: 'pointer', fontSize: '11px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  onClick={() => handleTransferIncident('KW_PSP_Katowice')}
+                >
+                  <span><strong>KW PSP Katowice (Wojewódzkie)</strong></span>
+                  <span style={{ color: '#1864ab', fontWeight: 'bold' }}>Przekaż ➔</span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', borderTop: '1px solid var(--win-shadow)', paddingTop: '8px', marginTop: '10px' }}>
+                <button className="btn-win" onClick={() => setIsTransferModalOpen(false)}>❌ Anuluj</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* -------------------------------------------------------------
           DIALOG MODAL: WYDRUK KARTY ZDARZENIA (Chapter 8.11)
           ------------------------------------------------------------- */}
       {isPrintModalOpen && activeIncident && (
@@ -7581,6 +7647,18 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             }}
           >
             🔗 Scalanie i grupowanie zdarzeń
+          </div>
+          <div 
+            className="menu-item" 
+            style={{ padding: '4px 20px 4px 5px', cursor: 'pointer', color: contextMenu.incidentStatus === 'processed' ? '#808080' : '#000' }}
+            onClick={() => { 
+              if(contextMenu.incidentStatus !== 'processed') {
+                setIsTransferModalOpen(true);
+              }
+              setContextMenu(null); 
+            }}
+          >
+            📤 Przekaż Zdarzenie do innej jednostki
           </div>
           <div 
             className="menu-item" 
