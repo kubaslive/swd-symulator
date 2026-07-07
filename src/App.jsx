@@ -1033,7 +1033,6 @@ TREŚĆ ZGŁOSZENIA:
               createdAt: serverTimestamp()
             });
             logAction(`🚨 Gra: Wylosowano i wysłano nowe zgłoszenie alarmowe CPR!`);
-            setSystemIncomingCall(false);
           } catch(e) {
             console.error("Game generator error:", e);
           }
@@ -4480,10 +4479,10 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           <div style={{ border: '1px solid #808080', background: '#fff' }}>
             <div style={{ background: '#d4d0c8', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #808080' }}>Bramka SMS / Terminale MDT (Statusy)</div>
             <div style={{ padding: '5px', height: '150px', overflowY: 'auto', background: '#e8f0fe', color: '#000', fontFamily: 'monospace', fontSize: '10px' }}>
-              {actionLogs.filter(log => log.includes('Status') || log.includes('ST ') || log.includes('DSP') || log.includes('Syrena') || log.includes('SMS')).map((log, idx) => (
-                <div key={idx} style={{ padding: '2px 0', borderBottom: '1px solid #d4d0c8' }}>[{new Date().toLocaleDateString('pl-PL')} {systemTime.toLocaleTimeString('pl-PL')}] 📱 {log}</div>
+              {operationalLogs.filter(log => log.includes('Status') || log.includes('ST ') || log.includes('DSP') || log.includes('Syrena') || log.includes('SMS')).map((log, idx) => (
+                <div key={idx} style={{ padding: '2px 0', borderBottom: '1px solid #d4d0c8' }}>{log}</div>
               ))}
-              {actionLogs.filter(log => log.includes('Status') || log.includes('ST ') || log.includes('DSP') || log.includes('Syrena') || log.includes('SMS')).length === 0 && (
+              {operationalLogs.filter(log => log.includes('Status') || log.includes('ST ') || log.includes('DSP') || log.includes('Syrena') || log.includes('SMS')).length === 0 && (
                 <div style={{ color: '#555', fontStyle: 'italic' }}>Brak nowych komunikatów z terminali mobilnych.</div>
               )}
             </div>
