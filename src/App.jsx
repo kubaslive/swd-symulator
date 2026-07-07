@@ -273,11 +273,11 @@ function App() {
     { id: 'ob4', name: 'Kopalnia Wujek', address: 'Katowice, ul. Wincentego Pola 65', lat: 50.2450, lng: 18.9911 },
   ];
 
-  const tenantJrgUnits = (userProfile?.tenantUnits?.jrg || []).map(u => typeof u === 'string' ? u : u.name);
-  const tenantOspUnits = (userProfile?.tenantUnits?.osp || []).map(u => typeof u === 'string' ? u : u.name);
-  const ALL_UNITS = ["KM/KP PSP", ...tenantJrgUnits, ...tenantOspUnits];
-  const JRG_UNITS = tenantJrgUnits.length > 0 ? tenantJrgUnits : ["Brak zdefiniowanych JRG"];
-  const OSP_UNITS = tenantOspUnits.length > 0 ? tenantOspUnits : ["Brak zdefiniowanych OSP"];
+  const derivedJrgUnits = (userProfile?.tenantUnits?.jrg || []).map(u => typeof u === 'string' ? u : u.name);
+  const derivedOspUnits = (userProfile?.tenantUnits?.osp || []).map(u => typeof u === 'string' ? u : u.name);
+  const ALL_UNITS = ["KM/KP PSP", ...derivedJrgUnits, ...derivedOspUnits];
+  const JRG_UNITS = derivedJrgUnits.length > 0 ? derivedJrgUnits : ["Brak zdefiniowanych JRG"];
+  const OSP_UNITS = derivedOspUnits.length > 0 ? derivedOspUnits : ["Brak zdefiniowanych OSP"];
   const UNIT_VEHICLES = tenantVehicles;
   const MAP_BASES = tenantMapBases;
   const SIMULATED_HYDRANTS = tenantHydrants;
