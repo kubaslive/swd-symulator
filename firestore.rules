@@ -1,0 +1,63 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper to check if the user is logged in
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper to get the current user's profile from /users
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Helper to check if the user profile exists
+    function userProfileExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // Helper to check if the user has a specific role
+    function hasRole(role) {
+      return isAuthenticated() && 
+             userProfileExists() && 
+             getUserData().role == role;
+    }
+
+    // Rules for the users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && (request.auth.uid == userId || hasRole('admin'));
+      allow delete: if hasRole('admin');
+    }
+
+    // Rules for the metadata configuration and rosters
+    match /metadata/{docId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Rules for the incidents collection (Open read/write to all authenticated players for cooperative gameplay!)
+    match /incidents/{incidentId} {
+      allow read, create, update: if isAuthenticated();
+      allow delete: if hasRole('admin') || hasRole('pa_jrg') || hasRole('dyspozytor');
+    }
+
+    // Rules for the messages collection (Communicator-ST)
+    match /messages/{messageId} {
+      allow read, create, update: if isAuthenticated();
+      allow delete: if hasRole('admin');
+    }
+
+    // Rules for the calls collection (Emergency Calls CPR queue)
+    match /calls/{callId} {
+      allow read, create, update: if isAuthenticated();
+      allow delete: if hasRole('admin');
+    }
+    // Rules for the tenants collection (Multi-tenant config)
+    match /tenants/{tenantId} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}
