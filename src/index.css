@@ -561,7 +561,7 @@ input, textarea, select {
   outline: none;
 }
 
-.swd-row.selected {
+.swd-row.selected, .swd-row.selected:hover {
   background-color: #005fb8 !important;
   color: #ffffff !important;
 }
