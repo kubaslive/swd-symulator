@@ -1056,25 +1056,21 @@ TREŚĆ ZGŁOSZENIA:
 
             const customId = `${prefix}-${sequenceNumber}`;
 
-            await addDoc(collection(db, 'incidents'), {
+            await addDoc(collection(db, 'calls'), {
               tenantId: userProfile?.tenantId || 'Katowice',
-              customId: customId,
               type: type,
-              status: 'new',
+              category: type,
+              status: 'pending',
               location: location,
+              address: location,
               gminaStr: `Gmina m. ${city}`,
               miejscowoscStr: city,
-              obiektStr: '',
               description: transcript,
               callerName: callerName,
-              callerPhone: `+48 ${phone}`,
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-              isArchived: false,
-              vehicles: [],
-              vehicleStatuses: {}
+              phone: `+48 ${phone}`,
+              createdAt: serverTimestamp()
             });
-            logAction(`🚨 Gra: Automatycznie utworzono nową formatkę zdarzenia!`);
+            logAction(`🚨 Gra: Nowe połączenie 112 trafiło do bufora!`);
           } catch(e) {
             console.error("Game generator error:", e);
           }
@@ -3056,7 +3052,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                         animation: isCritical ? 'led-pulse-red 1s infinite alternate' : 'none',
                         border: isCritical ? '1px solid #d13438' : 'none'
                       }}>
-                        {isCritical ? '🚨 BRAK SIŁ!' : `GOTOWOŚĆ: ${readiness.pct}% (${vehicles.filter(v => getVehicleState(uName, v.name) === 'W koszarach').length} zast. w bazie)`}
+                        {isCritical ? '🚨 BRAK SIŁ!' : `${vehicles.filter(v => getVehicleState(uName, v.name) === 'W koszarach').length} zast. w bazie`}
                       </div>
                     )}
                     {/* Unit address (usunięto adresy JRG zgodnie z dyspozycją) */}
@@ -3203,95 +3199,94 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           )}
 
           {combatTab === 'OSP' && (
-            // OSP Mode (Rys.39 layout)
+            // OSP Mode - Gminas on left, ALL vehicles on right
             <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', height: '100%', background: '#f3f3f3' }}>
               <div className="border-inset" style={{ background: '#ffffff', overflowY: 'auto', padding: '4px', margin: '4px' }}>
-                <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#d1d1d1', borderBottom: '1px solid #f3f3f3', paddingBottom: '2px', marginBottom: '4px', textTransform: 'uppercase' }}>Jednostki OSP</div>
-                {OSP_UNITS.map(osp => {
-                  const isSelected = selectedOspSidebar === osp;
-                  return (
-                    <div 
-                      key={osp} 
-                      onClick={() => setSelectedOspSidebar(osp)}
-                      style={{ 
-                        padding: '3px 6px', 
-                        fontSize: '10.5px', 
-                        cursor: 'pointer', 
-                        backgroundColor: isSelected ? '#0a6ece' : 'transparent',
-                        color: isSelected ? '#ffffff' : '#000000',
-                        fontWeight: isSelected ? 'bold' : 'normal'
-                      }}
-                    >
-                      📁 {osp.replace("OSP ", "")}
-                    </div>
-                  );
-                })}
+                <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#000', borderBottom: '1px solid #d1d1d1', paddingBottom: '2px', marginBottom: '4px', textTransform: 'uppercase' }}>
+                  Gmina
+                </div>
+                <div 
+                  onClick={() => setSelectedOspSidebar('ALL')}
+                  style={{ 
+                    padding: '3px 6px', 
+                    fontSize: '10.5px', 
+                    cursor: 'pointer', 
+                    backgroundColor: selectedOspSidebar === 'ALL' || !OSP_UNITS.includes(selectedOspSidebar) ? '#0a6ece' : 'transparent',
+                    color: selectedOspSidebar === 'ALL' || !OSP_UNITS.includes(selectedOspSidebar) ? '#ffffff' : '#000000',
+                    fontWeight: selectedOspSidebar === 'ALL' || !OSP_UNITS.includes(selectedOspSidebar) ? 'bold' : 'normal'
+                  }}
+                >
+                  Gmina m. {tenantName}
+                </div>
               </div>
 
               <div className="border-inset" style={{ background: '#ffffff', overflowY: 'auto', padding: '6px', margin: '4px 4px 4px 0' }}>
-                <div style={{ fontSize: '9.5px', fontWeight: 'bold', color: '#000000', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', marginBottom: '6px' }}>
-                  TABLICA DYSPOZYCYJNA: OSP {selectedOspSidebar.replace("OSP ", "").toUpperCase()}
-                </div>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  {(UNIT_VEHICLES[selectedOspSidebar] || []).map(v => {
-                    const state = getVehicleState(selectedOspSidebar, v.name);
-                    const isCrossedOut = state === "Wycofany" || v.outOfService;
-
-                    return (
-                      <div 
-                        key={v.name}
-                        className={`border-outset ${selectedCombatVehicle === `${selectedOspSidebar} | ${v.name}` ? 'selected-combat' : ''}`}
-                        style={{ 
-                          padding: '6px', 
-                          cursor: 'pointer', 
-                          background: selectedCombatVehicle === `${selectedOspSidebar} | ${v.name}` ? '#0a246a' : (state === 'W akcji' ? '#ffe3e3' : '#fafafa'),
-                          color: selectedCombatVehicle === `${selectedOspSidebar} | ${v.name}` ? '#fff' : 'inherit',
-                          display: 'flex', 
-                          justifyContent: 'space-between', 
-                          alignItems: 'center' 
-                        }}
-                        onClick={() => {
-                          const vStr = `${selectedOspSidebar} | ${v.name}`;
-                          setSelectedCombatVehicle(vStr);
-                          if (isNewIncidentModalOpen) {
-                            handleVehicleCheckbox(vStr);
-                          } else if (selectedIncidentId && activeIncident && activeIncident.status !== 'processed') {
-                            addVehicleToActiveIncident(vStr);
-                          } else {
-                            // Default action
-                          }
-                        }}
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          const vStr = `${selectedOspSidebar} | ${v.name}`;
-                          setSelectedCombatVehicle(vStr);
-                          const activeInc = incidents.find(inc => inc.status !== 'processed' && !inc.isArchived && inc.vehicles?.includes(`${selectedOspSidebar} | ${v.name}`));
-                          setVehicleContextMenu({
-                            x: e.clientX,
-                            y: e.clientY,
-                            uName: selectedOspSidebar,
-                            vName: v.name,
-                            isOos: v.outOfService,
-                            activeIncId: activeInc?.id
-                          });
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {renderTable4StatusIcon(selectedOspSidebar, v.name)}
-                          <div>
-                            <strong style={{ fontSize: '11px', color: '#000000' }}>{v.name}</strong>
-                            <div style={{ fontSize: '8.5px', color: '#d1d1d1' }}>Status: {state}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  {OSP_UNITS.map(osp => {
+                    const vehicles = UNIT_VEHICLES[osp] || [];
+                    return vehicles.map(v => {
+                      const state = getVehicleState(osp, v.name);
+                      const isCrossedOut = state === "Wycofany" || v.outOfService;
+                      const isSelected = selectedCombatVehicle === `${osp} | ${v.name}`;
+                      
+                      return (
+                        <div 
+                          key={`${osp}-${v.name}`}
+                          className={`swd-row ${isSelected ? 'selected' : ''}`}
+                          style={{ 
+                            padding: '4px 6px', 
+                            cursor: 'pointer', 
+                            display: 'flex', 
+                            alignItems: 'center',
+                            fontSize: '11px',
+                            background: isSelected ? '' : (state === 'W akcji' ? '#ffe3e3' : 'transparent'),
+                            borderBottom: '1px solid #f3f3f3'
+                          }}
+                          onClick={() => {
+                            setSelectedOspSidebar(osp);
+                            setSelectedCombatVehicle(`${osp} | ${v.name}`);
+                          }}
+                          onDoubleClick={() => {
+                            setSelectedOspSidebar(osp);
+                            setSelectedCombatVehicle(`${osp} | ${v.name}`);
+                            if (selectedIncidentId && activeIncident && activeIncident.status !== 'processed') {
+                              addVehicleToActiveIncident(`${osp} | ${v.name}`);
+                            }
+                          }}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            setSelectedOspSidebar(osp);
+                            setSelectedCombatVehicle(`${osp} | ${v.name}`);
+                            const activeInc = incidents.find(inc => inc.status !== 'processed' && !inc.isArchived && inc.vehicles?.includes(`${osp} | ${v.name}`));
+                            setVehicleContextMenu({
+                              x: e.clientX,
+                              y: e.clientY,
+                              uName: osp,
+                              vName: v.name,
+                              isOos: v.outOfService,
+                              activeIncId: activeInc?.id
+                            });
+                          }}
+                        >
+                          <div style={{ marginRight: '6px', display: 'flex', alignItems: 'center' }}>
+                            {isCrossedOut ? (
+                              <span style={{ color: '#c00000', fontWeight: 'bold', fontSize: '12px' }}>✖</span>
+                            ) : (
+                              <span className="led-indicator green" style={{ width: '8px', height: '8px' }} />
+                            )}
                           </div>
+                          <span style={{ fontWeight: isSelected ? 'bold' : 'normal', color: isCrossedOut ? '#868e96' : 'inherit', textDecoration: isCrossedOut ? 'line-through' : 'none' }}>
+                            {osp} - {v.kryptonim ? `${v.kryptonim} (${v.name})` : v.name}
+                          </span>
                         </div>
-                        <span className="vehicle-obsada" style={{ fontSize: '10px' }}>{v.obsada} os.</span>
-                      </div>
-                    );
+                      );
+                    });
                   })}
                 </div>
               </div>
             </div>
           )}
+
 
           {combatTab === 'SPECIALIST' && (
             // Specialists Directory (Page 38)
@@ -5149,8 +5144,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             <span style={{ fontSize: '13px' }}>🚒</span>
             <span>SWD ST — {tenantName} ({userProfile?.displayName || userProfile?.email || '---'}) — [Rejestr wyjazdów]</span>
           </div>
-          <div style={{ color: '#00ff00', fontWeight: 'bold' }}>
-            [ ONLINE ] {systemTime.toLocaleTimeString('pl-PL')}
+          <div style={{ fontWeight: 'bold' }}>
+            {systemTime.toLocaleTimeString('pl-PL')}
           </div>
         </div>
         <div className="win-controls">
@@ -5984,7 +5979,6 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           <div className="transmission-panel border-inset" style={{ background: '#ffffff', color: '#000' }}>
             <div className="transmission-top">
               <span>Podgląd stanu TRANSMISJI</span>
-              <span style={{ color: '#2b8a3e', fontWeight: 'bold' }}>ONLINE</span>
             </div>
             <div className="transmission-controls" style={{ padding: '2px 0', display: 'flex', flexDirection: 'column', gap: '2px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9.5px', color: '#333' }}>

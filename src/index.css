@@ -566,9 +566,7 @@ input, textarea, select {
   color: #ffffff !important;
 }
 
-.swd-row.selected td,
-.swd-row.selected td span,
-.swd-row.selected td div {
+.swd-row.selected td {
   color: #ffffff !important;
 }
 
