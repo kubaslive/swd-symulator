@@ -3295,7 +3295,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             display: 'flex', 
                             alignItems: 'center',
                             fontSize: '11px',
-                            background: isSelected ? '' : (state === 'W akcji' ? '#ffe3e3' : 'transparent'),
+                            background: isSelected ? '#005fb8' : (state === 'W akcji' ? '#ffe3e3' : 'transparent'),
+                            color: isSelected ? '#ffffff' : '#000000',
                             borderBottom: '1px solid #f3f3f3'
                           }}
                           onClick={() => {
@@ -4849,7 +4850,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
           {/* Konwersacja */}
           <div style={{ flex: 1, border: '1px solid #d1d1d1', background: '#fff', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ background: '#f3f3f3', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>
+            <div style={{ background: '#f3f3f3', padding: '5px 10px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>
               Wiadomości do: {smsRecipient}
             </div>
             <div style={{ flex: 1, padding: '10px', overflowY: 'auto', background: '#f0f0f0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -5604,7 +5605,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                           key={incident.id} 
                           className={`swd-row ${isSelected ? 'selected' : ''} ${incident.isArchived ? 'archived' : ''} ${incident.type === 'bl' ? 'error-bl' : ''}`}
                           style={{ 
-                            backgroundColor: isSelected ? '' : rowBg,
+                            backgroundColor: isSelected ? '#005fb8' : rowBg,
                             color: isSelected ? '#ffffff' : 'inherit',
                             borderLeft: hasActiveVehicles && !isSelected ? '3px solid #d13438' : hasDispatchedVehicles && !isSelected ? '3px solid #f59f00' : ''
                           }}

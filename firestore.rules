@@ -53,7 +53,7 @@ service cloud.firestore {
     // Rules for the calls collection (Emergency Calls CPR queue)
     match /calls/{callId} {
       allow read, create, update: if isAuthenticated();
-      allow delete: if hasRole('admin');
+      allow delete: if isAuthenticated();
     }
     // Rules for the tenants collection (Multi-tenant config)
     match /tenants/{tenantId} {
