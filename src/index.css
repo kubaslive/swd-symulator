@@ -1,19 +1,24 @@
 @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@500;700&display=swap');
 
 :root {
-  --font-sans: Tahoma, Arial, sans-serif;
-  --font-mono: 'Roboto Mono', 'Courier New', monospace;
+  --font-sans: 'Segoe UI Variable', 'Segoe UI', 'Inter', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  --font-mono: 'Cascadia Code', 'Consolas', monospace;
   
-  /* Classic Windows XP Silver-Gray Theme — matching SWD-ST 2.5 */
-  --win-bg: #d4d0c8;
-  --win-face: #d4d0c8;
-  --win-shadow: #808080;
+  /* Windows 11 Fluent Design Light Theme */
+  --win-bg: #f3f3f3;
+  --win-face: rgba(255, 255, 255, 0.7); /* Mica effect base */
+  --win-face-solid: #ffffff;
+  --win-shadow: #e5e5e5;
   --win-hilight: #ffffff;
-  --win-dark-shadow: #404040;
-  --win-text: #000000;
-  --win-blue: #003c74;
-  --win-blue-title: linear-gradient(90deg, #003c74 0%, #1569b5 50%, #003c74 100%);
-  --win-blue-menubar: linear-gradient(90deg, #2278d7 0%, #558ed5 100%);
+  --win-dark-shadow: rgba(0, 0, 0, 0.1);
+  --win-text: #202020;
+  --win-blue: #005fb8; /* Windows 11 Blue */
+  --win-blue-title: transparent;
+  --win-blue-menubar: transparent;
+  --win-border-radius: 8px;
+  --win-btn-radius: 4px;
+  --win-shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --win-shadow-flyout: 0 8px 32px rgba(0, 0, 0, 0.15);
 }
 
 * {
@@ -24,12 +29,13 @@
 
 body {
   font-family: var(--font-sans);
-  background-color: #008080; /* Classic Windows Teal desktop */
+  background: var(--win-bg);
   color: var(--win-text);
   height: 100vh;
   overflow: hidden;
-  font-size: 11px;
-  -webkit-font-smoothing: none;
+  font-size: 12px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   user-select: none;
 }
 
@@ -41,71 +47,55 @@ input, textarea, select {
 .validation-list,
 .tab-content,
 .win-dialog-body {
-  user-select: text;
-}
-
-/* ===== CLASSIC WINDOWS 3D BORDERS ===== */
-.border-outset {
-  border-top: 1.5px solid var(--win-hilight);
-  border-left: 1.5px solid var(--win-hilight);
-  border-bottom: 1.5px solid var(--win-shadow);
-  border-right: 1.5px solid var(--win-shadow);
-  box-shadow: 0.8px 0.8px 0 var(--win-dark-shadow);
-  background-color: var(--win-face);
-}
-
-.border-inset {
-  border-top: 1.5px solid var(--win-shadow);
-  border-left: 1.5px solid var(--win-shadow);
-  border-bottom: 1.5px solid var(--win-hilight);
-  border-right: 1.5px solid var(--win-hilight);
-  box-shadow: inset 0.8px 0.8px 0 var(--win-dark-shadow);
+  padding: 16px;
   background-color: #ffffff;
-  color: #000000;
+  color: var(--win-text);
+  flex: 1;
+  overflow-y: auto;
 }
 
-.border-double-outset {
-  border-top: 2px solid var(--win-hilight);
-  border-left: 2px solid var(--win-hilight);
-  border-bottom: 2px solid var(--win-shadow);
-  border-right: 2px solid var(--win-shadow);
-  box-shadow: 1.5px 1.5px 0 var(--win-dark-shadow);
-  background-color: var(--win-face);
+/* ===== FLUENT DESIGN BORDERS ===== */
+.border-outset, .border-double-outset {
+  background: var(--win-face);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: var(--win-shadow-soft);
+  border-radius: var(--win-border-radius);
+  color: var(--win-text);
 }
 
-.border-double-inset {
-  border-top: 2px solid var(--win-shadow);
-  border-left: 2px solid var(--win-shadow);
-  border-bottom: 2px solid var(--win-hilight);
-  border-right: 2px solid var(--win-hilight);
-  box-shadow: inset 1.5px 1.5px 0 var(--win-dark-shadow);
-  background-color: #ffffff;
+.border-inset, .border-double-inset {
+  background-color: var(--win-face-solid);
+  border: 1px solid var(--win-shadow);
+  border-radius: var(--win-btn-radius);
+  color: var(--win-text);
 }
-
 /* ===== APP CONTAINER — Full window layout ===== */
 .app-container {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background-color: var(--win-bg);
-  border: 2px solid var(--win-shadow);
+  background-color: transparent;
   overflow: hidden;
 }
 
 /* ===== WINDOWS TITLE BAR ===== */
 .win-title-bar {
-  background: var(--win-blue-title);
-  color: #ffffff;
-  padding: 3px 6px;
-  font-weight: bold;
-  font-size: 11px;
+  background: transparent;
+  color: var(--win-text);
+  padding: 8px 12px;
+  font-weight: 600;
+  font-size: 13px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 6px;
   user-select: none;
-  height: 22px;
+  height: 32px;
   flex-shrink: 0;
+  border-top-left-radius: var(--win-border-radius);
+  border-top-right-radius: var(--win-border-radius);
 }
 
 .win-title-bar .title-text {
@@ -122,49 +112,54 @@ input, textarea, select {
 }
 
 .win-ctrl-btn {
-  width: 16px;
-  height: 14px;
-  background: var(--win-bg);
-  border-top: 1px solid var(--win-hilight);
-  border-left: 1px solid var(--win-hilight);
-  border-bottom: 1px solid var(--win-shadow);
-  border-right: 1px solid var(--win-shadow);
-  font-size: 8px;
+  width: 32px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  font-size: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #000;
-  font-weight: bold;
-  line-height: 1;
+  color: var(--win-text);
+  transition: background 0.1s;
+}
+.win-ctrl-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+.win-ctrl-btn:last-child:hover {
+  background: #e81123;
+  color: #fff;
 }
 
 /* ===== MENU BAR — Exact SWD-ST style ===== */
 .menu-bar {
-  background-color: var(--win-face);
+  background-color: transparent;
   border-bottom: 1px solid var(--win-shadow);
   display: flex;
   align-items: center;
-  padding: 1px 3px;
-  gap: 0;
+  padding: 4px 8px;
+  gap: 4px;
   user-select: none;
-  height: 20px;
+  height: 32px;
   flex-shrink: 0;
 }
 
 .menu-item {
-  padding: 2px 8px;
+  padding: 4px 12px;
   cursor: pointer;
-  color: #000000;
-  font-size: 11px;
+  color: var(--win-text);
+  font-size: 12px;
   font-weight: 400;
-  border: 1px solid transparent;
+  border-radius: var(--win-btn-radius);
+  transition: background 0.1s;
   white-space: nowrap;
 }
 
 .menu-item:hover {
-  background-color: #0a6ece;
-  color: #ffffff;
+  background-color: rgba(0, 0, 0, 0.05);
+  color: var(--win-text);
 }
 
 .menu-item-dropdown:hover {
@@ -173,59 +168,51 @@ input, textarea, select {
 }
 
 .menu-item.active {
-  background-color: #0a6ece;
-  color: #ffffff;
-  border: 1px inset transparent;
+  background-color: rgba(0, 0, 0, 0.08);
+  color: var(--win-text);
+  font-weight: 600;
 }
 
 .menu-separator {
   width: 1px;
-  height: 14px;
-  background-color: #808080;
-  border-right: 1px solid #ffffff;
+  height: 16px;
+  background-color: var(--win-shadow);
   margin: 0 4px;
 }
 
 /* ===== SWD TOOLBAR — Windows 2000 Silver-Gray ===== */
 .swd-toolbar {
-  background-color: var(--win-face);
-  border-bottom: 1.5px solid var(--win-shadow);
+  background-color: transparent;
+  border-bottom: 1px solid var(--win-shadow);
   display: flex;
   align-items: center;
-  gap: 3px;
-  padding: 3px 6px;
+  gap: 6px;
+  padding: 6px 10px;
   flex-shrink: 0;
   user-select: none;
 }
 
 .toolbar-btn {
-  background-color: var(--win-face);
+  background-color: transparent;
   border: 1px solid transparent;
-  border-radius: 2px;
+  border-radius: var(--win-btn-radius);
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
-  font-size: 10px;
-  color: #000;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  color: var(--win-text);
   cursor: pointer;
-  outline: none;
-  font-family: inherit;
+  transition: all 0.1s;
 }
 
 .toolbar-btn:hover:not(:disabled) {
-  border-top: 1px solid #ffffff;
-  border-left: 1px solid #ffffff;
-  border-right: 1px solid #808080;
-  border-bottom: 1px solid #808080;
+  background-color: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .toolbar-btn:active:not(:disabled) {
-  border-top: 1px solid #808080;
-  border-left: 1px solid #808080;
-  border-right: 1px solid #ffffff;
-  border-bottom: 1px solid #ffffff;
-  background-color: #e2dfda;
+  background-color: rgba(0, 0, 0, 0.08);
 }
 
 .toolbar-btn:disabled {
@@ -245,21 +232,20 @@ input, textarea, select {
 
 /* ===== TOOLBAR ===== */
 .action-toolbar {
-  background-color: var(--win-face);
-  border-bottom: 1.5px solid var(--win-shadow);
-  box-shadow: 0 1px 0 var(--win-hilight);
+  background-color: transparent;
+  border-bottom: 1px solid var(--win-shadow);
   display: flex;
   align-items: center;
-  padding: 2px 5px;
-  gap: 3px;
-  height: 26px;
+  padding: 4px 10px;
+  gap: 6px;
+  height: 36px;
   flex-shrink: 0;
 }
 
 /* ===== MAIN DASHBOARD GRID ===== */
 .dashboard-grid {
   display: grid;
-  grid-template-rows: 50% 50%;
+  grid-template-rows: auto 1fr;
   flex: 1;
   overflow: hidden;
 }
@@ -269,19 +255,18 @@ input, textarea, select {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background-color: var(--win-face);
-  border-bottom: 1.5px solid var(--win-shadow);
+  background-color: transparent;
   max-height: 250px;
 }
 
 .combat-board-header {
-  background: var(--win-face);
+  background: transparent;
   border-bottom: 1px solid var(--win-shadow);
-  padding: 1px 4px;
+  padding: 4px 8px;
   display: flex;
   align-items: center;
-  gap: 3px;
-  height: 18px;
+  gap: 6px;
+  height: 28px;
   flex-shrink: 0;
 }
 
@@ -290,9 +275,9 @@ input, textarea, select {
   flex: 1;
   overflow-x: hidden;
   overflow-y: hidden;
-  background-color: #d4d0c8;
-  padding: 3px;
-  gap: 3px;
+  background-color: transparent;
+  padding: 4px;
+  gap: 8px;
 }
 
 .combat-column {
@@ -301,22 +286,20 @@ input, textarea, select {
   flex: 1;
   overflow-y: auto;
   min-width: 0;
-  border-top: 1.5px solid var(--win-shadow);
-  border-left: 1.5px solid var(--win-shadow);
-  border-bottom: 1.5px solid var(--win-hilight);
-  border-right: 1.5px solid var(--win-hilight);
-  background-color: #ffffff;
-  color: #000000;
+  border: 1px solid var(--win-shadow);
+  border-radius: var(--win-border-radius);
+  background-color: var(--win-face-solid);
+  color: var(--win-text);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
 .combat-column-title {
-  font-size: 9.5px;
-  font-weight: bold;
-  color: #000000;
-  padding: 2px 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--win-text);
+  padding: 6px 10px;
   border-bottom: 1px solid var(--win-shadow);
-  background-color: #d4d0c8;
-  text-transform: uppercase;
+  background-color: #f9f9f9;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -326,14 +309,15 @@ input, textarea, select {
 .vehicle-row {
   display: flex;
   align-items: center;
-  padding: 1px 4px 1px 16px;
+  padding: 4px 8px 4px 16px;
   cursor: pointer;
   user-select: none;
-  font-size: 10.5px;
-  color: #000000;
-  gap: 4px;
-  min-height: 17px;
+  font-size: 11px;
+  color: var(--win-text);
+  gap: 6px;
+  min-height: 24px;
   position: relative;
+  transition: background 0.1s;
 }
 
 .vehicle-row::before {
@@ -362,17 +346,26 @@ input, textarea, select {
 }
 
 .vehicle-row:hover {
-  background-color: #0a6ece;
-  color: #ffffff !important;
+  background-color: rgba(0, 0, 0, 0.04);
+  color: var(--win-text) !important;
 }
 
 .vehicle-row:hover .vehicle-name {
-  color: #ffffff;
+  color: var(--win-text);
 }
 
 .vehicle-row:hover .vehicle-obsada {
-  background-color: #ffffff;
-  color: #000000;
+  font-family: var(--font-mono);
+  background-color: #f0f0f0;
+  border: 1px solid #d1d1d1;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 10px;
+  color: var(--win-text);
+  font-weight: 600;
+  flex-shrink: 0;
+  min-width: 20px;
+  text-align: center;
 }
 
 .vehicle-info {
@@ -468,55 +461,47 @@ input, textarea, select {
 /* ===== TABS (Zakładki) ===== */
 .tab-header {
   display: flex;
-  background-color: var(--win-face);
-  padding: 0 3px;
-  border-bottom: 1.5px solid var(--win-shadow);
-  gap: 0;
+  background-color: transparent;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--win-shadow);
+  gap: 8px;
   flex-shrink: 0;
-  height: 21px;
+  height: 32px;
   align-items: flex-end;
 }
 
 .tab-btn {
-  padding: 2px 9px;
-  background-color: var(--win-face);
-  border-top: 1.5px solid var(--win-hilight);
-  border-left: 1.5px solid var(--win-hilight);
-  border-bottom: none;
-  border-right: 1.5px solid var(--win-shadow);
-  color: #000000;
-  font-size: 10.5px;
-  font-family: var(--font-sans);
-  font-weight: 500;
+  padding: 6px 12px;
+  background-color: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--win-text);
+  font-size: 12px;
+  font-weight: 400;
   cursor: pointer;
-  margin-bottom: -1px;
-  position: relative;
-  white-space: nowrap;
+  margin-bottom: 0;
+  transition: all 0.1s;
 }
 
 .tab-btn:hover {
-  background-color: #e4e0d8;
+  background-color: rgba(0, 0, 0, 0.03);
 }
 
 .tab-btn.active {
-  background-color: #ffffff;
-  border-top: 1.5px solid var(--win-shadow);
-  border-left: 1.5px solid var(--win-shadow);
-  border-bottom: 1.5px solid #ffffff;
-  border-right: 1.5px solid var(--win-hilight);
-  font-weight: bold;
-  z-index: 1;
-  color: #000000;
+  background-color: transparent;
+  border-bottom: 3px solid var(--win-blue);
+  font-weight: 600;
+  color: var(--win-blue);
 }
 
 /* ===== MIDDLE SPLIT SECTION ===== */
 .middle-split-section {
   display: grid;
   grid-template-columns: 1fr 310px;
-  gap: 3px;
-  padding: 3px;
+  gap: 8px;
+  padding: 8px;
   overflow: hidden;
-  background-color: var(--win-face);
+  background-color: var(--win-face-solid);
   flex: 1;
 }
 
@@ -541,45 +526,43 @@ input, textarea, select {
 /* ===== SWD TABLE ===== */
 .swd-table {
   width: 100%;
-  border-collapse: collapse;
-  font-size: 10.5px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 11.5px;
   text-align: left;
-  background-color: #ffffff;
-  color: #000000;
+  background-color: var(--win-face-solid);
+  color: var(--win-text);
 }
 
 .swd-table th {
-  background-color: #d4d0c8;
-  color: #000000;
-  font-weight: bold;
-  padding: 2px 5px;
-  border-top: 1px solid var(--win-hilight);
-  border-left: 1px solid var(--win-hilight);
-  border-bottom: 1.5px solid var(--win-shadow);
-  border-right: 1.5px solid var(--win-shadow);
+  background-color: #f9f9f9;
+  color: #555;
+  font-weight: 600;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--win-shadow);
   position: sticky;
   top: 0;
   z-index: 10;
-  font-size: 10px;
+  font-size: 11px;
   white-space: nowrap;
 }
 
 .swd-table td {
-  padding: 2px 5px;
-  border-right: 1px solid #d4d0c8;
+  padding: 6px 10px;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .swd-row {
-  border-bottom: 1px solid #d4d0c8;
+  transition: background 0.1s;
 }
 
 .swd-row:hover {
-  outline: 1px dotted #000080;
-  outline-offset: -1px;
+  background-color: rgba(0, 95, 184, 0.04);
+  outline: none;
 }
 
 .swd-row.selected {
-  background-color: #000080 !important;
+  background-color: #005fb8 !important;
   color: #ffffff !important;
 }
 
@@ -620,50 +603,41 @@ input, textarea, select {
   flex-direction: column;
   overflow: hidden;
   height: 100%;
-  border-top: 1.5px solid var(--win-shadow);
-  border-left: 1.5px solid var(--win-shadow);
-  border-bottom: 1.5px solid var(--win-hilight);
-  border-right: 1.5px solid var(--win-hilight);
-  box-shadow: inset 0.8px 0.8px 0 var(--win-dark-shadow);
-  background-color: #ffffff;
+  border: 1px solid var(--win-shadow);
+  border-radius: var(--win-border-radius);
+  background-color: var(--win-face-solid);
 }
 
 .forces-title {
-  background-color: #d4d0c8;
-  font-weight: bold;
-  padding: 3px 6px;
-  border-bottom: 1.5px solid var(--win-shadow);
-  color: #000000;
-  font-size: 10px;
-  text-transform: uppercase;
+  background-color: #f9f9f9;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--win-shadow);
+  color: var(--win-text);
+  font-size: 11px;
   flex-shrink: 0;
 }
 
 /* ===== BOTTOM STATUS BAR (Dolny pasek statusu SWD-ST) ===== */
 .status-bar {
-  background-color: var(--win-face);
-  border-top: 1.5px solid var(--win-shadow);
+  background-color: var(--win-face-solid);
+  border-top: 1px solid var(--win-shadow);
   display: flex;
   align-items: center;
-  padding: 1px 4px;
-  gap: 0;
-  height: 20px;
+  padding: 4px 8px;
+  gap: 8px;
+  height: 28px;
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .status-bar-cell {
-  padding: 1px 6px;
-  border-top: 1px solid var(--win-shadow);
-  border-left: 1px solid var(--win-shadow);
-  border-bottom: 1px solid var(--win-hilight);
-  border-right: 1px solid var(--win-hilight);
+  padding: 2px 8px;
+  border: 1px solid transparent;
   white-space: nowrap;
-  font-size: 10px;
-  height: 16px;
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 6px;
 }
 
 .status-bar-cell.flex-1 {
@@ -746,39 +720,35 @@ input, textarea, select {
   margin-top: 3px;
 }
 
-/* ===== DIGITAL CRT CLOCK ===== */
+/* ===== DIGITAL CLOCK ===== */
 .tactical-clock-container {
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding: 3px 8px;
-  background-color: #000000 !important;
-  border-top: 1.5px solid var(--win-shadow);
-  border-left: 1.5px solid var(--win-shadow);
-  border-bottom: 1.5px solid var(--win-hilight);
-  border-right: 1.5px solid var(--win-hilight);
-  box-shadow: inset 0.8px 0.8px 0 var(--win-dark-shadow);
+  padding: 8px 16px;
+  background-color: var(--win-face-solid);
+  border: 1px solid var(--win-shadow);
+  border-radius: var(--win-border-radius);
+  box-shadow: var(--win-shadow-soft);
 }
 
 .tactical-clock {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 2.0rem;
-  font-weight: bold;
-  color: #00ff00;
-  text-shadow: 0 0 8px rgba(0, 255, 0, 0.8);
+  font-weight: 300;
+  color: var(--win-text);
   letter-spacing: 0.05em;
   line-height: 1;
 }
 
 .tactical-date {
-  font-size: 8.5px;
-  color: #00cc00;
-  font-weight: bold;
+  font-size: 11px;
+  color: #555;
+  font-weight: normal;
   text-transform: uppercase;
   margin-top: 2px;
   letter-spacing: 0.04em;
-  text-shadow: 0 0 4px rgba(0, 255, 0, 0.4);
 }
 
 /* ===== MAP CONTAINER ===== */
@@ -823,51 +793,26 @@ input, textarea, select {
   box-shadow: inset 0.8px 0.8px 0 var(--win-dark-shadow);
 }
 
-/* ===== BUTTONS ===== */
+/* ===== BUTTONS (WIN11 STYLE) ===== */
 .btn-win {
-  padding: 2px 10px;
-  background-color: #d4d0c8;
-  color: #000000;
+  background: var(--win-face-solid);
+  border: 1px solid var(--win-shadow);
+  border-radius: var(--win-btn-radius);
+  padding: 6px 12px;
+  font-size: 12px;
   font-family: var(--font-sans);
-  font-size: 11px;
+  color: var(--win-text);
   cursor: pointer;
-  outline: none;
-  user-select: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  border-top: 1.5px solid var(--win-hilight);
-  border-left: 1.5px solid var(--win-hilight);
-  border-bottom: 1.5px solid var(--win-shadow);
-  border-right: 1.5px solid var(--win-shadow);
-  box-shadow: 0.8px 0.8px 0 var(--win-dark-shadow);
-  border-radius: 0;
-  transition: none;
-  white-space: nowrap;
-}
-
-.btn-win:hover:not(:disabled) {
-  background-color: #e4e0d8;
-}
-
-.btn-win:active:not(:disabled) {
-  border-top: 1.5px solid var(--win-shadow);
-  border-left: 1.5px solid var(--win-shadow);
-  border-bottom: 1.5px solid var(--win-hilight);
-  border-right: 1.5px solid var(--win-hilight);
+  border-color: #c5c5c5;
   box-shadow: none;
-  padding: 3px 9px 1px 11px;
 }
 
 .btn-win:disabled {
-  color: #808080;
-  border-top: 1px solid var(--win-hilight);
-  border-left: 1px solid var(--win-hilight);
-  border-bottom: 1px solid var(--win-shadow);
-  border-right: 1px solid var(--win-shadow);
-  box-shadow: none;
+  background-color: #f9f9f9;
+  border-color: #e5e5e5;
+  color: #a0a0a0;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 /* ===== MODAL DIALOGS ===== */
@@ -885,29 +830,25 @@ input, textarea, select {
 }
 
 .win-dialog {
-  width: 520px;
+  background-color: var(--win-face-solid);
+  box-shadow: var(--win-shadow-flyout);
+  border: 1px solid var(--win-shadow);
+  border-radius: var(--win-border-radius);
   display: flex;
   flex-direction: column;
-  background-color: var(--win-face);
-  border-top: 2px solid var(--win-hilight);
-  border-left: 2px solid var(--win-hilight);
-  border-bottom: 2px solid var(--win-shadow);
-  border-right: 2px solid var(--win-shadow);
-  box-shadow: 2px 2px 0 var(--win-dark-shadow), 4px 4px 12px rgba(0,0,0,0.4);
-  border-radius: 0;
+  overflow: hidden;
 }
 
 .win-dialog-header {
-  background: var(--win-blue-title);
-  color: #ffffff;
-  padding: 3px 6px;
-  font-weight: bold;
+  background: transparent;
+  color: var(--win-text);
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 14px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  user-select: none;
-  font-size: 11px;
-  height: 22px;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--win-shadow);
 }
 
 .win-dialog-body {
@@ -934,25 +875,20 @@ input, textarea, select {
 }
 
 .input-field {
-  width: 100%;
-  padding: 2px 5px;
-  font-family: var(--font-sans);
-  font-size: 11px;
-  color: #000000;
   background-color: #ffffff;
-  outline: none;
-  border-top: 1.5px solid var(--win-shadow);
-  border-left: 1.5px solid var(--win-shadow);
-  border-bottom: 1.5px solid var(--win-hilight);
-  border-right: 1.5px solid var(--win-hilight);
-  box-shadow: inset 0.8px 0.8px 0 var(--win-dark-shadow);
-  border-radius: 0;
-  height: 22px;
+  border: 1px solid #d1d1d1;
+  border-radius: var(--win-btn-radius);
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--win-text);
+  font-family: inherit;
+  transition: border-color 0.1s;
 }
 
 .input-field:focus {
-  outline: 1px dotted #000000;
-  outline-offset: -2px;
+  outline: none;
+  border-color: var(--win-blue);
+  box-shadow: 0 0 0 1px var(--win-blue);
 }
 
 .textarea-field {
@@ -970,7 +906,7 @@ input, textarea, select {
   border-bottom: 1.5px solid var(--win-hilight);
   border-right: 1.5px solid var(--win-hilight);
   box-shadow: inset 0.8px 0.8px 0 var(--win-dark-shadow);
-  border-radius: 0;
+  border-radius: var(--win-border-radius);
 }
 
 .input-label {
@@ -987,7 +923,7 @@ input, textarea, select {
   padding: 1px 4px;
   border: 1px solid #808080;
   font-size: 9px;
-  border-radius: 0;
+  border-radius: var(--win-border-radius);
   font-family: var(--font-mono);
 }
 

@@ -214,11 +214,16 @@ const getCoordinatesForLocation = (locStr) => {
 };
 
 
-const getJrgPrefix = (jrgUnit) => {
-  if (jrgUnit && jrgUnit.includes('JRG nr 1')) return '301-';
-  if (jrgUnit && jrgUnit.includes('JRG nr 2')) return '302-';
-  if (jrgUnit && jrgUnit.includes('JRG nr 3')) return '303-';
-  return '300-';
+const getJrgPrefix = (jrgUnit, cityStr) => {
+  if (cityStr && cityStr.toLowerCase().includes('zabrze')) return '123001';
+  if (cityStr && cityStr.toLowerCase().includes('będzin')) return '113101';
+  if (cityStr && cityStr.toLowerCase().includes('czeladź')) return '113101';
+  if (cityStr && cityStr.toLowerCase().includes('wojkowice')) return '113101';
+  
+  if (jrgUnit && jrgUnit.includes('JRG nr 1')) return '1201001';
+  if (jrgUnit && jrgUnit.includes('JRG nr 2')) return '1201002';
+  if (jrgUnit && jrgUnit.includes('JRG nr 3')) return '1201003';
+  return '1201001'; // Default Katowice JRG 1
 };
 
 const getFriendlyErrorMessage = (code) => {
@@ -293,11 +298,9 @@ function App() {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const derivedJrgUnits = (userProfile?.tenantUnits?.jrg || []).map(u => typeof u === 'string' ? u : u.name);
-  const derivedOspUnits = (userProfile?.tenantUnits?.osp || []).map(u => typeof u === 'string' ? u : u.name);
-  const ALL_UNITS = ["KM/KP PSP", ...derivedJrgUnits, ...derivedOspUnits];
-  const JRG_UNITS = derivedJrgUnits.length > 0 ? derivedJrgUnits : ["Brak zdefiniowanych JRG"];
-  const OSP_UNITS = derivedOspUnits.length > 0 ? derivedOspUnits : ["Brak zdefiniowanych OSP"];
+  const JRG_UNITS = tenantJrgUnits.length > 0 ? tenantJrgUnits : ["Brak zdefiniowanych JRG"];
+  const OSP_UNITS = tenantOspUnits.length > 0 ? tenantOspUnits : ["Brak zdefiniowanych OSP"];
+  const ALL_UNITS = ["KM/KP PSP", ...tenantJrgUnits, ...tenantOspUnits];
   const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -321,14 +324,38 @@ function App() {
   // Multiplayer Game states
   const [activeRole, setActiveRole] = useState('dyspozytor'); // 'dyspozytor' | 'kdr_osp' | 'dowodca_jrg' | 'pozorant'
   const [isSystemAudioEnabled, setIsSystemAudioEnabled] = useState(true);
+  
+  // Formatka Audio Looping Logic
+  useEffect(() => {
+    if (!window._formatkaAudio) {
+      window._formatkaAudio = new Audio('./be214c58-56b2-4e69-be31-db5bb28d06b9.wav');
+      window._formatkaAudio.loop = true;
+    }
+    
+    const hasNewIncident = (incidents || []).some(inc => inc.status === 'new' && inc.tenantId === userProfile?.tenantId);
+    
+    if (hasNewIncident && isSystemAudioEnabled) {
+      if (window._formatkaAudio.paused) {
+        window._formatkaAudio.play().catch(e => console.error("Audio play failed:", e));
+      }
+    } else {
+      if (!window._formatkaAudio.paused) {
+        window._formatkaAudio.pause();
+        window._formatkaAudio.currentTime = 0;
+      }
+    }
+  }, [incidents, isSystemAudioEnabled, userProfile]);
   const [incomingCalls, setIncomingCalls] = useState([]);
   const [selectedWcprCall, setSelectedWcprCall] = useState(null);
   const [wcprModalOpen, setWcprModalOpen] = useState(false);
   const [activeCallToAnswer, setActiveCallToAnswer] = useState(null);
   const [battleAlarmModalOpen, setBattleAlarmModalOpen] = useState(false);
+  const [selectedSisVehicle, setSelectedSisVehicle] = useState(null);
+  const [selectedCombatVehicle, setSelectedCombatVehicle] = useState(null);
   const [battleAlarmIncident, setBattleAlarmIncident] = useState(null);
   const [isGameModeActive, setIsGameModeActive] = useState(() => localStorage.getItem('swd_game_mode_active') === 'true');
   const [gameScore, setGameScore] = useState(() => parseInt(localStorage.getItem('swd_game_score') || '0', 10));
+  const [gameModeCities, setGameModeCities] = useState(() => localStorage.getItem('swd_game_cities') || '');
   const [lastGameIncidentTime, setLastGameIncidentTime] = useState(0);
 
   // Simulated caller form states (Pozorant screen)
@@ -399,6 +426,7 @@ function App() {
   const [isNewIncidentModalOpen, setIsNewIncidentModalOpen] = useState(false);
   const [incidentModalTab, setIncidentModalTab] = useState('zgloszenie');
   const [isEwidReportModalOpen, setIsEwidReportModalOpen] = useState(false);
+  const [isVehiclesModalOpen, setIsVehiclesModalOpen] = useState(false);
 
   // ODO Calculator State
   const [odoEntries, setOdoEntries] = useState([]);
@@ -503,20 +531,11 @@ function App() {
 
   // Weather alerts meteo feed
   const [meteoAlertText, setMeteoAlertText] = useState('OSTRZEŻENIE METEO STOPNIA 2: Prognozowane burze z gradem oraz porywy wiatru do 90 km/h w Katowicach od godz. 16:00.');
-  const [isMeteoAlertActive, setIsMeteoAlertActive] = useState(true);
+  const [isMeteoAlertActive, setIsMeteoAlertActive] = useState(false);
 
   // Sounding OSP alarm waves simulator list
   const [activeSirens, setActiveSirens] = useState([]);
 
-  // Radio Logs
-  const [radioTime, setRadioTime] = useState('');
-  const [radioFrom, setRadioFrom] = useState('');
-  const [radioTo, setRadioTo] = useState('');
-  const [radioMessage, setRadioMessage] = useState('');
-  const [radioChannel, setRadioChannel] = useState('K01 - Kanał Powiatowy');
-
-  // Toggle tab for bottom details logs
-  const [bottomLogTab, setBottomLogTab] = useState('radio');
 
   // Admin lock bypass
   const [isAdminUnlockBypass, setIsAdminUnlockBypass] = useState(false);
@@ -672,15 +691,16 @@ function App() {
     if (!userProfile) return;
     const incidentsRef = collection(db, 'incidents');
     let q;
+    const activeTenantId = userProfile.tenantId || 'Katowice';
 
     if (userProfile?.role === 'admin') {
-      q = query(incidentsRef, where('tenantId', '==', userProfile.tenantId)); // WSKR filters by selected tenant
+      q = query(incidentsRef, where('tenantId', '==', activeTenantId)); 
     } else if (userProfile?.role === 'kdr_osp' && userProfile?.ospUnit) {
-      q = query(incidentsRef, where('tenantId', '==', userProfile.tenantId), where('ospUnit', '==', userProfile.ospUnit));
+      q = query(incidentsRef, where('tenantId', '==', activeTenantId), where('ospUnit', '==', userProfile.ospUnit));
     } else if (userProfile?.role === 'pa_jrg' && userProfile?.jrgUnit) {
-      q = query(incidentsRef, where('tenantId', '==', userProfile.tenantId), where('targetJrg', '==', userProfile.jrgUnit));
+      q = query(incidentsRef, where('tenantId', '==', activeTenantId), where('targetJrg', '==', userProfile.jrgUnit));
     } else {
-      q = query(incidentsRef, where('tenantId', '==', userProfile.tenantId));
+      q = query(incidentsRef, where('tenantId', '==', activeTenantId));
     }
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -924,7 +944,7 @@ function App() {
     });
 
     // 2. Game scenario auto generator (triggers at random interval: 120s to 240s)
-    if (isGameModeActive && userProfile?.role !== 'admin' && incomingCalls.length < 2) {
+    if (isGameModeActive) {
       const now = Date.now();
       const currentInterval = window._nextGameIncidentInterval || 120000;
       
@@ -941,11 +961,14 @@ function App() {
         
         const randomElement = (arr) => arr[Math.floor(Math.random() * arr.length)];
         
+        const parsedCities = gameModeCities.split(',').map(s => s.trim()).filter(s => s.length > 0);
+        const city = parsedCities.length > 0 ? randomElement(parsedCities) : tenantName;
+
         const callerName = `${randomElement(firstNames)} ${randomElement(lastNames)}`;
         const phone = `${Math.floor(500 + Math.random() * 200)}-${Math.floor(100 + Math.random() * 800)}-${Math.floor(100 + Math.random() * 800)}`;
         const street = randomElement(streets);
         const houseNum = Math.floor(Math.random() * 120) + 1;
-        const location = `${tenantName}, ul. ${street} ${houseNum}`;
+        const location = `${city}, ul. ${street} ${houseNum}`;
         
         const types = ["pozar", "mz", "af", "pozar", "mz", "mz"]; // Weighted towards MZ and Pozar
         const type = randomElement(types);
@@ -1020,30 +1043,47 @@ TREŚĆ ZGŁOSZENIA:
 - Przekazano do dyspozytorni za pomocą formatu XML.
 =========================================`;
         
-        // Add Call to WCPR CPR Queue (collection 'calls')
-        const addCall = async () => {
+        // Create Incident Directly
+        const addIncidentDirectly = async () => {
           try {
-            await addDoc(collection(db, 'calls'), {
-              tenantId: userProfile?.tenantId || '',
-              callerName: callerName,
-              phone: phone,
-              location: location,
+            const currentYear = new Date().getFullYear();
+            const sequenceNumber = String((incidents?.length || 0) + 4801).padStart(4, '0');
+            
+            // Random JRG for generator
+            const jrgs = ['JRG nr 1', 'JRG nr 2', 'JRG nr 3'];
+            const randomJrg = jrgs[Math.floor(Math.random() * jrgs.length)];
+            const prefix = getJrgPrefix(randomJrg, city);
+
+            const customId = `${prefix}-${sequenceNumber}`;
+
+            await addDoc(collection(db, 'incidents'), {
+              tenantId: userProfile?.tenantId || 'Katowice',
+              customId: customId,
               type: type,
-              description: text,
-              transcript: transcript,
-              status: 'pending',
-              createdAt: serverTimestamp()
+              status: 'new',
+              location: location,
+              gminaStr: `Gmina m. ${city}`,
+              miejscowoscStr: city,
+              obiektStr: '',
+              description: transcript,
+              callerName: callerName,
+              callerPhone: `+48 ${phone}`,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+              isArchived: false,
+              vehicles: [],
+              vehicleStatuses: {}
             });
-            logAction(`🚨 Gra: Wylosowano i wysłano nowe zgłoszenie alarmowe CPR!`);
+            logAction(`🚨 Gra: Automatycznie utworzono nową formatkę zdarzenia!`);
           } catch(e) {
             console.error("Game generator error:", e);
           }
         };
-        addCall();
+        addIncidentDirectly();
       }
     }
 
-  }, [animationTick, activeRole, incidents, isGameModeActive, incomingCalls, lastGameIncidentTime]);
+  }, [animationTick, activeRole, incidents, isGameModeActive, incomingCalls, lastGameIncidentTime, gameModeCities]);
 
   // Listen to messenger live chat collection with popup notifications (Chapter 10)
   useEffect(() => {
@@ -1552,11 +1592,12 @@ TREŚĆ ZGŁOSZENIA:
     }
 
     const currentYear = new Date().getFullYear();
-    const twoDigitYear = String(currentYear).slice(-2);
-    const sequenceNumber = String(incidents.length + 4801).padStart(5, '0');
-    const customId = `KA/${sequenceNumber}/${twoDigitYear}`;
+    const sequenceNumber = String(incidents.length + 4801).padStart(4, '0');
+    
+    // Używamy miasta jako wskaźnika tenant'a jeśli jest potrzebny, na tę chwilę bierzemy "Katowice"
+    const prefix = getJrgPrefix(targetJrg, 'Katowice');
+    const customId = `${prefix}-${sequenceNumber}`;
 
-    const prefix = getJrgPrefix(targetJrg);
     const servicesList = notifiedServices.join(', ');
 
     // SWD-ST 2.5: 'bl' (Błąd) and 'af' (Alarm fałszywy) auto-fill completion time
@@ -2366,49 +2407,6 @@ TREŚĆ ZGŁOSZENIA:
   };
 
   // Radio logs quick template autofill
-  const quickFillRadio = (from, to, text) => {
-    setRadioTime(new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }));
-    setRadioFrom(from);
-    setRadioTo(to);
-    setRadioMessage(text);
-  };
-
-  // Incident Radio log submit (Karta Manipulacyjna log)
-  const handleAddRadioLog = async (e) => {
-    e.preventDefault();
-    if (!activeIncident) return;
-    if (!radioTime || !radioFrom.trim() || !radioTo.trim() || !radioMessage.trim()) return;
-
-    const newLog = {
-      time: radioTime,
-      from: radioFrom.trim(),
-      to: radioTo.trim(),
-      text: radioMessage.trim(),
-      channel: radioChannel,
-      createdAt: new Date().toISOString()
-    };
-
-    const updatedLogs = [
-      ...(activeIncident.radioLogs || []),
-      newLog
-    ];
-
-    try {
-      await updateDoc(doc(db, 'incidents', activeIncident.id), {
-        radioLogs: updatedLogs,
-        updatedAt: serverTimestamp()
-      });
-      logIncidentHistory(activeIncident.id, `Dodano wpis w logu radiowym: [${radioTime}] ${radioFrom} -> ${radioTo}`);
-      logAction(`Dziennik radiowy -> dodano wpis [${radioTime}] od ${radioFrom}`);
-      setRadioTime('');
-      setRadioFrom('');
-      setRadioTo('');
-      setRadioMessage('');
-    } catch (err) {
-      console.error("Error adding radio log:", err);
-      alert("Błąd zapisu korespondencji radiowej.");
-    }
-  };
 
   // Messenger send chat messages with priority and target recipients (Chapter 10)
   const handleSendMessage = async (e) => {
@@ -2565,7 +2563,7 @@ TREŚĆ ZGŁOSZENIA:
 
   const getEwidWorkflowBadge = (inc) => {
     if (!inc.reportNumber) {
-      return <span style={{ color: '#808080', fontSize: '9px', fontWeight: 'normal' }}>brak meldunku</span>;
+      return <span style={{ color: '#d1d1d1', fontSize: '9px', fontWeight: 'normal' }}>brak meldunku</span>;
     }
     const isPartial = inc.times?.isPartialReport !== false;
     const workflow = inc.times?.reportWorkflowState || '1';
@@ -3034,7 +3032,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 return (
                   <div key={uName} className="combat-column" style={{ background: '#ffffff' }}>
                     {/* Column Header with unit name and free-squad counter */}
-                    <div className="combat-column-title" style={{ background: '#d4d0c8' }}>
+                    <div className="combat-column-title" style={{ background: '#f3f3f3' }}>
                       <span title={uName}>
                         {uName.includes('JRG nr 1') ? 'JRG 1' :
                          uName.includes('JRG nr 2') ? 'JRG 2' :
@@ -3056,13 +3054,13 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                         textAlign: 'center', 
                         marginBottom: '4px',
                         animation: isCritical ? 'led-pulse-red 1s infinite alternate' : 'none',
-                        border: isCritical ? '1px solid #c92a2a' : 'none'
+                        border: isCritical ? '1px solid #d13438' : 'none'
                       }}>
                         {isCritical ? '🚨 BRAK SIŁ!' : `GOTOWOŚĆ: ${readiness.pct}% (${vehicles.filter(v => getVehicleState(uName, v.name) === 'W koszarach').length} zast. w bazie)`}
                       </div>
                     )}
                     {/* Unit address (usunięto adresy JRG zgodnie z dyspozycją) */}
-                    <div style={{ fontSize: '7.5px', color: '#808080', padding: '1px 5px', borderBottom: '1px solid #d4d0c8' }}>
+                    <div style={{ fontSize: '7.5px', color: '#d1d1d1', padding: '1px 5px', borderBottom: '1px solid #f3f3f3' }}>
                       {uName.includes('KM PSP') ? 'ul. Bankowa 8' : ''}
                     </div>
 
@@ -3074,9 +3072,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                         return (
                           <div 
                             key={v.name} 
-                            className="vehicle-row"
-                            title={`${v.name} (${uName})\nStan: ${currentState}\nObsada min.: ${v.obsada} os.\nKliknij: ${selectedIncidentId && activeIncident ? 'Dopisz do zdarzenia' : 'Zmień status OOS'}`}
+                            className={`vehicle-row ${selectedCombatVehicle === `${uName} | ${v.name}` ? 'selected-combat' : ''}`}
+                            style={selectedCombatVehicle === `${uName} | ${v.name}` ? { background: '#0a246a', color: '#fff' } : {}}
+                            title={`${v.name} (${uName})\nKryptonim: ${v.kryptonim || 'Brak'}\nStan: ${currentState}\nObsada min.: ${v.obsada} os.\nKliknij: ${selectedIncidentId && activeIncident ? 'Dopisz do zdarzenia' : 'Zmień status OOS'}`}
                             onClick={() => {
+                              setSelectedCombatVehicle(`${uName} | ${v.name}`);
                               if (isNewIncidentModalOpen) {
                                 const vStr = `${uName} | ${v.name}`;
                                 handleVehicleCheckbox(vStr);
@@ -3089,6 +3089,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             }}
                             onContextMenu={(e) => {
                               e.preventDefault();
+                              setSelectedCombatVehicle(`${uName} | ${v.name}`);
                               const activeInc = incidents.find(inc => inc.status !== 'processed' && !inc.isArchived && inc.vehicles?.includes(`${uName} | ${v.name}`));
                               setVehicleContextMenu({
                                 x: e.clientX,
@@ -3103,7 +3104,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             <div className="vehicle-info">
                               {renderTable4StatusIcon(uName, v.name)}
                               <span className={`vehicle-name ${isCrossedOut ? 'crossed-out' : ''}`} style={{ fontSize: '10px' }}>
-                                {v.name}
+                                {v.kryptonim ? `${v.kryptonim} (${v.name})` : v.name}
                               </span>
                             </div>
                             <span className="vehicle-obsada">
@@ -3157,7 +3158,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                                   fontSize: '9px', 
                                   padding: '2px 4px', 
                                   background: isDispatched ? '#ffe3e3' : '#f1f3f5',
-                                  border: isDispatched ? '1px solid #c92a2a' : '1px solid #e9ecef',
+                                  border: isDispatched ? '1px solid #d13438' : '1px solid #e9ecef',
                                   cursor: 'pointer' 
                                 }}
                                 onClick={async () => {
@@ -3203,9 +3204,9 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
           {combatTab === 'OSP' && (
             // OSP Mode (Rys.39 layout)
-            <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', height: '100%', background: '#d4d0c8' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', height: '100%', background: '#f3f3f3' }}>
               <div className="border-inset" style={{ background: '#ffffff', overflowY: 'auto', padding: '4px', margin: '4px' }}>
-                <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#808080', borderBottom: '1px solid #d4d0c8', paddingBottom: '2px', marginBottom: '4px', textTransform: 'uppercase' }}>Jednostki OSP</div>
+                <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#d1d1d1', borderBottom: '1px solid #f3f3f3', paddingBottom: '2px', marginBottom: '4px', textTransform: 'uppercase' }}>Jednostki OSP</div>
                 {OSP_UNITS.map(osp => {
                   const isSelected = selectedOspSidebar === osp;
                   return (
@@ -3228,7 +3229,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               </div>
 
               <div className="border-inset" style={{ background: '#ffffff', overflowY: 'auto', padding: '6px', margin: '4px 4px 4px 0' }}>
-                <div style={{ fontSize: '9.5px', fontWeight: 'bold', color: '#000000', borderBottom: '1px solid #808080', paddingBottom: '3px', marginBottom: '6px' }}>
+                <div style={{ fontSize: '9.5px', fontWeight: 'bold', color: '#000000', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', marginBottom: '6px' }}>
                   TABLICA DYSPOZYCYJNA: OSP {selectedOspSidebar.replace("OSP ", "").toUpperCase()}
                 </div>
                 
@@ -3240,17 +3241,19 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     return (
                       <div 
                         key={v.name}
-                        className="border-outset"
+                        className={`border-outset ${selectedCombatVehicle === `${selectedOspSidebar} | ${v.name}` ? 'selected-combat' : ''}`}
                         style={{ 
                           padding: '6px', 
                           cursor: 'pointer', 
-                          background: state === 'W akcji' ? '#ffe3e3' : '#fafafa',
+                          background: selectedCombatVehicle === `${selectedOspSidebar} | ${v.name}` ? '#0a246a' : (state === 'W akcji' ? '#ffe3e3' : '#fafafa'),
+                          color: selectedCombatVehicle === `${selectedOspSidebar} | ${v.name}` ? '#fff' : 'inherit',
                           display: 'flex', 
                           justifyContent: 'space-between', 
                           alignItems: 'center' 
                         }}
                         onClick={() => {
                           const vStr = `${selectedOspSidebar} | ${v.name}`;
+                          setSelectedCombatVehicle(vStr);
                           if (isNewIncidentModalOpen) {
                             handleVehicleCheckbox(vStr);
                           } else if (selectedIncidentId && activeIncident && activeIncident.status !== 'processed') {
@@ -3261,6 +3264,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                         }}
                         onContextMenu={(e) => {
                           e.preventDefault();
+                          const vStr = `${selectedOspSidebar} | ${v.name}`;
+                          setSelectedCombatVehicle(vStr);
                           const activeInc = incidents.find(inc => inc.status !== 'processed' && !inc.isArchived && inc.vehicles?.includes(`${selectedOspSidebar} | ${v.name}`));
                           setVehicleContextMenu({
                             x: e.clientX,
@@ -3276,7 +3281,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                           {renderTable4StatusIcon(selectedOspSidebar, v.name)}
                           <div>
                             <strong style={{ fontSize: '11px', color: '#000000' }}>{v.name}</strong>
-                            <div style={{ fontSize: '8.5px', color: '#808080' }}>Status: {state}</div>
+                            <div style={{ fontSize: '8.5px', color: '#d1d1d1' }}>Status: {state}</div>
                           </div>
                         </div>
                         <span className="vehicle-obsada" style={{ fontSize: '10px' }}>{v.obsada} os.</span>
@@ -3291,11 +3296,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           {combatTab === 'SPECIALIST' && (
             // Specialists Directory (Page 38)
             <div style={{ padding: '8px', overflowY: 'auto', height: '100%', background: '#ffffff' }}>
-              <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000', marginBottom: '6px', borderBottom: '1px solid #808080', paddingBottom: '3px', textTransform: 'uppercase' }}>Ewidencja Specjalistów (Str. 38 instrukcji)</div>
+              <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000', marginBottom: '6px', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', textTransform: 'uppercase' }}>Ewidencja Specjalistów (Str. 38 instrukcji)</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                 {SIMULATED_SPECIALISTS.map(spec => (
                   <div key={spec.name} className="border-outset" style={{ padding: '6px', background: '#f8f9fa' }}>
-                    <strong style={{ fontSize: '10.5px', color: '#000080' }}>{spec.name}</strong>
+                    <strong style={{ fontSize: '10.5px', color: '#005fb8' }}>{spec.name}</strong>
                     <div style={{ fontSize: '9px', color: '#000', margin: '2px 0' }}>{spec.role}</div>
                     <div style={{ fontSize: '8.5px', color: '#555' }}>Jednostka: {spec.unit} | Rejon: {spec.area}</div>
                     <div style={{ fontSize: '8.5px', color: '#555' }}>Tel: {spec.tel} | Status: <span style={{ color: '#2b8a3e', fontWeight: 'bold' }}>{spec.status}</span></div>
@@ -3321,12 +3326,12 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           {combatTab === 'ODWODY' && (
             // Odwody Operacyjne i SGR (Page 39)
             <div style={{ padding: '8px', overflowY: 'auto', height: '100%', background: '#ffffff', color: '#000000' }}>
-              <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000', marginBottom: '6px', borderBottom: '1px solid #808080', paddingBottom: '3px', textTransform: 'uppercase' }}>Struktura Odwodów Operacyjnych i SGR (Str. 39 instrukcji)</div>
+              <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000', marginBottom: '6px', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', textTransform: 'uppercase' }}>Struktura Odwodów Operacyjnych i SGR (Str. 39 instrukcji)</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {SIMULATED_ODWODY.map(grp => (
                   <div key={grp.id} className="border-outset" style={{ padding: '6px', background: '#f1f3f5' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ced4da', paddingBottom: '3px', marginBottom: '4px' }}>
-                      <span style={{ fontSize: '10.5px', fontWeight: 'bold', color: '#000080' }}>🚒 {grp.name}</span>
+                      <span style={{ fontSize: '10.5px', fontWeight: 'bold', color: '#005fb8' }}>🚒 {grp.name}</span>
                       <span style={{ fontSize: '8px', background: grp.type.includes('Specjalistyczna') ? '#101113' : '#1864ab', color: 'white', padding: '1px 3px', borderRadius: '2px' }}>{grp.type}</span>
                     </div>
                     
@@ -3386,13 +3391,13 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           {combatTab === 'AGENTS' && (
             // Extinguishing Agents Registry (Page 25)
             <div style={{ padding: '8px', overflowY: 'auto', height: '100%', background: '#ffffff', color: '#000000' }}>
-              <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000', marginBottom: '6px', borderBottom: '1px solid #808080', paddingBottom: '3px', textTransform: 'uppercase' }}>
+              <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000', marginBottom: '6px', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', textTransform: 'uppercase' }}>
                 Stan Środków Gaśniczych i Neutralizatorów (Str. 25 instrukcji)
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                 {["JRG 1", "JRG 2", "JRG 3"].map(jrg => (
                   <div key={jrg} className="border-inset" style={{ padding: '6px', background: '#f8f9fa' }}>
-                    <div style={{ fontWeight: 'bold', fontSize: '10px', color: '#000080', borderBottom: '1px solid #ced4da', paddingBottom: '2px', marginBottom: '4px' }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '10px', color: '#005fb8', borderBottom: '1px solid #ced4da', paddingBottom: '2px', marginBottom: '4px' }}>
                       {jrg === "JRG 1" ? "JRG 1" : jrg === "JRG 2" ? "JRG 2" : "JRG 3"}
                     </div>
                     {agentsInventory[jrg].map(item => {
@@ -3408,7 +3413,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             backgroundColor: isLow ? '#ffe3e3' : '#ffffff',
                             borderLeft: `2px solid ${isLow ? '#fa5252' : '#2b8a3e'}`,
                             marginBottom: '4px',
-                            color: isLow ? '#c92a2a' : '#000000'
+                            color: isLow ? '#d13438' : '#000000'
                           }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
@@ -3420,7 +3425,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             {userProfile && (userProfile.role === 'admin' || userProfile.role === 'pa_jrg') && (
                               <input 
                                 type="number" 
-                                style={{ width: '40px', fontSize: '8px', padding: '0 2px', border: '1px solid #808080', height: '14px' }} 
+                                style={{ width: '40px', fontSize: '8px', padding: '0 2px', border: '1px solid #d1d1d1', height: '14px' }} 
                                 value={item.current} 
                                 onChange={(e) => handleUpdateAgentStock(jrg, item.name, e.target.value)} 
                               />
@@ -3437,7 +3442,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
           {combatTab === 'WCPR' && (
             <div style={{ padding: '4px', overflowY: 'auto', height: '100%', background: '#ffffff', color: '#000000', display: 'flex', gap: '4px' }}>
-              <div style={{ flex: 1, border: '1px solid #808080', background: '#fff' }}>
+              <div style={{ flex: 1, border: '1px solid #d1d1d1', background: '#fff' }}>
                 <table className="swd-table" style={{ width: '100%', fontSize: '10px' }}>
                   <thead>
                     <tr>
@@ -3454,7 +3459,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   <tbody>
                     {incomingCalls.length === 0 ? (
                       <tr>
-                        <td colSpan="8" style={{ textAlign: 'center', padding: '10px', color: '#808080' }}>Brak zdarzeń w buforze</td>
+                        <td colSpan="8" style={{ textAlign: 'center', padding: '10px', color: '#d1d1d1' }}>Brak zdarzeń w buforze</td>
                       </tr>
                     ) : (
                       incomingCalls.map(call => (
@@ -3462,7 +3467,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                           key={call.id} 
                           onClick={() => setSelectedWcprCall(call)}
                           style={{ 
-                            background: selectedWcprCall?.id === call.id ? '#000080' : '#ffffff', 
+                            background: selectedWcprCall?.id === call.id ? '#005fb8' : '#ffffff', 
                             color: selectedWcprCall?.id === call.id ? '#ffffff' : '#000000',
                             cursor: 'pointer' 
                           }}
@@ -3491,7 +3496,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                       setSelectedWcprCall(null);
                     }
                   }}
-                  style={{ height: '60px', border: '2px solid red', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#d4d0c8' }}
+                  style={{ height: '60px', border: '2px solid red', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f3f3f3' }}
                 >
                   <span style={{ fontSize: '24px' }}>🔊</span>
                   <span style={{ fontSize: '9px', fontWeight: 'bold' }}>Przyjmij zdarzenie</span>
@@ -3516,12 +3521,12 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
         {/* LED Color Legend (SWD-ST Tab. 4 - Page 24) */}
         <div className="sis-legend">
-          <strong style={{ color: '#000080', marginRight: '4px' }}>LEGENDA:</strong>
+          <strong style={{ color: '#005fb8', marginRight: '4px' }}>LEGENDA:</strong>
           <span className="sis-legend-item"><span className="led-indicator green" style={{ width: '7px', height: '7px' }} /> W koszarach</span>
           <span className="sis-legend-item"><span className="led-indicator yellow" style={{ width: '7px', height: '7px' }} /> Zadysponowany</span>
           <span className="sis-legend-item"><span className="led-indicator red" style={{ width: '7px', height: '7px' }} /> W drodze / W akcji</span>
-          <span className="sis-legend-item" style={{ color: '#808080' }}>✖ OOS (wycofany)</span>
-          <span style={{ marginLeft: 'auto', color: '#808080', fontStyle: 'italic', fontSize: '8.5px' }}>Kliknij pojazd: dopisz do zdarzenia</span>
+          <span className="sis-legend-item" style={{ color: '#d1d1d1' }}>✖ OOS (wycofany)</span>
+          <span style={{ marginLeft: 'auto', color: '#d1d1d1', fontStyle: 'italic', fontSize: '8.5px' }}>Kliknij pojazd: dopisz do zdarzenia</span>
         </div>
 
         <div className="tab-header">
@@ -3529,10 +3534,10 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           <button className={`tab-btn ${combatTab === 'OSP' ? 'active' : ''}`} onClick={() => setCombatTab('OSP')}>OSP</button>
           <button className={`tab-btn ${combatTab === 'SPECIALIST' ? 'active' : ''}`} onClick={() => setCombatTab('SPECIALIST')}>Specjaliści</button>
           <button className={`tab-btn ${combatTab === 'AGENTS' ? 'active' : ''}`} onClick={() => setCombatTab('AGENTS')}>Inne</button>
-          <button className={`tab-btn ${combatTab === 'WCPR' ? 'active' : ''}`} style={{ borderLeft: '1px solid #d4d0c8', marginLeft: '4px', color: incomingCalls.length > 0 ? '#c92a2a' : '#000000', fontWeight: incomingCalls.length > 0 ? 'bold' : 'normal' }} onClick={() => setCombatTab('WCPR')}>Bufor zdarzeń {incomingCalls.length > 0 ? `(${incomingCalls.length})` : ''}</button>
-          <button className="tab-btn" style={{ color: '#808080' }} disabled>Szukaj</button>
-          <button className="tab-btn" style={{ color: '#808080' }} disabled>Zdarzenia planowane (0)</button>
-          <button className="tab-btn" style={{ borderLeft: '1px solid #d4d0c8', marginLeft: '4px' }} onClick={() => setActiveMenuTab('bufor')}>Bufor Meldunków</button>
+          <button className={`tab-btn ${combatTab === 'WCPR' ? 'active' : ''}`} style={{ borderLeft: '1px solid #f3f3f3', marginLeft: '4px', color: incomingCalls.length > 0 ? '#d13438' : '#000000', fontWeight: incomingCalls.length > 0 ? 'bold' : 'normal' }} onClick={() => setCombatTab('WCPR')}>Bufor zdarzeń {incomingCalls.length > 0 ? `(${incomingCalls.length})` : ''}</button>
+          <button className="tab-btn" style={{ color: '#d1d1d1' }} disabled>Szukaj</button>
+          <button className="tab-btn" style={{ color: '#d1d1d1' }} disabled>Zdarzenia planowane (0)</button>
+          <button className="tab-btn" style={{ borderLeft: '1px solid #f3f3f3', marginLeft: '4px' }} onClick={() => setActiveMenuTab('bufor')}>Bufor Meldunków</button>
         </div>
         {/* Global overlay for context menu */}
         {vehicleContextMenu && (
@@ -3546,8 +3551,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 position: 'absolute',
                 top: vehicleContextMenu.y,
                 left: vehicleContextMenu.x,
-                background: '#d4d0c8',
-                border: '1.5px solid #808080',
+                background: '#f3f3f3',
+                border: '1.5px solid #d1d1d1',
                 boxShadow: '2px 2px 5px rgba(0,0,0,0.5)',
                 padding: '2px',
                 display: 'flex',
@@ -3557,7 +3562,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               }}
               onClick={e => e.stopPropagation()}
             >
-              <div style={{ background: '#000080', color: '#fff', fontSize: '10px', fontWeight: 'bold', padding: '2px 4px', marginBottom: '2px' }}>
+              <div style={{ background: '#005fb8', color: '#fff', fontSize: '10px', fontWeight: 'bold', padding: '2px 4px', marginBottom: '2px' }}>
                 Status ST - {vehicleContextMenu.vName}
               </div>
               
@@ -3664,7 +3669,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                       {JRG_UNITS.map(jrg => <option key={jrg} value={jrg}>{jrg}</option>)}
                     </select>
                   )}
-                  {usr.role === 'admin' && <span style={{ color: '#808080' }}>Wszystkie (Brak ograniczeń)</span>}
+                  {usr.role === 'admin' && <span style={{ color: '#d1d1d1' }}>Wszystkie (Brak ograniczeń)</span>}
                 </td>
               </tr>
             ))}
@@ -3681,7 +3686,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
       <div style={{ padding: '16px', overflowY: 'auto', height: '100%', backgroundColor: '#ffffff', color: '#000' }} className="border-inset fade-in">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '15px' }}>
           <div>
-            <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: '#000080', borderBottom: '1.5px solid #808080', paddingBottom: '5px', marginBottom: '15px' }}>
+            <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: '#005fb8', borderBottom: '1.5px solid #d1d1d1', paddingBottom: '5px', marginBottom: '15px' }}>
               🏆 RANKING SPRAWNOŚCI I LOGISTYKI JEDNOSTEK (KATOWICE)
             </h3>
             
@@ -3712,16 +3717,16 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
 
           {/* Right Column: Game Mode Stats & Instructions */}
-          <div className="border-double-outset" style={{ padding: '10px', background: '#d4d0c8', height: 'fit-content' }}>
-            <h4 style={{ fontSize: '11px', fontWeight: 'bold', color: '#000080', borderBottom: '1px solid #808080', paddingBottom: '3px', marginBottom: '8px' }}>
+          <div className="border-double-outset" style={{ padding: '10px', background: '#f3f3f3', height: 'fit-content' }}>
+            <h4 style={{ fontSize: '11px', fontWeight: 'bold', color: '#005fb8', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', marginBottom: '8px' }}>
               🎮 GRA DYSPONOWANIA
             </h4>
             <div style={{ fontSize: '10px', color: '#000', marginBottom: '10px' }}>
-              Stan gry: <strong style={{ color: isGameModeActive ? '#2b8a3e' : '#c92a2a' }}>{isGameModeActive ? 'AKTYWNY (Ćwiczenia)' : 'WYŁĄCZONY'}</strong><br />
-              Aktualny wynik: <strong style={{ fontSize: '13px', color: '#000080' }}>{gameScore} pkt</strong>
+              Stan gry: <strong style={{ color: isGameModeActive ? '#2b8a3e' : '#d13438' }}>{isGameModeActive ? 'AKTYWNY (Ćwiczenia)' : 'WYŁĄCZONY'}</strong><br />
+              Aktualny wynik: <strong style={{ fontSize: '13px', color: '#005fb8' }}>{gameScore} pkt</strong>
             </div>
 
-            <div style={{ border: '1px inset #808080', background: '#fff', padding: '6px', fontSize: '9px', color: '#333', marginBottom: '10px', maxHeight: '180px', overflowY: 'auto' }}>
+            <div style={{ border: '1px inset #d1d1d1', background: '#fff', padding: '6px', fontSize: '9px', color: '#333', marginBottom: '10px', maxHeight: '180px', overflowY: 'auto' }}>
               <div style={{ fontWeight: 'bold', color: '#000', borderBottom: '1px dashed #ccc', marginBottom: '3px' }}>SYSTEM OCENY AKCJI:</div>
               🟢 <strong>+50 pkt</strong> - Przejście zastępu do kolejnej fazy akcji (Wyjazd, Dojazd, Lokalizacja)<br />
               🟢 <strong>+100 pkt</strong> - Skuteczne ugaszenie / rozwiązanie akcji przez boty<br />
@@ -3758,8 +3763,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           <div className="win-dialog-header">
             <span>☎️ Aparat Zgłoszeniowy CPR (Symulator Pozoranta)</span>
           </div>
-          <form onSubmit={handleSendSimulatedCall} className="win-dialog-body" style={{ background: '#d4d0c8' }}>
-            <div style={{ fontSize: '10px', color: '#444', marginBottom: '8px', borderBottom: '1px solid #808080', paddingBottom: '3px' }}>
+          <form onSubmit={handleSendSimulatedCall} className="win-dialog-body" style={{ background: '#f3f3f3' }}>
+            <div style={{ fontSize: '10px', color: '#444', marginBottom: '8px', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px' }}>
               Wprowadź zgłoszenie, aby wysłać sygnał alarmowy do dyspozytora na żywo
             </div>
 
@@ -3796,7 +3801,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             </div>
 
             {callStatusMessage && (
-              <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000080', background: '#ffffff', padding: '6px', border: '1px solid #808080', textAlign: 'center' }}>
+              <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#005fb8', background: '#ffffff', padding: '6px', border: '1px solid #d1d1d1', textAlign: 'center' }}>
                 📞 {callStatusMessage}
               </div>
             )}
@@ -3821,7 +3826,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
       const updated = typeof updater === 'function' ? updater(prev) : updater;
       updateTenantVehicles(updated);
     };
-    const allUnits = [...(tenantJrgUnits || []), ...(tenantOspUnits || [])];
+    const allUnits = ["KM/KP PSP", ...(tenantJrgUnits || []), ...(tenantOspUnits || [])];
     const currentUnit = sisSelectedUnit && allUnits.includes(sisSelectedUnit) ? sisSelectedUnit : (allUnits[0] || '');
     const VEHICLE_TYPES = ['GBA','GCBA','GBM','GLBA','GLBM','SCD','SCRd','SHD','SRChem','SLOp','SLKw','SLPy','GPr','SD','SRd','SLRR','Inne'];
     const STATUS_LABELS = {
@@ -3844,7 +3849,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         const updated = { ...prev };
         updated[currentUnit] = (updated[currentUnit] || []).map(v =>
           v.id === sisEditingVehicle.id
-            ? { ...v, ...sisEditForm, obsada: parseInt(sisEditForm.obsada || 0, 10) }
+            ? { ...v, ...sisEditForm, obsada: parseInt(sisEditForm.obsada || 0, 10), kryptonim: sisEditForm.kryptonim || v.kryptonim || '' }
             : v
         );
         return updated;
@@ -3868,7 +3873,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
       }));
       logAction(`[KAT SiS] Dodano nowy pojazd: ${newVeh.name} do ${currentUnit}`);
       setSisIsAddingVehicle(false);
-      setSisNewVehicleForm({ name: '', type: 'GBA', obsada: 6, outOfService: false, ksrg: false, notes: '' });
+      setSisNewVehicleForm({ name: '', kryptonim: '', type: 'GBA', obsada: 6, outOfService: false, ksrg: false, notes: '' });
     };
 
     // Remove vehicle
@@ -3903,21 +3908,21 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
     const sectionStyle = {
       background: '#f0f0f0',
-      border: '1px solid #808080',
+      border: '1px solid #d1d1d1',
       borderRadius: '2px',
       padding: '10px',
       marginBottom: '10px'
     };
 
     const tdStyle = { padding: '4px 8px', fontSize: '10px', borderBottom: '1px solid #e0e0e0', verticalAlign: 'middle' };
-    const thStyle = { padding: '5px 8px', fontSize: '10px', background: '#000080', color: '#fff', fontWeight: 'bold', textAlign: 'left' };
+    const thStyle = { padding: '5px 8px', fontSize: '10px', background: '#005fb8', color: '#fff', fontWeight: 'bold', textAlign: 'left' };
 
     return (
       <div style={{ padding: '14px', overflowY: 'auto', height: '100%', backgroundColor: '#ffffff', color: '#000000' }} className="border-inset fade-in">
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000080', paddingBottom: '10px', marginBottom: '14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #005fb8', paddingBottom: '10px', marginBottom: '14px' }}>
           <div>
-            <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#000080', margin: 0 }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#005fb8', margin: 0 }}>
               📦 KATALOG SIŁ I ŚRODKÓW (SiS) — SWD-ST 2.5
             </h3>
             <p style={{ fontSize: '10px', color: '#555', marginTop: '3px', margin: '3px 0 0 0' }}>
@@ -3937,8 +3942,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         {/* SWD ST 2.5 - Widok Drzewa i Szczegółów */}
         <div style={{ display: 'flex', gap: '4px', height: 'calc(100% - 40px)' }}>
           {/* Drzewo jednostek (LEWA KOLUMNA) */}
-          <div style={{ width: '280px', display: 'flex', flexDirection: 'column', border: '2px inset #808080', background: '#fff' }}>
-            <div style={{ padding: '2px 4px', background: '#000080', color: '#fff', fontSize: '11px', fontWeight: 'bold' }}>
+          <div style={{ width: '280px', display: 'flex', flexDirection: 'column', border: '2px inset #d1d1d1', background: '#fff' }}>
+            <div style={{ padding: '2px 4px', background: '#005fb8', color: '#fff', fontSize: '11px', fontWeight: 'bold' }}>
               Drzewo jednostek
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: '4px', fontSize: '11px' }}>
@@ -3946,7 +3951,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 <span>[-]</span> 🏢 {tenantName}
               </div>
               <div style={{ paddingLeft: '16px' }}>
-                {tenantJrgUnits.map(u => (
+                {["KM/KP PSP", ...(tenantJrgUnits || [])].map(u => (
                   <div 
                     key={u} 
                     style={{ cursor: 'pointer', padding: '2px 0', background: currentUnit === u ? '#0a6ece' : 'transparent', color: currentUnit === u ? '#fff' : '#000' }}
@@ -4000,22 +4005,22 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
 
           {/* Siły i środki wybranej jednostki (PRAWA KOLUMNA) */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', border: '2px inset #808080', background: '#d4d0c8' }}>
-            <div style={{ padding: '2px 4px', background: '#000080', color: '#fff', fontSize: '11px', fontWeight: 'bold' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', border: '2px inset #d1d1d1', background: '#f3f3f3' }}>
+            <div style={{ padding: '2px 4px', background: '#005fb8', color: '#fff', fontSize: '11px', fontWeight: 'bold' }}>
               Dane o jednostce — {currentUnit}
             </div>
             
             {/* Wewnętrzne zakładki */}
-            <div style={{ display: 'flex', borderBottom: '1px solid #808080', background: '#d4d0c8', padding: '4px 4px 0 4px', gap: '2px' }}>
+            <div style={{ display: 'flex', borderBottom: '1px solid #d1d1d1', background: '#f3f3f3', padding: '4px 4px 0 4px', gap: '2px' }}>
               {['jednostka', 'vehicles', 'obsada', 'kierownictwo', 'magazyn'].map(tab => (
                 <div
                   key={tab}
                   onClick={() => setSisActiveTab(tab)}
                   style={{
                     padding: '4px 12px',
-                    background: sisActiveTab === tab ? '#fff' : '#d4d0c8',
-                    border: '1px solid #808080',
-                    borderBottom: sisActiveTab === tab ? '1px solid #fff' : '1px solid #808080',
+                    background: sisActiveTab === tab ? '#fff' : '#f3f3f3',
+                    border: '1px solid #d1d1d1',
+                    borderBottom: sisActiveTab === tab ? '1px solid #fff' : '1px solid #d1d1d1',
                     borderTopLeftRadius: '3px',
                     borderTopRightRadius: '3px',
                     cursor: 'pointer',
@@ -4034,8 +4039,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
             {sisActiveTab === 'vehicles' && (
               <>
-                <div style={{ padding: '4px', background: '#d4d0c8', borderBottom: '1px solid #808080', display: 'flex', gap: '4px' }}>
-                   <button className="btn-win" style={{ fontSize: '11px', fontWeight: 'bold', color: '#000080' }} onClick={() => { if (!currentUnit) return; setSisIsAddingVehicle(true); setSisEditingVehicle(null); }}>
+                <div style={{ padding: '4px', background: '#f3f3f3', borderBottom: '1px solid #d1d1d1', display: 'flex', gap: '4px' }}>
+                   <button className="btn-win" style={{ fontSize: '11px', fontWeight: 'bold', color: '#005fb8' }} onClick={() => { if (!currentUnit) return; setSisIsAddingVehicle(true); setSisEditingVehicle(null); }}>
                      ➕ Dopis sprzętu
                    </button>
                 </div>
@@ -4060,7 +4065,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             {/* Add new vehicle form */}
             {sisIsAddingVehicle && (
               <div style={{ ...sectionStyle, background: '#e8f4fd', border: '2px solid #0a6ece', marginBottom: '10px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#000080', marginBottom: '8px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#005fb8', marginBottom: '8px' }}>
                   ➕ DODAJ NOWY POJAZD — {sisSelectedUnit}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
@@ -4072,6 +4077,16 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                       placeholder="np. GBA 2.5/24 MAN TGM 301-22"
                       value={sisNewVehicleForm.name}
                       onChange={e => setSisNewVehicleForm(p => ({ ...p, name: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Kryptonim:</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="np. KF 301-22"
+                      value={sisNewVehicleForm.kryptonim || ''}
+                      onChange={e => setSisNewVehicleForm(p => ({ ...p, kryptonim: e.target.value }))}
                     />
                   </div>
                   <div>
@@ -4123,12 +4138,13 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             )}
 
             {/* Vehicles table */}
-            <div style={{ border: '1px solid #808080', overflowX: 'auto' }}>
+            <div style={{ border: '1px solid #d1d1d1', overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
                 <thead>
                   <tr>
                     <th style={thStyle}>#</th>
                     <th style={thStyle}>Pojazd / Nr taktyczny</th>
+                    <th style={thStyle}>Kryptonim</th>
                     <th style={thStyle}>Typ</th>
                     <th style={{ ...thStyle, textAlign: 'center' }}>Obsada min.</th>
                     <th style={{ ...thStyle, textAlign: 'center' }}>Status</th>
@@ -4155,6 +4171,16 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                                 className="input-field"
                                 value={sisEditForm.name || ''}
                                 onChange={e => setSisEditForm(p => ({ ...p, name: e.target.value }))}
+                                style={{ fontSize: '10px', width: '100%' }}
+                              />
+                            </td>
+                            <td style={tdStyle}>
+                              <input
+                                type="text"
+                                className="input-field"
+                                placeholder="Kryptonim"
+                                value={sisEditForm.kryptonim || ''}
+                                onChange={e => setSisEditForm(p => ({ ...p, kryptonim: e.target.value }))}
                                 style={{ fontSize: '10px', width: '100%' }}
                               />
                             </td>
@@ -4209,8 +4235,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                           </>
                         ) : (
                           <>
-                            <td style={{ ...tdStyle, fontWeight: 'bold', color: v.outOfService ? '#888' : '#000080', textDecoration: v.outOfService ? 'line-through' : 'none' }}>
+                            <td style={{ ...tdStyle, fontWeight: 'bold', color: v.outOfService ? '#888' : '#005fb8', textDecoration: v.outOfService ? 'line-through' : 'none' }}>
                               {v.name}
+                            </td>
+                            <td style={{ ...tdStyle, fontWeight: 'bold', color: '#333' }}>
+                              {v.kryptonim || '---'}
                             </td>
                             <td style={{ ...tdStyle }}>
                               <span style={{ background: '#e8f4fd', color: '#0a3d62', padding: '1px 5px', borderRadius: '2px', fontWeight: 'bold', fontSize: '9px' }}>
@@ -4262,7 +4291,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                                 <button
                                   className="btn-win"
                                   title="Usuń pojazd z katalogu"
-                                  style={{ fontSize: '9px', padding: '1px 5px', background: '#c92a2a', color: '#fff' }}
+                                  style={{ fontSize: '9px', padding: '1px 5px', background: '#d13438', color: '#fff' }}
                                   onClick={() => handleSisDeleteVehicle(v.id, v.name)}
                                 >
                                   🗑
@@ -4291,7 +4320,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             )}
 
             {sisActiveTab === 'jednostka' && (
-              <div style={{ padding: '10px', fontSize: '11px', background: '#d4d0c8', flex: 1 }}>
+              <div style={{ padding: '10px', fontSize: '11px', background: '#f3f3f3', flex: 1 }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '10px', fontSize: '12px' }}>Dane teleadresowe jednostki: {currentUnit}</div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
                   <tbody>
@@ -4304,27 +4333,27 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             )}
 
             {sisActiveTab === 'obsada' && (
-              <div style={{ padding: '10px', fontSize: '11px', background: '#d4d0c8', flex: 1 }}>
+              <div style={{ padding: '10px', fontSize: '11px', background: '#f3f3f3', flex: 1 }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '10px', fontSize: '12px' }}>Obsada osobowa (System zmianowy 24/48)</div>
-                <div style={{ padding: '10px', background: '#fff', border: '1px inset #808080', color: '#888' }}>
+                <div style={{ padding: '10px', background: '#fff', border: '1px inset #d1d1d1', color: '#888' }}>
                   Tutaj dyspozytor SWD zarządza zmianami służbowymi (Zmiana 1, Zmiana 2, Zmiana 3) i przypisuje obsadę do poszczególnych wozów. Moduł w przygotowaniu.
                 </div>
               </div>
             )}
 
             {sisActiveTab === 'kierownictwo' && (
-              <div style={{ padding: '10px', fontSize: '11px', background: '#d4d0c8', flex: 1 }}>
+              <div style={{ padding: '10px', fontSize: '11px', background: '#f3f3f3', flex: 1 }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '10px', fontSize: '12px' }}>Kierownictwo jednostki</div>
-                <div style={{ padding: '10px', background: '#fff', border: '1px inset #808080', color: '#888' }}>
+                <div style={{ padding: '10px', background: '#fff', border: '1px inset #d1d1d1', color: '#888' }}>
                   Wykaz kadry dowódczej (Dowódca JRG, Zastępca Dowódcy, Naczelnik OSP, Prezes OSP). Moduł w przygotowaniu.
                 </div>
               </div>
             )}
 
             {sisActiveTab === 'magazyn' && (
-              <div style={{ padding: '10px', fontSize: '11px', background: '#d4d0c8', flex: 1 }}>
+              <div style={{ padding: '10px', fontSize: '11px', background: '#f3f3f3', flex: 1 }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '10px', fontSize: '12px' }}>Magazyn Sprzętu i Środków Gaśniczych</div>
-                <div style={{ padding: '10px', background: '#fff', border: '1px inset #808080', color: '#888' }}>
+                <div style={{ padding: '10px', background: '#fff', border: '1px inset #d1d1d1', color: '#888' }}>
                   Ewidencja węży tłocznych, aparatów ODO, pił spalinowych oraz środków gaśniczych (piana). Moduł w przygotowaniu.
                 </div>
               </div>
@@ -4341,19 +4370,19 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
     const buforIncidents = incidents.filter(inc => !inc.isArchived && (inc.reportNumber || inc.reportWorkflowState));
     return (
       <div className="tab-content" style={{ padding: '10px', height: '100%', overflowY: 'auto' }}>
-        <div className="section-header" style={{ marginBottom: '10px', background: '#000080', color: 'white', padding: '5px' }}>
+        <div className="section-header" style={{ marginBottom: '10px', background: '#005fb8', color: 'white', padding: '5px' }}>
           <span style={{ fontWeight: 'bold' }}>BUFOR MELDUNKÓW REJESTRU WYJAZDÓW</span>
         </div>
-        <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', border: '1px solid #808080' }}>
-          <thead style={{ background: '#d4d0c8', color: '#000' }}>
+        <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', border: '1px solid #d1d1d1' }}>
+          <thead style={{ background: '#f3f3f3', color: '#000' }}>
             <tr>
-              <th style={{ border: '1px solid #808080', padding: '4px' }}>Numer zdarzenia</th>
-              <th style={{ border: '1px solid #808080', padding: '4px' }}>Zdarzenie</th>
-              <th style={{ border: '1px solid #808080', padding: '4px' }}>Miejscowość, Ulica</th>
-              <th style={{ border: '1px solid #808080', padding: '4px' }}>Data pow.</th>
-              <th style={{ border: '1px solid #808080', padding: '4px' }}>Częśc.</th>
-              <th style={{ border: '1px solid #808080', padding: '4px' }}>Status meldunku w Buforze</th>
-              <th style={{ border: '1px solid #808080', padding: '4px' }}>Akcje</th>
+              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Numer zdarzenia</th>
+              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Zdarzenie</th>
+              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Miejscowość, Ulica</th>
+              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Data pow.</th>
+              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Częśc.</th>
+              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Status meldunku w Buforze</th>
+              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Akcje</th>
             </tr>
           </thead>
           <tbody>
@@ -4365,17 +4394,17 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 const isCzesciowy = inc.times?.isPartialReport !== false;
                 return (
                   <tr key={inc.id} style={{ background: '#fff' }}>
-                    <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>{inc.customId}</td>
-                    <td style={{ border: '1px solid #808080', padding: '4px' }}>{inc.type === 'pozar' ? 'Pożar' : inc.type === 'mz' ? 'Miejscowe Zagrożenie' : 'Alarm Fałszywy'}</td>
-                    <td style={{ border: '1px solid #808080', padding: '4px' }}>{userProfile?.role === 'admin' && inc.tenantId ? `[${inc.tenantId}] ` : ''}{inc.location}</td>
-                    <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center' }}>{inc.date} {inc.time}</td>
-                    <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center', color: isCzesciowy ? '#c92a2a' : '#2b8a3e', fontWeight: 'bold' }}>
+                    <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>{inc.customId}</td>
+                    <td style={{ border: '1px solid #d1d1d1', padding: '4px' }}>{inc.type === 'pozar' ? 'Pożar' : inc.type === 'mz' ? 'Miejscowe Zagrożenie' : 'Alarm Fałszywy'}</td>
+                    <td style={{ border: '1px solid #d1d1d1', padding: '4px' }}>{userProfile?.role === 'admin' && inc.tenantId ? `[${inc.tenantId}] ` : ''}{inc.location}</td>
+                    <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>{inc.date} {inc.time}</td>
+                    <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center', color: isCzesciowy ? '#d13438' : '#2b8a3e', fontWeight: 'bold' }}>
                       {isCzesciowy ? 'TAK' : 'NIE'}
                     </td>
-                    <td style={{ border: '1px solid #808080', padding: '4px', fontWeight: 'bold' }}>
+                    <td style={{ border: '1px solid #d1d1d1', padding: '4px', fontWeight: 'bold' }}>
                       [{inc.reportWorkflowState || "1"}] {statusName}
                     </td>
-                    <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center' }}>
+                    <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>
                       <button className="btn-win" onClick={() => {
                         setSelectedIncidentId(inc.id);
                         setIsEwidReportModalOpen(true);
@@ -4398,66 +4427,66 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
   const renderMonitorTransmisji = () => {
     return (
       <div className="tab-content" style={{ padding: '10px', height: '100%', overflowY: 'auto' }}>
-        <div className="section-header" style={{ marginBottom: '10px', background: '#000080', color: 'white', padding: '5px' }}>
+        <div className="section-header" style={{ marginBottom: '10px', background: '#005fb8', color: 'white', padding: '5px' }}>
           <span style={{ fontWeight: 'bold' }}>MONITOR TRANSMISJI (Zgodnie z rozdz. 15.4)</span>
         </div>
         
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-          <div style={{ border: '1px solid #808080', background: '#fff' }}>
-            <div style={{ background: '#d4d0c8', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #808080' }}>Stan Połączeń Węzła (KM/KP)</div>
+          <div style={{ border: '1px solid #d1d1d1', background: '#fff' }}>
+            <div style={{ background: '#f3f3f3', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>Stan Połączeń Węzła (KM/KP)</div>
             <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
               <thead style={{ background: '#e0e0e0' }}>
                 <tr>
-                  <th style={{ border: '1px solid #808080', padding: '4px', textAlign: 'left' }}>Węzeł Docelowy</th>
-                  <th style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center' }}>Status</th>
-                  <th style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center' }}>Ostatnia synchronizacja</th>
+                  <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'left' }}>Węzeł Docelowy</th>
+                  <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>Status</th>
+                  <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>Ostatnia synchronizacja</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td style={{ border: '1px solid #808080', padding: '4px', fontWeight: 'bold' }}>KW PSP</td>
-                  <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center', color: '#155724', background: '#d4edda', fontWeight: 'bold' }}>ONLINE</td>
-                  <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center' }}>{systemTime.toLocaleTimeString('pl-PL')}</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', fontWeight: 'bold' }}>KW PSP</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center', color: '#155724', background: '#d4edda', fontWeight: 'bold' }}>ONLINE</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>{systemTime.toLocaleTimeString('pl-PL')}</td>
                 </tr>
                 <tr>
-                  <td style={{ border: '1px solid #808080', padding: '4px', fontWeight: 'bold' }}>KG PSP Warszawa</td>
-                  <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center', color: '#155724', background: '#d4edda', fontWeight: 'bold' }}>ONLINE</td>
-                  <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center' }}>{new Date(systemTime.getTime() - 15000).toLocaleTimeString('pl-PL')}</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', fontWeight: 'bold' }}>KG PSP Warszawa</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center', color: '#155724', background: '#d4edda', fontWeight: 'bold' }}>ONLINE</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>{new Date(systemTime.getTime() - 15000).toLocaleTimeString('pl-PL')}</td>
                 </tr>
                 <tr>
-                  <td style={{ border: '1px solid #808080', padding: '4px', fontWeight: 'bold' }}>CWA (Centralna Baza WCPR)</td>
-                  <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center', color: '#856404', background: '#fff3cd', fontWeight: 'bold' }}>SYNCHRONIZACJA</td>
-                  <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center' }}>W toku...</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', fontWeight: 'bold' }}>CWA (Centralna Baza WCPR)</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center', color: '#856404', background: '#fff3cd', fontWeight: 'bold' }}>SYNCHRONIZACJA</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>W toku...</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          <div style={{ border: '1px solid #808080', background: '#fff' }}>
-            <div style={{ background: '#d4d0c8', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #808080' }}>Statystyki Replikacji Danych (EWID/Rejestr)</div>
+          <div style={{ border: '1px solid #d1d1d1', background: '#fff' }}>
+            <div style={{ background: '#f3f3f3', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>Statystyki Replikacji Danych (EWID/Rejestr)</div>
             <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
               <thead style={{ background: '#e0e0e0' }}>
                 <tr>
-                  <th style={{ border: '1px solid #808080', padding: '4px', textAlign: 'left' }}>Tabela / Obiekt</th>
-                  <th style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center' }}>Rekordy Oczekujące</th>
-                  <th style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center' }}>Błędy (Konflikty)</th>
+                  <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'left' }}>Tabela / Obiekt</th>
+                  <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>Rekordy Oczekujące</th>
+                  <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>Błędy (Konflikty)</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td style={{ border: '1px solid #808080', padding: '4px' }}>Zdarzenia (Incident)</td>
-                  <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center' }}>0</td>
-                  <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center' }}>0</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Zdarzenia (Incident)</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>0</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>0</td>
                 </tr>
                 <tr>
-                  <td style={{ border: '1px solid #808080', padding: '4px' }}>Meldunki (EWID)</td>
-                  <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center' }}>0</td>
-                  <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center' }}>0</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Meldunki (EWID)</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>0</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>0</td>
                 </tr>
                 <tr>
-                  <td style={{ border: '1px solid #808080', padding: '4px' }}>Katalog SiS / Statusy</td>
-                  <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center' }}>{animationTick % 10 < 3 ? '1 (w toku)' : '0'}</td>
-                  <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center' }}>0</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Katalog SiS / Statusy</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>{animationTick % 10 < 3 ? '1 (w toku)' : '0'}</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>0</td>
                 </tr>
               </tbody>
             </table>
@@ -4465,8 +4494,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         </div>
 
         <div style={{ marginTop: '15px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-          <div style={{ border: '1px solid #808080', background: '#fff' }}>
-            <div style={{ background: '#d4d0c8', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #808080' }}>Logi Agenta Transmisji (AT)</div>
+          <div style={{ border: '1px solid #d1d1d1', background: '#fff' }}>
+            <div style={{ background: '#f3f3f3', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>Logi Agenta Transmisji (AT)</div>
             <div style={{ padding: '5px', height: '150px', overflowY: 'auto', background: '#000', color: '#0f0', fontFamily: 'monospace', fontSize: '10px' }}>
               {operationalLogs.map((log, idx) => (
                 <div key={idx}>[{new Date().toLocaleDateString('pl-PL')}] {log}</div>
@@ -4478,11 +4507,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             </div>
           </div>
 
-          <div style={{ border: '1px solid #808080', background: '#fff' }}>
-            <div style={{ background: '#d4d0c8', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #808080' }}>Bramka SMS / Terminale MDT (Statusy)</div>
+          <div style={{ border: '1px solid #d1d1d1', background: '#fff' }}>
+            <div style={{ background: '#f3f3f3', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>Bramka SMS / Terminale MDT (Statusy)</div>
             <div style={{ padding: '5px', height: '150px', overflowY: 'auto', background: '#e8f0fe', color: '#000', fontFamily: 'monospace', fontSize: '10px' }}>
               {operationalLogs.filter(log => log.includes('Status') || log.includes('ST ') || log.includes('DSP') || log.includes('Syrena') || log.includes('SMS')).map((log, idx) => (
-                <div key={idx} style={{ padding: '2px 0', borderBottom: '1px solid #d4d0c8' }}>{log}</div>
+                <div key={idx} style={{ padding: '2px 0', borderBottom: '1px solid #f3f3f3' }}>{log}</div>
               ))}
               {operationalLogs.filter(log => log.includes('Status') || log.includes('ST ') || log.includes('DSP') || log.includes('Syrena') || log.includes('SMS')).length === 0 && (
                 <div style={{ color: '#555', fontStyle: 'italic' }}>Brak nowych komunikatów z terminali mobilnych.</div>
@@ -4498,22 +4527,22 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
   const renderKatalogObiektow = () => {
     return (
 <div className="tab-content" style={{ padding: '10px', height: '100%', overflowY: 'auto' }}>
-        <div className="section-header" style={{ marginBottom: '10px', background: '#000080', color: 'white', padding: '5px' }}>
+        <div className="section-header" style={{ marginBottom: '10px', background: '#005fb8', color: 'white', padding: '5px' }}>
           <span style={{ fontWeight: 'bold' }}>KATALOG OBIEKTÓW (Zgodnie z rozdz. 15.1)</span>
         </div>
         <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-          <input type="text" placeholder="Szukaj obiektu (nazwa, miejscowość, ulica)..." style={{ padding: '4px', width: '300px', border: '1px solid #808080' }} />
+          <input type="text" placeholder="Szukaj obiektu (nazwa, miejscowość, ulica)..." style={{ padding: '4px', width: '300px', border: '1px solid #d1d1d1' }} />
           <button className="btn-win">Szukaj</button>
           <button className="btn-win">Dodaj Nowy</button>
         </div>
-        <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', border: '1px solid #808080' }}>
-          <thead style={{ background: '#d4d0c8', color: '#000' }}>
+        <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', border: '1px solid #d1d1d1' }}>
+          <thead style={{ background: '#f3f3f3', color: '#000' }}>
             <tr>
-              <th style={{ border: '1px solid #808080', padding: '4px', textAlign: 'left' }}>Kategoria (wg Słownika KSRG)</th>
-              <th style={{ border: '1px solid #808080', padding: '4px', textAlign: 'left' }}>Nazwa Obiektu</th>
-              <th style={{ border: '1px solid #808080', padding: '4px', textAlign: 'left' }}>Miejscowość</th>
-              <th style={{ border: '1px solid #808080', padding: '4px', textAlign: 'left' }}>Ulica</th>
-              <th style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center' }}>Monitoring Pożarowy (TSG)</th>
+              <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'left' }}>Kategoria (wg Słownika KSRG)</th>
+              <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'left' }}>Nazwa Obiektu</th>
+              <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'left' }}>Miejscowość</th>
+              <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'left' }}>Ulica</th>
+              <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>Monitoring Pożarowy (TSG)</th>
             </tr>
           </thead>
           <tbody>
@@ -4521,11 +4550,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               const [city, streetPart] = ob.address.split(', ');
               return (
                 <tr key={ob.id} style={{ background: idx % 2 === 0 ? '#fff' : '#f8f8f8' }}>
-                  <td style={{ border: '1px solid #808080', padding: '4px' }}>Inne</td>
-                  <td style={{ border: '1px solid #808080', padding: '4px', fontWeight: 'bold' }}>{ob.name}</td>
-                  <td style={{ border: '1px solid #808080', padding: '4px' }}>{city}</td>
-                  <td style={{ border: '1px solid #808080', padding: '4px' }}>{streetPart}</td>
-                  <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center', color: '#155724', fontWeight: 'bold', background: '#d4edda' }}>TAK</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Inne</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', fontWeight: 'bold' }}>{ob.name}</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px' }}>{city}</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px' }}>{streetPart}</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center', color: '#155724', fontWeight: 'bold', background: '#d4edda' }}>TAK</td>
                 </tr>
               );
             })}
@@ -4542,12 +4571,12 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
   const renderProcedury = () => {
     return (
       <div className="tab-content" style={{ padding: '10px', height: '100%', overflowY: 'auto' }}>
-        <div className="section-header" style={{ marginBottom: '10px', background: '#000080', color: 'white', padding: '5px' }}>
+        <div className="section-header" style={{ marginBottom: '10px', background: '#005fb8', color: 'white', padding: '5px' }}>
           <span style={{ fontWeight: 'bold' }}>PROCEDURY POSTĘPOWANIA (Zgodnie z rozdz. 15.3)</span>
         </div>
         <div style={{ display: 'flex', gap: '15px' }}>
-          <div style={{ width: '250px', border: '1px solid #808080', background: '#fff' }}>
-            <div style={{ background: '#d4d0c8', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #808080' }}>Grupy Zdarzeń</div>
+          <div style={{ width: '250px', border: '1px solid #d1d1d1', background: '#fff' }}>
+            <div style={{ background: '#f3f3f3', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>Grupy Zdarzeń</div>
             <ul style={{ listStyleType: 'none', padding: '0', margin: '0', fontSize: '11px' }}>
               <li style={{ padding: '5px', borderBottom: '1px solid #e9ecef', background: '#0a6ece', color: '#fff', cursor: 'pointer' }}>Pożary</li>
               <li style={{ padding: '5px', borderBottom: '1px solid #e9ecef', cursor: 'pointer' }}>Miejscowe Zagrożenia</li>
@@ -4556,8 +4585,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               <li style={{ padding: '5px', borderBottom: '1px solid #e9ecef', cursor: 'pointer' }}>Ratownictwo Chemiczne i Ekologiczne</li>
             </ul>
           </div>
-          <div style={{ flex: 1, border: '1px solid #808080', background: '#fff', padding: '10px', fontSize: '11px' }}>
-            <h3 style={{ borderBottom: '1px solid #000080', color: '#000080', paddingBottom: '4px', marginTop: 0 }}>Zasady dysponowania sił i środków do pożarów (wyciąg z procedury)</h3>
+          <div style={{ flex: 1, border: '1px solid #d1d1d1', background: '#fff', padding: '10px', fontSize: '11px' }}>
+            <h3 style={{ borderBottom: '1px solid #005fb8', color: '#005fb8', paddingBottom: '4px', marginTop: 0 }}>Zasady dysponowania sił i środków do pożarów (wyciąg z procedury)</h3>
             <p><strong>1. Pożar mały (np. śmietnik, trawa):</strong><br />
             Wymagane dysponowanie: 1 zastęp (GBA lub GCBA).</p>
             <p><strong>2. Pożar średni (np. samochód, pojedyncze pomieszczenie):</strong><br />
@@ -4578,8 +4607,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
   // Render Mapa GIS
   const renderMapaGIS = () => {
     return (
-      <div className="tab-content" style={{ padding: '0', height: '100%', overflow: 'hidden', background: '#e0e0e0', position: 'relative', border: '2px solid #808080' }}>
-        <div className="section-header" style={{ marginBottom: '0', background: '#000080', color: 'white', padding: '5px', position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
+      <div className="tab-content" style={{ padding: '0', height: '100%', overflow: 'hidden', background: '#e0e0e0', position: 'relative', border: '2px solid #d1d1d1' }}>
+        <div className="section-header" style={{ marginBottom: '0', background: '#005fb8', color: 'white', padding: '5px', position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
           <span style={{ fontWeight: 'bold' }}>SYSTEM WSPOMAGANIA DECYZJI - MODUŁ GEOGRAFICZNY (GIS)</span>
         </div>
         
@@ -4633,7 +4662,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </svg>
 
           {/* Legenda */}
-          <div style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(255,255,255,0.85)', padding: '6px', border: '2px solid #808080', fontSize: '11px', boxShadow: '2px 2px 5px rgba(0,0,0,0.3)' }}>
+          <div style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(255,255,255,0.85)', padding: '6px', border: '2px solid #d1d1d1', fontSize: '11px', boxShadow: '2px 2px 5px rgba(0,0,0,0.3)' }}>
             <div style={{ fontWeight: 'bold', marginBottom: '6px', borderBottom: '1px solid #000' }}>LEGENDA MAPY (SPA)</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '12px', height: '12px', background: '#fa5252', border: '1px solid #000' }}></div> Jednostka JRG</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}><div style={{ width: '12px', height: '12px', background: '#fab005', border: '1px solid #000' }}></div> Jednostka OSP</div>
@@ -4669,11 +4698,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
     return (
       <div className="tab-content" style={{ padding: '10px', height: '100%', overflowY: 'auto' }}>
-        <div className="section-header" style={{ marginBottom: '10px', background: '#000080', color: 'white', padding: '5px' }}>
+        <div className="section-header" style={{ marginBottom: '10px', background: '#005fb8', color: 'white', padding: '5px' }}>
           <span style={{ fontWeight: 'bold' }}>TABLICA KONTROLI CZASU PRACY W SPRZĘCIE ODO</span>
         </div>
         
-        <div className="border-double-outset" style={{ padding: '10px', background: '#d4d0c8', marginBottom: '10px' }}>
+        <div className="border-double-outset" style={{ padding: '10px', background: '#f3f3f3', marginBottom: '10px' }}>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
             <div>
               <label className="input-label" style={{ fontSize: '9px' }}>Rota / Nazwisko strażaka:</label>
@@ -4691,15 +4720,15 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
         </div>
 
-        <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', border: '1px solid #808080' }}>
-          <thead style={{ background: '#d4d0c8', color: '#000' }}>
+        <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', border: '1px solid #d1d1d1' }}>
+          <thead style={{ background: '#f3f3f3', color: '#000' }}>
             <tr>
-              <th style={{ border: '1px solid #808080', padding: '4px' }}>Rota / Strażak</th>
-              <th style={{ border: '1px solid #808080', padding: '4px' }}>Wejście</th>
-              <th style={{ border: '1px solid #808080', padding: '4px' }}>Ciśnienie (bar)</th>
-              <th style={{ border: '1px solid #808080', padding: '4px' }}>Czas pracy</th>
-              <th style={{ border: '1px solid #808080', padding: '4px', color: '#c00000' }}>NAGŁY ODWROT (Gwizdek)</th>
-              <th style={{ border: '1px solid #808080', padding: '4px' }}>Akcja</th>
+              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Rota / Strażak</th>
+              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Wejście</th>
+              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Ciśnienie (bar)</th>
+              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Czas pracy</th>
+              <th style={{ border: '1px solid #d1d1d1', padding: '4px', color: '#c00000' }}>NAGŁY ODWROT (Gwizdek)</th>
+              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Akcja</th>
             </tr>
           </thead>
           <tbody>
@@ -4712,14 +4741,14 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               const isAlert = remainingMs < 300000; // < 5 min
               return (
                 <tr key={e.id} style={{ background: isAlert ? '#f8d7da' : '#fff' }}>
-                  <td style={{ border: '1px solid #808080', padding: '4px', fontWeight: 'bold' }}>{e.name}</td>
-                  <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center' }}>{e.entryTime.toLocaleTimeString()}</td>
-                  <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center' }}>{e.pressure} bar</td>
-                  <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center' }}>{e.minutesTotal} min</td>
-                  <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center', color: isAlert ? 'red' : 'black', fontWeight: 'bold' }}>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', fontWeight: 'bold' }}>{e.name}</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>{e.entryTime.toLocaleTimeString()}</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>{e.pressure} bar</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>{e.minutesTotal} min</td>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center', color: isAlert ? 'red' : 'black', fontWeight: 'bold' }}>
                     {e.exitTime.toLocaleTimeString()}
                   </td>
-                  <td style={{ border: '1px solid #808080', padding: '4px', textAlign: 'center' }}>
+                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>
                     <button className="btn-win" style={{ padding: '2px 5px', fontSize: '9px' }} onClick={() => setOdoEntries(odoEntries.filter(x => x.id !== e.id))}>Wyjście (Koniec)</button>
                   </td>
                 </tr>
@@ -4746,14 +4775,14 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
     return (
       <div className="tab-content" style={{ padding: '10px', height: '100%', overflowY: 'auto' }}>
-        <div className="section-header" style={{ marginBottom: '10px', background: '#000080', color: 'white', padding: '5px' }}>
+        <div className="section-header" style={{ marginBottom: '10px', background: '#005fb8', color: 'white', padding: '5px' }}>
           <span style={{ fontWeight: 'bold' }}>BRAMKA SMS - KOMUNIKATOR (Zgodnie z rozdz. 11.1)</span>
         </div>
         
         <div style={{ display: 'flex', gap: '10px', height: '400px' }}>
           {/* Odbiorcy / Grupy */}
-          <div style={{ width: '250px', border: '1px solid #808080', background: '#fff', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ background: '#d4d0c8', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #808080' }}>
+          <div style={{ width: '250px', border: '1px solid #d1d1d1', background: '#fff', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ background: '#f3f3f3', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>
               Grupy odbiorców
             </div>
             <div style={{ padding: '5px', flex: 1, overflowY: 'auto' }}>
@@ -4765,8 +4794,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
 
           {/* Konwersacja */}
-          <div style={{ flex: 1, border: '1px solid #808080', background: '#fff', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ background: '#d4d0c8', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #808080' }}>
+          <div style={{ flex: 1, border: '1px solid #d1d1d1', background: '#fff', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ background: '#f3f3f3', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>
               Wiadomości do: {smsRecipient}
             </div>
             <div style={{ flex: 1, padding: '10px', overflowY: 'auto', background: '#f0f0f0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -4787,7 +4816,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 </div>
               ))}
             </div>
-            <div style={{ padding: '10px', background: '#d4d0c8', borderTop: '1px solid #808080', display: 'flex', gap: '5px' }}>
+            <div style={{ padding: '10px', background: '#f3f3f3', borderTop: '1px solid #d1d1d1', display: 'flex', gap: '5px' }}>
               <input 
                 type="text" 
                 value={smsInput}
@@ -4814,7 +4843,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
       <div style={{ padding: '16px', overflowY: 'auto', height: '100%', backgroundColor: '#ffffff', color: '#000000' }} className="border-inset fade-in">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid var(--win-shadow)', paddingBottom: '10px', marginBottom: '15px' }}>
           <div>
-            <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: '#000080' }}>
+            <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: '#005fb8' }}>
               DZIENNIK PRZEBIEGU SŁUŻBY SKKM/PSK
             </h3>
             <p style={{ fontSize: '10px', color: '#555', marginTop: '2px' }}>Automatyczna ewidencja chronologiczna wydarzeń bieżących</p>
@@ -4825,15 +4854,15 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 📂 Otwarcie nowej zmiany
               </button>
             )}
-            <button className="btn-win" style={{ backgroundColor: '#d4d0c8', fontWeight: 'bold' }} onClick={() => setPrintPreviewMode('dziennik_sluzby')}>
+            <button className="btn-win" style={{ backgroundColor: '#f3f3f3', fontWeight: 'bold' }} onClick={() => setPrintPreviewMode('dziennik_sluzby')}>
               🖨️ Drukuj raport dobowy
             </button>
           </div>
         </div>
 
         {/* SKKM Shift crew roster form */}
-        <div className="border-inset" style={{ padding: '10px', background: '#d4d0c8', marginBottom: '15px' }}>
-          <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000080', marginBottom: '8px', textTransform: 'uppercase' }}>
+        <div className="border-inset" style={{ padding: '10px', background: '#f3f3f3', marginBottom: '15px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#005fb8', marginBottom: '8px', textTransform: 'uppercase' }}>
             Obsada Służbowa Dyspozytornia (Dzisiejsza Zmiana)
           </div>
           <div className="form-grid-3">
@@ -4858,9 +4887,9 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         </div>
 
         {/* JRG Shift Roster Details */}
-        <div className="border-inset" style={{ padding: '10px', background: '#d4d0c8', marginBottom: '15px' }}>
+        <div className="border-inset" style={{ padding: '10px', background: '#f3f3f3', marginBottom: '15px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#000080', textTransform: 'uppercase' }}>
+            <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#005fb8', textTransform: 'uppercase' }}>
               Stany Osobowe Zmian Bojowych JRG (Dyspozytornia)
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -4875,7 +4904,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
             {/* JRG 1 */}
-            <div style={{ background: '#ffffff', padding: '6px', border: '1px solid #808080' }}>
+            <div style={{ background: '#ffffff', padding: '6px', border: '1px solid #d1d1d1' }}>
               <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#ff4b4b', marginBottom: '4px' }}>JRG 1</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '4px' }}>
                 <label style={{ fontSize: '8px' }}>Stan podziału:<input type="number" className="input-field" style={{ fontSize: '8px', padding: '1px' }} value={shiftJrg1Staff.active} onChange={(e) => setShiftJrg1Staff({ ...shiftJrg1Staff, active: parseInt(e.target.value, 10) })} /></label>
@@ -4885,7 +4914,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             </div>
 
             {/* JRG 2 */}
-            <div style={{ background: '#ffffff', padding: '6px', border: '1px solid #808080' }}>
+            <div style={{ background: '#ffffff', padding: '6px', border: '1px solid #d1d1d1' }}>
               <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#ff4b4b', marginBottom: '4px' }}>JRG 2</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '4px' }}>
                 <label style={{ fontSize: '8px' }}>Stan podziału:<input type="number" className="input-field" style={{ fontSize: '8px', padding: '1px' }} value={shiftJrg2Staff.active} onChange={(e) => setShiftJrg2Staff({ ...shiftJrg2Staff, active: parseInt(e.target.value, 10) })} /></label>
@@ -4895,7 +4924,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             </div>
 
             {/* JRG 3 */}
-            <div style={{ background: '#ffffff', padding: '6px', border: '1px solid #808080' }}>
+            <div style={{ background: '#ffffff', padding: '6px', border: '1px solid #d1d1d1' }}>
               <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#ff4b4b', marginBottom: '4px' }}>JRG 3</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '4px' }}>
                 <label style={{ fontSize: '8px' }}>Stan podziału:<input type="number" className="input-field" style={{ fontSize: '8px', padding: '1px' }} value={shiftJrg3Staff.active} onChange={(e) => setShiftJrg3Staff({ ...shiftJrg3Staff, active: parseInt(e.target.value, 10) })} /></label>
@@ -4912,8 +4941,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         </div>
 
         {/* Weather alerts meteo feed */}
-        <div className="border-inset" style={{ padding: '10px', background: '#d4d0c8', marginBottom: '15px' }}>
-          <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#c92a2a', marginBottom: '8px', textTransform: 'uppercase' }}>
+        <div className="border-inset" style={{ padding: '10px', background: '#f3f3f3', marginBottom: '15px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#d13438', marginBottom: '8px', textTransform: 'uppercase' }}>
             Ostrzeżenia Meteorologiczne KW PSP / IMGW
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -4926,8 +4955,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         {/* Log Entries */}
         <div className="border-inset" style={{ background: '#ffffff', padding: '12px', minHeight: '260px', fontFamily: 'var(--font-mono)', fontSize: '11px', lineHeight: '1.6', overflowY: 'auto' }}>
           {dailyLogs.map((log, idx) => (
-            <div key={idx} style={{ borderBottom: '1px solid #d4d0c8', padding: '4px 0', display: 'flex', gap: '15px' }}>
-              <span style={{ color: '#000080', fontWeight: 'bold', minWidth: '45px' }}>[{log.time}]</span>
+            <div key={idx} style={{ borderBottom: '1px solid #f3f3f3', padding: '4px 0', display: 'flex', gap: '15px' }}>
+              <span style={{ color: '#005fb8', fontWeight: 'bold', minWidth: '45px' }}>[{log.time}]</span>
               <span style={{ color: '#000000' }}>{log.text}</span>
             </div>
           ))}
@@ -4939,14 +4968,14 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
   const renderKomunikatyScreen = () => {
     return (
       <div className="tab-content" style={{ padding: '10px', height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <h3 style={{ borderBottom: '2px solid #d4d0c8', paddingBottom: '5px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <h3 style={{ borderBottom: '2px solid #f3f3f3', paddingBottom: '5px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '18px' }}>✉️</span> Komunikator Systemowy SWD-ST
         </h3>
         
         <div style={{ display: 'flex', gap: '10px', flex: 1, height: 'calc(100% - 40px)' }}>
           
           <div className="border-inset" style={{ width: '250px', background: '#fff', padding: '10px' }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '10px', color: '#000080' }}>Adresaci i Grupy</div>
+            <div style={{ fontWeight: 'bold', marginBottom: '10px', color: '#005fb8' }}>Adresaci i Grupy</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
               <button className="btn-win" style={{ textAlign: 'left', fontWeight: 'bold' }} onClick={() => setMsgRecipient('Wszyscy')}>Wszyscy użytkownicy</button>
               {ALL_UNITS.filter(u => u !== 'KM/KP PSP').map(u => (
@@ -4958,7 +4987,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
 
           <div className="border-inset" style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#e9ecef' }}>
-            <div style={{ background: '#d4d0c8', padding: '5px 10px', fontWeight: 'bold', borderBottom: '1px solid #808080' }}>
+            <div style={{ background: '#f3f3f3', padding: '5px 10px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>
               Bieżące komunikaty (Kierunek: {msgRecipient === 'Wszyscy' ? 'Ogólny' : msgRecipient})
             </div>
             
@@ -4972,7 +5001,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   color: '#000000',
                   boxShadow: '1px 1px 3px rgba(0,0,0,0.1)'
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: m.priority === 'urgent' ? '#c92a2a' : '#000080', fontWeight: 'bold', borderBottom: '1px dotted #ccc', paddingBottom: '4px', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: m.priority === 'urgent' ? '#d13438' : '#005fb8', fontWeight: 'bold', borderBottom: '1px dotted #ccc', paddingBottom: '4px', marginBottom: '8px' }}>
                     <span style={{ fontSize: '13px' }}>Nadawca: {m.sender} ({m.senderUnit}) {m.recipient && m.recipient !== 'Wszyscy' ? `➔ Do: ${m.recipient}` : ''}</span>
                     <span style={{ color: '#495057' }}>
                       {m.createdAt ? (m.createdAt.toDate ? m.createdAt.toDate().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '') : ''}
@@ -4997,7 +5026,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               ))}
             </div>
 
-            <form onSubmit={handleSendMessage} style={{ display: 'flex', flexDirection: 'column', padding: '15px', gap: '10px', background: '#d4d0c8', borderTop: '2px solid #808080' }}>
+            <form onSubmit={handleSendMessage} style={{ display: 'flex', flexDirection: 'column', padding: '15px', gap: '10px', background: '#f3f3f3', borderTop: '2px solid #d1d1d1' }}>
               <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
                 <div style={{ fontWeight: 'bold' }}>Wyślij do:</div>
                 <select 
@@ -5047,12 +5076,12 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
   if (!user) {
     return (
-      <div className="app-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#008080' }}>
+      <div className="app-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'transparent' }}>
         <div className="win-dialog border-double-outset" style={{ width: '400px' }}>
           <div className="win-dialog-header">
             <span>Logowanie do SWD-ST 2.5 (Tryb sieciowy)</span>
           </div>
-          <div className="win-dialog-body" style={{ background: '#d4d0c8', padding: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div className="win-dialog-body" style={{ background: '#f3f3f3', padding: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {error && <div style={{ color: 'red', fontWeight: 'bold' }}>{error}</div>}
             
             {authMode === 'login' ? (
@@ -5085,7 +5114,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   <input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="input-field" style={{ width: '100%', padding: '3px' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#000080' }}>Wybierz Komendę (Miejsce pełnienia służby):</label>
+                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#005fb8' }}>Wybierz Komendę (Miejsce pełnienia służby):</label>
                   <select value={cityName} onChange={e => setCityName(e.target.value)} required className="input-field" style={{ width: '100%', padding: '3px' }}>
                     <option value="">-- Wybierz komendę --</option>
                     <option value="120000">KW PSP Katowice</option>
@@ -5136,17 +5165,20 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         <div className="menu-item" onClick={() => setIsSystemMenuOpen(!isSystemMenuOpen)} style={{ position: 'relative', background: isSystemMenuOpen ? '#0a6ece' : '', color: isSystemMenuOpen ? '#fff' : '' }}>
           Plik
           {isSystemMenuOpen && (
-            <div style={{ position: 'absolute', top: '100%', left: 0, background: '#d4d0c8', padding: '2px', zIndex: 10000, display: 'flex', flexDirection: 'column', minWidth: '220px', boxShadow: '2px 2px 5px rgba(0,0,0,0.4)', border: '1.5px solid #808080' }}>
+            <div style={{ position: 'absolute', top: '100%', left: 0, background: '#f3f3f3', padding: '2px', zIndex: 10000, display: 'flex', flexDirection: 'column', minWidth: '220px', boxShadow: '2px 2px 5px rgba(0,0,0,0.4)', border: '1.5px solid #d1d1d1' }}>
               <div className="menu-item-dropdown" onClick={(e) => { e.stopPropagation(); setIsSystemMenuOpen(false); setIsShiftTransitionModalOpen(true); }} style={{ color: '#000', padding: '4px 10px', fontSize: '11px', textAlign: 'left', cursor: 'pointer' }}>
                 🔑 Rozpocznij nową służbę
               </div>
-              <div className="menu-item-dropdown" onClick={(e) => { e.stopPropagation(); setIsSystemMenuOpen(false); handleSystemReset(); }} style={{ color: '#c92a2a', fontWeight: 'bold', padding: '4px 10px', fontSize: '11px', textAlign: 'left', cursor: 'pointer' }}>
+              <div className="menu-item-dropdown" onClick={(e) => { e.stopPropagation(); setIsSystemMenuOpen(false); setIsVehiclesModalOpen(true); }} style={{ color: '#000', padding: '4px 10px', fontSize: '11px', textAlign: 'left', cursor: 'pointer' }}>
+                🚒 Zarządzaj Pojazdami (Edycja KM PSP / JRG)
+              </div>
+              <div className="menu-item-dropdown" onClick={(e) => { e.stopPropagation(); setIsSystemMenuOpen(false); handleSystemReset(); }} style={{ color: '#d13438', fontWeight: 'bold', padding: '4px 10px', fontSize: '11px', textAlign: 'left', cursor: 'pointer' }}>
                 🔄 Reset i nowa gra (Inicjalizacja)
               </div>
               <div className="menu-item-dropdown" onClick={(e) => { e.stopPropagation(); setIsSystemMenuOpen(false); wipeAndInitializeDb(); }} style={{ color: '#000', padding: '4px 10px', fontSize: '11px', textAlign: 'left', cursor: 'pointer' }}>
                 💣 Wyczyść i zainicjuj bazę danych
               </div>
-              <div style={{ height: '1px', background: '#808080', margin: '2px 0' }} />
+              <div style={{ height: '1px', background: '#d1d1d1', margin: '2px 0' }} />
               <div className="menu-item-dropdown" onClick={(e) => { e.stopPropagation(); setIsSystemMenuOpen(false); handleLogout(); }} style={{ color: '#000', padding: '4px 10px', fontSize: '11px', textAlign: 'left', cursor: 'pointer' }}>
                 ✕ Wyjście z programu (Wyloguj)
               </div>
@@ -5157,22 +5189,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         <div className={`menu-item ${activeMenuTab === 'rejestr' ? 'active' : ''}`} onClick={() => setActiveMenuTab('rejestr')}>Zdarzenia</div>
         <div className="menu-item">Meldunki</div>
         <div className={`menu-item ${activeMenuTab === 'katalog_sis' ? 'active' : ''}`} onClick={() => setActiveMenuTab('katalog_sis')}>Siły i środki</div>
-        <div className="menu-item">Podmioty i osoby</div>
-        <div className={`menu-item ${activeMenuTab === 'bufor' ? 'active' : ''}`} onClick={() => setActiveMenuTab('bufor')}>Ewid</div>
-        <div className={`menu-item ${activeMenuTab === 'scoreboard' ? 'active' : ''}`} onClick={() => setActiveMenuTab('scoreboard')}>Analizy</div>
-        <div className="menu-item">System</div>
-        <div className="menu-item">Słowniki</div>
         <div className={`menu-item ${activeMenuTab === 'konta' || activeMenuTab === 'monitor' ? 'active' : ''}`} onClick={() => { if(userProfile?.role === 'admin') setActiveMenuTab('konta'); else setActiveMenuTab('monitor'); }}>Urządzenia</div>
-        <div className="menu-item" onClick={() => setIsChatSidebarOpen(!isChatSidebarOpen)} style={{ position: 'relative', background: isChatSidebarOpen ? '#0a6ece' : '', color: isChatSidebarOpen ? '#fff' : '' }}>
-          Komunikaty
-          {chatUnreadCount > 0 && (
-            <span style={{ position: 'absolute', top: '-3px', right: '-3px', background: '#ff0000', color: 'white', borderRadius: '50%', padding: '0 4px', fontSize: '8px', fontWeight: 'bold', lineHeight: '12px', height: '12px', minWidth: '12px', textAlign: 'center' }}>
-              {chatUnreadCount}
-            </span>
-          )}
-        </div>
         <div className="menu-item">Okna</div>
-        <div className="menu-item">Pomoc</div>
         <div 
           className="menu-item"
           onClick={() => {
@@ -5191,8 +5209,22 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           🎮 Tryb Gry {isGameModeActive ? 'ON' : 'OFF'}
         </div>
         {isGameModeActive && (
-          <div className="menu-item" style={{ color: '#000080', fontWeight: 'bold', borderLeft: '1px solid #808080' }}>
+          <div className="menu-item" style={{ color: '#005fb8', fontWeight: 'bold', borderLeft: '1px solid #d1d1d1' }}>
             🏆 Wynik: {gameScore} pkt
+          </div>
+        )}
+        {isGameModeActive && (
+          <div className="menu-item" style={{ borderLeft: '1px solid #d1d1d1', padding: '0 8px' }}>
+            <input 
+              type="text" 
+              placeholder="Miasta powiatu (np. Będzin, Czeladź)" 
+              value={gameModeCities} 
+              onChange={(e) => {
+                setGameModeCities(e.target.value);
+                localStorage.setItem('swd_game_cities', e.target.value);
+              }}
+              style={{ fontSize: '10px', width: '200px', border: '1px solid #d1d1d1' }}
+            />
           </div>
         )}
         <div className="menu-item">Pomoc</div>
@@ -5217,7 +5249,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   alert('Nie udało się zmienić obszaru chronionego.');
                 }
               }}
-              style={{ fontSize: '10px', background: '#0a6ece', color: '#fff', border: '1px inset #808080', padding: '0 2px', cursor: 'pointer', outline: 'none', height: '18px', fontWeight: 'bold' }}
+              style={{ fontSize: '10px', background: '#0a6ece', color: '#fff', border: '1px inset #d1d1d1', padding: '0 2px', cursor: 'pointer', outline: 'none', height: '18px', fontWeight: 'bold' }}
               title="Zmień obszar chroniony (WSKR)"
             >
               <option value="120000">120000 - KW PSP KATOWICE</option>
@@ -5268,29 +5300,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           <span style={{ fontSize: '12px' }}>💾</span>
           <span>Meldunek (F8)</span>
         </button>
-        <div className="toolbar-separator" />
-        <button 
-          className="toolbar-btn" 
-          title="Uruchom alarm radiowy syreny DSP-50" 
-          disabled={!selectedOspSidebar}
-          onClick={() => triggerOspSiren(selectedOspSidebar)}
-        >
-          <span style={{ fontSize: '12px' }}>🚨</span>
-          <span>Syrena DSP</span>
-        </button>
-        <button 
-          className="toolbar-btn" 
-          title="Podgląd wydruku karty manipulacyjnej" 
-          disabled={!selectedIncidentId}
-          onClick={() => {
-            setPrintPreviewMode('karta_manipulacyjna');
-            setTimeout(() => window.print(), 100);
-          }}
-        >
-          <span style={{ fontSize: '12px' }}>🖨️</span>
-          <span>Drukuj kartę</span>
-        </button>
-        <div className="toolbar-separator" />
+
         <button 
           className="toolbar-btn" 
           title="Odśwież rejestr i gotowość bojową [F5]" 
@@ -5306,30 +5316,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         </button>
       </div>
 
-      {/* Meteo Warning Alert Bar */}
-      {isMeteoAlertActive && (
-        <div style={{ 
-          background: '#d9480f', 
-          color: '#ffffff', 
-          padding: '4px 10px', 
-          fontSize: '10px', 
-          fontWeight: 'bold', 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '8px', 
-          borderBottom: '1px solid var(--win-shadow)' 
-        }}>
-          <span>⚠️ ALARM METEO IMGW:</span>
-          <marquee scrollamount="3.5" style={{ flex: 1, fontFamily: 'monospace' }}>{meteoAlertText}</marquee>
-          <button 
-            className="btn-win" 
-            style={{ padding: '0 5px', fontSize: '8px', background: '#000', color: '#fff', border: 'none', height: '14px', lineHeight: '1' }}
-            onClick={() => setIsMeteoAlertActive(false)}
-          >
-            Ukryj
-          </button>
-        </div>
-      )}
+
 
       {/* Toolbar with Action Buttons & Filters */}
       <div className="action-toolbar" style={{ padding: '2px 6px', background: 'var(--win-face)' }}>
@@ -5564,7 +5551,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                       const isCompleted = incident.status === 'processed' || !!(incident.times?.completion);
                       
                       let rowBg = 'transparent';
-                      if (isSelected) rowBg = '#00ff00';
+                      if (isSelected) rowBg = '#005fb8';
                       else if (isCompleted) rowBg = '#f8f9fa';
                       else if (hasActiveVehicles) rowBg = '#fff5f5'; // Red-tinted for active
                       else if (hasDispatchedVehicles) rowBg = '#fffde7'; // Yellow-tinted for dispatched
@@ -5574,9 +5561,9 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                           key={incident.id} 
                           className={`swd-row ${isSelected ? 'selected' : ''} ${incident.isArchived ? 'archived' : ''} ${incident.type === 'bl' ? 'error-bl' : ''}`}
                           style={{ 
-                            backgroundColor: rowBg,
-                            color: isSelected ? '#000000' : 'inherit',
-                            borderLeft: hasActiveVehicles && !isSelected ? '3px solid #c92a2a' : hasDispatchedVehicles && !isSelected ? '3px solid #f59f00' : ''
+                            backgroundColor: isSelected ? '' : rowBg,
+                            color: isSelected ? '#ffffff' : 'inherit',
+                            borderLeft: hasActiveVehicles && !isSelected ? '3px solid #d13438' : hasDispatchedVehicles && !isSelected ? '3px solid #f59f00' : ''
                           }}
                           onClick={() => setSelectedIncidentId(incident.id)}
                           onDoubleClick={() => {
@@ -5614,11 +5601,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                               )}
                               {(incident.flags || []).map(flag => {
                                 const flagColors = {
-                                  dlugotrl: { color: '#c92a2a', bg: '#ffe3e3', label: 'DŁ.' },
+                                  dlugotrl: { color: '#d13438', bg: '#ffe3e3', label: 'DŁ.' },
                                   masowe: { color: '#e67700', bg: '#fff3e0', label: 'MAS.' },
                                   hbzn: { color: '#7c3aed', bg: '#f0e6ff', label: 'HBZN' },
                                   wielopow: { color: '#0c8599', bg: '#e3fafc', label: 'WP.' },
-                                  interwenc: { color: '#000080', bg: '#d0ebff', label: 'INT.' },
+                                  interwenc: { color: '#005fb8', bg: '#d0ebff', label: 'INT.' },
                                   katastrofa: { color: '#f03e3e', bg: '#fff5f5', label: 'KAT.' },
                                 };
                                 const fc = flagColors[flag] || { color: '#555', bg: '#f8f9fa', label: flag };
@@ -5629,11 +5616,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                                 );
                               })}
                               {incident.isLongDuration && !(incident.flags || []).includes('dlugotrl') && (
-                                <span style={{ fontSize: '7.5px', color: '#c92a2a', border: '1px solid #c92a2a', padding: '0 2px', borderRadius: '2px', fontWeight: 'bold' }}>DŁ.</span>
+                                <span style={{ fontSize: '7.5px', color: '#d13438', border: '1px solid #d13438', padding: '0 2px', borderRadius: '2px', fontWeight: 'bold' }}>DŁ.</span>
                               )}
                               {actionTypeLabel && <span style={{ fontSize: '7.5px', color: '#1864ab', border: '1px solid #1864ab', padding: '0 2px', borderRadius: '2px', fontWeight: 'bold' }}>{actionTypeLabel}</span>}
                               {incident.linkedCalls && incident.linkedCalls.length > 0 && (
-                                <span style={{ color: '#000080', fontSize: '8.5px', fontWeight: 'bold' }} title={`Zgłoszenia wtórne: ${incident.linkedCalls.length}`}>
+                                <span style={{ color: '#005fb8', fontSize: '8.5px', fontWeight: 'bold' }} title={`Zgłoszenia wtórne: ${incident.linkedCalls.length}`}>
                                   📞{incident.linkedCalls.length}
                                 </span>
                               )}
@@ -5666,246 +5653,112 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 </table>
               </div>
 
-              {/* Dziennik Korespondencji Radiowej */}
-              {activeIncident && (
-                <div style={{ height: '190px', background: '#d4d0c8', borderTop: '2px solid var(--win-shadow)', padding: '4px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                  <div style={{ borderBottom: '1.5px solid #808080', paddingBottom: '3px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', gap: '4px' }}>
-                      <button className={`tab-btn ${bottomLogTab === 'radio' ? 'active' : ''}`} onClick={() => setBottomLogTab('radio')} style={{ fontSize: '9px', padding: '2px 8px' }}>🎙️ Dziennik Korespondencji Radiowej</button>
-                      <button className={`tab-btn ${bottomLogTab === 'history' ? 'active' : ''}`} onClick={() => setBottomLogTab('history')} style={{ fontSize: '9px', padding: '2px 8px' }}>📖 Historia operacji na karcie</button>
-                    </div>
-                    
-                    {bottomLogTab === 'radio' && (
-                      <div style={{ display: 'flex', gap: '4px', marginRight: '6px' }}>
-                        <button className="btn-win" style={{ fontSize: '8px', padding: '1px 3px' }} onClick={() => quickFillRadio("SKKM", "KDR", "Zadysponowanie i wyjazd zastępów do zdarzenia (ST 1).")}>Wyjazd ST 1</button>
-                        <button className="btn-win" style={{ fontSize: '8px', padding: '1px 3px' }} onClick={() => quickFillRadio("KDR", "SKKM", "Dojazd na miejsce zdarzenia, rozpoznanie i lokalizacja (ST 2).")}>Dojazd ST 2</button>
-                        <button className="btn-win" style={{ fontSize: '8px', padding: '1px 3px' }} onClick={() => quickFillRadio("KDR", "SKKM", "Zadanie wykonane. Likwidacja zagrożenia, powrót (ST 3).")}>Powrót ST 3</button>
-                        <button className="btn-win" style={{ fontSize: '8px', padding: '1px 3px' }} onClick={() => quickFillRadio("KDR", "SKKM", "Zastęp w koszarach. Zgłaszamy pełną gotowość bojową (ST 4).")}>Koszary ST 4</button>
-                      </div>
-                    )}
-                    <span style={{ color: '#000000', fontSize: '9px', fontWeight: 'bold' }}>ID zdarzenia: {activeIncident.customId}</span>
-                  </div>
-                  
-                  {bottomLogTab === 'radio' ? (
-                    <>
-                      <div className="border-inset" style={{ flex: 1, overflowY: 'auto', background: '#ffffff', padding: '5px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                        {activeIncident.radioLogs && activeIncident.radioLogs.map((log, idx) => (
-                          <div key={idx} style={{ fontSize: '9.5px', borderBottom: '1px solid #d4d0c8', paddingBottom: '2px', color: '#000000' }}>
-                            🎙️ <strong style={{ color: '#000080' }}>[{log.time}] {log.from} ➔ {log.to}</strong> <span style={{ color: '#555' }}>({log.channel})</span>: <span>{log.text}</span>
-                          </div>
-                        ))}
-                      </div>
-
-                      {userProfile && (
-                        <form onSubmit={handleAddRadioLog} style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '50px 100px 100px 1fr', gap: '3px' }}>
-                            <input type="time" className="input-field" style={{ fontSize: '9px', padding: '2px' }} value={radioTime} onChange={(e) => setRadioTime(e.target.value)} required />
-                            <input type="text" className="input-field" style={{ fontSize: '9px', padding: '2px' }} placeholder="Nadawca" value={radioFrom} onChange={(e) => setRadioFrom(e.target.value)} required />
-                            <input type="text" className="input-field" style={{ fontSize: '9px', padding: '2px' }} placeholder="Odbiorca" value={radioTo} onChange={(e) => setRadioTo(e.target.value)} required />
-                            <select className="input-field" style={{ fontSize: '9px', padding: '1px' }} value={radioChannel} onChange={(e) => setRadioChannel(e.target.value)}>
-                              <option value="K01 - Powiatowy">K01 - Powiatowy (Kanał 1)</option>
-                              <option value="B022 - Wojewódzki">B022 - Wojewódzki (Kanał 2)</option>
-                              <option value="KRG - Rat-Gaś">KRG - Ratownictwo-Gaśnicze</option>
-                            </select>
-                          </div>
-                          <div style={{ display: 'flex', gap: '3px' }}>
-                            <input type="text" className="input-field" style={{ flex: 1, fontSize: '9px', padding: '2px' }} placeholder="Wpisz treść komunikatu radiowego..." value={radioMessage} onChange={(e) => setRadioMessage(e.target.value)} required />
-                            <button type="submit" className="btn-win" style={{ padding: '1px 6px', fontSize: '9px', fontWeight: 'bold' }}>Dodaj wpis</button>
-                          </div>
-                        </form>
-                      )}
-                    </>
-                  ) : (
-                    <div className="border-inset" style={{ flex: 1, overflowY: 'auto', background: '#ffffff', padding: '6px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                      {activeIncident.eventHistory && activeIncident.eventHistory.map((hist, idx) => (
-                        <div key={idx} style={{ fontSize: '9.5px', borderBottom: '1px solid #d4d0c8', paddingBottom: '2px', display: 'flex', gap: '10px' }}>
-                          <span style={{ color: '#2b8a3e', fontWeight: 'bold' }}>[{hist.time}]</span>
-                          <span style={{ color: '#000000', minWidth: '120px' }}>👤 {hist.user}</span>
-                          <span style={{ color: '#333' }}>{hist.action}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+              {/* Dziennik Korespondencji Radiowej (Removed per user request) */}
             </div>
 
             {/* Right side: Dispatched Units (Siły i Środki / SOP Tabs) */}
             <div className="forces-pane border-inset" style={{ position: 'relative' }}>
               
               {/* Tab selector */}
-              <div style={{ display: 'flex', background: '#d4d0c8', borderBottom: '1.5px solid #808080', userSelect: 'none' }}>
+              <div style={{ display: 'flex', background: '#f3f3f3', borderBottom: '1.5px solid #d1d1d1', userSelect: 'none' }}>
                 <button 
                   onClick={() => setRightPanelTab('sis')}
-                  style={{ 
-                    flex: 1, 
-                    fontSize: '9.5px', 
-                    padding: '5px 4px', 
-                    border: '1px solid transparent',
-                    borderBottom: 'none',
-                    background: rightPanelTab === 'sis' ? '#ffffff' : '#d4d0c8', 
-                    color: '#000000',
-                    fontWeight: rightPanelTab === 'sis' ? 'bold' : 'normal', 
-                    cursor: 'pointer',
-                    outline: 'none',
-                    borderTopLeftRadius: '2px',
-                    borderTopRightRadius: '2px',
-                    marginTop: '2px',
-                    borderTop: rightPanelTab === 'sis' ? '1.5px solid #808080' : 'none',
-                    borderLeft: rightPanelTab === 'sis' ? '1.5px solid #808080' : 'none',
-                    borderRight: rightPanelTab === 'sis' ? '1.5px solid #808080' : 'none'
-                  }}
+                  style={{ flex: 1, fontSize: '9.5px', padding: '5px 4px', border: '1px solid transparent', borderBottom: 'none', background: rightPanelTab === 'sis' ? '#ffffff' : '#f3f3f3', color: '#000000', fontWeight: rightPanelTab === 'sis' ? 'bold' : 'normal', cursor: 'pointer', outline: 'none', borderTopLeftRadius: '2px', borderTopRightRadius: '2px', marginTop: '2px', borderTop: rightPanelTab === 'sis' ? '1.5px solid #d1d1d1' : 'none', borderLeft: rightPanelTab === 'sis' ? '1.5px solid #d1d1d1' : 'none', borderRight: rightPanelTab === 'sis' ? '1.5px solid #d1d1d1' : 'none' }}
                 >
-                  🚒 Siły w Zdarzeniu
+                  Wszystkie ({activeIncident?.vehicles?.length || 0})
+                </button>
+                <button 
+                  onClick={() => setRightPanelTab('sis')}
+                  style={{ flex: 1, fontSize: '9.5px', padding: '5px 4px', border: '1px solid transparent', borderBottom: 'none', background: rightPanelTab === 'sis' ? '#f3f3f3' : '#f3f3f3', color: '#000000', fontWeight: 'normal', cursor: 'pointer', outline: 'none', borderTopLeftRadius: '2px', borderTopRightRadius: '2px', marginTop: '2px' }}
+                >
+                  Pojazdy ({activeIncident?.vehicles?.length || 0})
                 </button>
                 <button 
                   onClick={() => setRightPanelTab('sop')}
-                  style={{ 
-                    flex: 1, 
-                    fontSize: '9.5px', 
-                    padding: '5px 4px', 
-                    border: '1px solid transparent',
-                    borderBottom: 'none',
-                    background: rightPanelTab === 'sop' ? '#ffffff' : '#d4d0c8', 
-                    color: '#000000',
-                    fontWeight: rightPanelTab === 'sop' ? 'bold' : 'normal', 
-                    cursor: 'pointer',
-                    outline: 'none',
-                    borderTopLeftRadius: '2px',
-                    borderTopRightRadius: '2px',
-                    marginTop: '2px',
-                    borderTop: rightPanelTab === 'sop' ? '1.5px solid #808080' : 'none',
-                    borderLeft: rightPanelTab === 'sop' ? '1.5px solid #808080' : 'none',
-                    borderRight: rightPanelTab === 'sop' ? '1.5px solid #808080' : 'none'
-                  }}
+                  style={{ flex: 1, fontSize: '9.5px', padding: '5px 4px', border: '1px solid transparent', borderBottom: 'none', background: rightPanelTab === 'sop' ? '#ffffff' : '#f3f3f3', color: '#000000', fontWeight: rightPanelTab === 'sop' ? 'bold' : 'normal', cursor: 'pointer', outline: 'none', borderTopLeftRadius: '2px', borderTopRightRadius: '2px', marginTop: '2px', borderTop: rightPanelTab === 'sop' ? '1.5px solid #d1d1d1' : 'none', borderLeft: rightPanelTab === 'sop' ? '1.5px solid #d1d1d1' : 'none', borderRight: rightPanelTab === 'sop' ? '1.5px solid #d1d1d1' : 'none' }}
                 >
-                  📋 Algorytmy SOP
+                  Algorytmy SOP
                 </button>
               </div>
 
               <div style={{ overflowY: 'auto', flex: 1, backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column' }}>
                 {rightPanelTab === 'sis' ? (
                   <>
-                    {/* SiS Status Legend */}
-                    <div style={{ display: 'flex', gap: '6px', padding: '4px 6px', background: '#f0f0f0', borderBottom: '1px solid #d4d0c8', flexWrap: 'wrap' }}>
-                      {[
-                        { st: 1, label: 'Wyjazd', color: '#ff922b', bg: '#fff4e6' },
-                        { st: 2, label: 'Na miejscu', color: '#fa5252', bg: '#fff5f5' },
-                        { st: 3, label: 'Powrót', color: '#228be6', bg: '#e7f5ff' },
-                        { st: 4, label: 'W koszarach', color: '#40c057', bg: '#ebfbee' },
-                      ].map(s => (
-                        <span key={s.st} style={{ fontSize: '8px', background: s.bg, color: s.color, border: `1px solid ${s.color}`, borderRadius: '2px', padding: '1px 4px', fontWeight: 'bold' }}>
-                          ST{s.st} {s.label}
-                        </span>
-                      ))}
+                    {/* Dyspozycje Toolbar */}
+                    <div style={{ display: 'flex', gap: '2px', padding: '2px 4px', background: '#f3f3f3', borderBottom: '1px solid #d1d1d1' }}>
+                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Meldunek EWID-ST" onClick={() => setIsEwidReportModalOpen(true)}>📄</button>
+                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Wyjazd do akcji">▶️</button>
+                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Zawrócenie z trasy">↩️</button>
+                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Lokalizacja zagrożenia">📍</button>
+                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Drukuj" onClick={() => setPrintPreviewMode('karta_manipulacyjna')}>🖨️</button>
+                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px', color: '#888' }} title="Brak opcji">🚛</button>
+                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px', color: '#8b008b', fontWeight: 'bold' }} title="Lokalizacja zagrożenia">L</button>
                     </div>
 
+                    {/* SiS Table */}
                     {activeIncident && activeIncident.vehicles && activeIncident.vehicles.length > 0 ? (
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        {activeIncident.vehicles.map((vStr, i) => {
-                          if (!vStr) return null;
-                          const parts = vStr.split(' | ');
-                          const unit = parts[0] || '---';
-                          const vName = parts[1] || vStr;
-                          
-                          const metrics = activeIncident.vehicleMetrics?.[vStr] || { km: 0, fuel: 0 };
-                          const vStatus = activeIncident.vehicleStatuses?.[vStr] || 0;
-                          const isIncidentActive = activeIncident.status !== 'processed';
+                      <table className="swd-table" style={{ borderCollapse: 'collapse', width: '100%' }}>
+                        <thead>
+                          <tr>
+                            <th style={{ width: '24px', textAlign: 'center', padding: '2px' }}></th>
+                            <th style={{ padding: '2px 4px', textAlign: 'left' }}>Nazwa</th>
+                            <th style={{ padding: '2px 4px', textAlign: 'left' }}>Kryptonim</th>
+                            <th style={{ padding: '2px 4px', textAlign: 'left' }}>Jednostka użytkownika...</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {activeIncident.vehicles.map((vStr, i) => {
+                            if (!vStr) return null;
+                            const parts = vStr.split(' | ');
+                            const unit = parts[0] || '---';
+                            const vName = parts[1] || vStr;
+                            
+                            const vehObj = tenantVehicles?.[unit]?.find(v => v.name === vName);
+                            const kryptonim = vehObj?.kryptonim || vStr;
 
-                          const ST_CONFIG = {
-                            0: { label: 'ST0', full: 'Zadysponowany (ST 0) - oczekuje w bazie', color: '#868e96', bg: '#f1f3f5', ledClass: 'yellow' },
-                            1: { label: 'ST1', full: 'Wyjazd (ST 1) - zastęp w drodze', color: '#ff922b', bg: '#fff4e6', ledClass: 'orange' },
-                            2: { label: 'ST2', full: 'Na miejscu (ST 2) - prowadzenie działań', color: '#fa5252', bg: '#fff5f5', ledClass: 'red' },
-                            3: { label: 'ST3', full: 'Powrót (ST 3) - powrót drogą zwykłą / wolny', color: '#228be6', bg: '#e7f5ff', ledClass: 'blue' },
-                            4: { label: 'ST4', full: 'W koszarach (ST 4) - powrót do bazy, gotowość', color: '#40c057', bg: '#ebfbee', ledClass: 'green' }
-                          };
-
-                          const currentST = ST_CONFIG[vStatus] || ST_CONFIG[0];
-
-                          let rowBg = i % 2 === 0 ? '#ffffff' : '#fafafa';
-                          if (vStatus === 1) rowBg = '#fff9db';
-                          else if (vStatus === 2) rowBg = '#fff5f5';
-                          else if (vStatus === 3) rowBg = '#e7f5ff';
-                          else if (vStatus === 4) rowBg = '#ebfbee';
-
-                          return (
-                            <div key={i} style={{ borderBottom: '1px solid #e9ecef', background: rowBg, padding: '5px 6px' }} onContextMenu={(e) => openVehicleContextMenu(e, vStr)}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                                <span style={{ color: 'black', fontWeight: 'bold', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                  <span className={`led-indicator ${currentST.ledClass}`} style={{ flexShrink: 0 }} />
-                                  <span title={vStr}>{vName}</span>
-                                </span>
-                                <span style={{ 
-                                  fontSize: '9px', 
-                                  fontWeight: 'bold', 
-                                  color: currentST.color, 
-                                  background: currentST.bg,
-                                  padding: '1px 5px',
-                                  border: `1px solid ${currentST.color}`,
-                                  borderRadius: '2px',
-                                  whiteSpace: 'nowrap'
-                                }}>
-                                  {currentST.label}
-                                </span>
-                              </div>
-
-                              {isIncidentActive && (
-                                <div style={{ display: 'flex', gap: '2px', marginBottom: '2px' }}>
-                                  {[1, 2, 3, 4].map(st => {
-                                    const stCfg = ST_CONFIG[st];
-                                    const isActive = vStatus === st;
-                                    return (
-                                      <button
-                                        key={st}
-                                        title={stCfg.full}
-                                        onClick={() => handleSetVehicleStatus(vStr, st)}
-                                        style={{
-                                          flex: 1,
-                                          fontSize: '8px',
-                                          fontWeight: 'bold',
-                                          padding: '2px 1px',
-                                          cursor: 'pointer',
-                                          background: isActive ? stCfg.color : '#e9ecef',
-                                          color: isActive ? '#ffffff' : '#555',
-                                          border: isActive ? `1.5px solid ${stCfg.color}` : '1px solid #ced4da',
-                                          borderRadius: '2px',
-                                          transition: 'all 0.1s',
-                                          outline: 'none'
-                                        }}
-                                      >
-                                        ST{st}
-                                      </button>
-                                    );
-                                  })}
-                                  <button
-                                    title="Więcej opcji (obsada, metryki, wycofanie)"
-                                    onClick={(e) => openVehicleContextMenu(e, vStr)}
-                                    style={{ fontSize: '8px', padding: '2px 4px', background: '#d4d0c8', border: '1px solid #808080', cursor: 'pointer', borderRadius: '2px', fontWeight: 'bold' }}
-                                  >
-                                    ⋮
-                                  </button>
-                                </div>
-                              )}
-
-                              {activeIncident.crew?.[vStr] && (
-                                <div style={{ fontSize: '8.5px', color: '#555', paddingLeft: '8px', borderLeft: '2px solid #ced4da' }}>
-                                  👤 D: {activeIncident.crew[vStr].dowodca || '—'} | K: {activeIncident.crew[vStr].kierowca || '—'}
-                                </div>
-                              )}
-
-                              {(metrics.km > 0 || metrics.fuel > 0) && (
-                                <div style={{ fontSize: '8.5px', color: '#000080', paddingLeft: '8px' }}>
-                                  📊 {metrics.km} km | {metrics.fuel} L paliwa
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
+                            const vStatus = activeIncident.vehicleStatuses?.[vStr] || 0;
+                            
+                            let statusIcon = "⚠️";
+                            let statusColor = "#000000";
+                            let statusBg = i % 2 === 0 ? '#ffffff' : '#fafafa';
+                            
+                            if (vStatus === 1) { statusIcon = "▶️"; statusColor = "#c92a2a"; } 
+                            else if (vStatus === 2) { statusIcon = "📍"; statusColor = "#c92a2a"; } 
+                            else if (vStatus === 3) { statusIcon = "◀️"; statusColor = "#2b8a3e"; } 
+                            else if (vStatus === 4) { statusIcon = "🏠"; statusColor = "#2b8a3e"; } 
+                            else if (vStatus === 0) { statusIcon = "⏳"; statusColor = "#555555"; } 
+                            
+                            if (vStatus === 1 || vStatus === 2) {
+                              statusBg = '#e3e3e3'; 
+                            } else if (vStatus === 3 || vStatus === 4) {
+                              statusBg = '#ffffff'; 
+                            }
+                            
+                            const isSelected = selectedSisVehicle === vStr;
+                            if (isSelected) {
+                              statusBg = '#005fb8';
+                              statusColor = '#ffffff';
+                            }
+                            
+                            return (
+                              <tr 
+                                key={i} 
+                                style={{ background: statusBg, cursor: 'default' }}
+                                onClick={() => setSelectedSisVehicle(vStr)}
+                                onContextMenu={(e) => { setSelectedSisVehicle(vStr); openVehicleContextMenu(e, vStr); }}
+                              >
+                                <td style={{ textAlign: 'center', padding: '1px 2px', fontSize: '10px' }}>{statusIcon}</td>
+                                <td style={{ padding: '1px 4px', fontSize: '9.5px', color: statusColor, fontWeight: 'bold' }}>{vName}</td>
+                                <td style={{ padding: '1px 4px', fontSize: '9.5px', color: statusColor }}>{kryptonim}</td>
+                                <td style={{ padding: '1px 4px', fontSize: '9.5px', color: statusColor }}>{unit}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     ) : (
-                      <div style={{ textAlign: 'center', color: '#808080', padding: '20px', fontSize: '10px' }}>
-                        Brak przypisanych sił i środków.<br />
-                        <span style={{ fontSize: '9px', color: '#aaa' }}>Kliknij pojazd na tablicy bojowej.</span>
+                      <div style={{ textAlign: 'center', color: '#d1d1d1', padding: '20px', fontSize: '10px' }}>
+                        Brak przypisanych sił i środków.
                       </div>
                     )}
                   </>
@@ -5914,7 +5767,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   <div style={{ padding: '8px', color: '#000000' }}>
                     {activeIncident ? (
                       <>
-                        <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#000080', borderBottom: '1px dashed #d4d0c8', paddingBottom: '3px', marginBottom: '8px', textTransform: 'uppercase' }}>
+                        <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#005fb8', borderBottom: '1px dashed #f3f3f3', paddingBottom: '3px', marginBottom: '8px', textTransform: 'uppercase' }}>
                           Standardowa procedura (Str. 54): {activeIncident.type === 'pozar' ? 'POŻAR' : activeIncident.type === 'mz' ? 'MIEJSCOWE ZAGROŻENIE' : 'ALARM FAŁSZYWY'}
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -5972,7 +5825,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                         </div>
                       </>
                     ) : (
-                      <div style={{ textAlign: 'center', color: '#808080', padding: '20px', fontSize: '10px' }}>
+                      <div style={{ textAlign: 'center', color: '#d1d1d1', padding: '20px', fontSize: '10px' }}>
                         Zaznacz aktywne zdarzenie w rejestrze, aby otworzyć procedury SOP.
                       </div>
                     )}
@@ -5992,62 +5845,59 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     left: `${contextMenuPosition.x}px`, 
                     top: `${contextMenuPosition.y}px`, 
                     zIndex: 9999, 
-                    background: '#d4d0c8', 
+                    background: '#f3f3f3', 
                     padding: '2px', 
                     display: 'flex', 
                     flexDirection: 'column',
                     minWidth: '160px',
-                    boxShadow: '2px 2px 5px rgba(0,0,0,0.5)'
+                    boxShadow: '2px 2px 5px rgba(0,0,0,0.5)',
+                    fontSize: '11px'
                   }}
                 >
-                  <div style={{ fontSize: '8.5px', color: '#555', fontWeight: 'bold', padding: '3px', borderBottom: '1px solid #808080' }}>
-                    {activeContextMenuVehicle.split(' | ')[1]}
-                  </div>
-                  <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none' }} onClick={() => handleSetVehicleStatus(activeContextMenuVehicle, 1)}>🚨 ST 1 - Wyjazd do akcji</button>
-                  <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none' }} onClick={() => handleSetVehicleStatus(activeContextMenuVehicle, 2)}>🚨 ST 2 - Przybycie na miejsce</button>
-                  <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none' }} onClick={() => handleSetVehicleStatus(activeContextMenuVehicle, 3)}>🚨 ST 3 - Lokalizacja zagrożenia</button>
-                  <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none' }} onClick={() => handleSetVehicleStatus(activeContextMenuVehicle, 4)}>🚨 ST 4 - Zakończenie działań</button>
-                  <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none' }} onClick={() => handleSetVehicleStatus(activeContextMenuVehicle, 5)}>🚨 ST 5 - Powrót do bazy</button>
-                  <div style={{ height: '1px', backgroundColor: '#808080', margin: '2px 0' }} />
+                  <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none' }} onClick={() => handleSetVehicleStatus(activeContextMenuVehicle, 1)}>▶️ Wyjazd do akcji</button>
+                  <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none' }} onClick={() => handleSetVehicleStatus(activeContextMenuVehicle, 0)}>↩️ Zawrócenie z trasy</button>
+                  <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none' }} onClick={() => handleSetVehicleStatus(activeContextMenuVehicle, 2)}>🔽 Dojazd do MK</button>
+                  <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none' }} onClick={() => handleSetVehicleStatus(activeContextMenuVehicle, 1)}>🔼 Wyjazd z MK</button>
+                  <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: '#c92a2a', fontWeight: 'bold' }} onClick={() => handleSetVehicleStatus(activeContextMenuVehicle, 2)}>📍 Na miejscu zdarzenia</button>
+                  <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: '#8b008b', fontWeight: 'bold' }} onClick={() => handleSetVehicleStatus(activeContextMenuVehicle, 2)}>L Lokalizacja zagrożenia</button>
+                  <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: '#2b8a3e', fontWeight: 'bold' }} onClick={() => handleSetVehicleStatus(activeContextMenuVehicle, 3)}>◀️ Zakończenie działań</button>
+                  <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: '#2b8a3e', fontWeight: 'bold' }} onClick={() => handleSetVehicleStatus(activeContextMenuVehicle, 4)}>🏠 Powrót do bazy</button>
+                  <div style={{ height: '1px', backgroundColor: '#d1d1d1', margin: '2px 0' }} />
                   
-                  {/* PZR (Zabezpieczenie) Guest vehicles return trigger (Page 47) */}
                   {activeIncident && activeIncident.type === 'pzr' && (
-                    <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: '#000080', fontWeight: 'bold' }} onClick={() => handleReturnPzrVehicle(activeContextMenuVehicle)}>↩️ Zwróć sprzęt (Koniec zabezpiecz.)</button>
+                    <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: '#005fb8' }} onClick={() => handleReturnPzrVehicle(activeContextMenuVehicle)}>↩️ Zwróć sprzęt (Koniec zabezpiecz.)</button>
                   )}
 
-                  <button 
-                    className="btn-win" 
-                    style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none' }} 
-                    onClick={() => {
-                      const vStr = activeContextMenuVehicle;
-                      setCrewTargetVehicle(vStr);
-                      const currentCrew = activeIncident.crew?.[vStr] || {};
-                      const metrics = activeIncident.vehicleMetrics?.[vStr] || { km: 0, fuel: 0 };
-                      setCrewDowodca(currentCrew.dowodca || '');
-                      setCrewKierowca(currentCrew.kierowca || '');
-                      setCrewRatownicy(currentCrew.ratownicy || '');
-                      setCrewKm(metrics.km || 0);
-                      setCrewFuel(metrics.fuel || 0);
-                      setIsCrewModalOpen(true);
-                    }}
-                  >
-                    👤 Obsada imienna i metryki
-                  </button>
+                  <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none' }} onClick={() => {
+                    const vStr = activeContextMenuVehicle;
+                    setCrewTargetVehicle(vStr);
+                    const currentCrew = activeIncident.crew?.[vStr] || {};
+                    const metrics = activeIncident.vehicleMetrics?.[vStr] || { km: 0, fuel: 0 };
+                    setCrewDowodca(currentCrew.dowodca || '');
+                    setCrewKierowca(currentCrew.kierowca || '');
+                    setCrewRatownicy(currentCrew.ratownicy || '');
+                    setCrewKm(metrics.km || 0);
+                    setCrewFuel(metrics.fuel || 0);
+                    setIsCrewModalOpen(true);
+                  }}>👤 Obsada imienna i metryki</button>
+                  
                   {activeContextMenuVehicle.includes('OSP') && (
-                    <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: '#c92a2a', fontWeight: 'bold' }} onClick={() => triggerOspSiren(activeContextMenuVehicle.split(' | ')[0])}>🔊 DSP-50 Syrena alarmowa</button>
+                    <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: '#d13438' }} onClick={() => triggerOspSiren(activeContextMenuVehicle.split(' | ')[0])}>🔊 DSP-50 Syrena alarmowa</button>
                   )}
                   {activeContextMenuVehicle.includes('JRG') && (
-                    <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: '#0b7285', fontWeight: 'bold' }} onClick={() => triggerDwaPrinter(activeContextMenuVehicle.split(' | ')[0])}>🖨️ Formatka DWA</button>
+                    <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: '#0b7285' }} onClick={() => triggerDwaPrinter(activeContextMenuVehicle.split(' | ')[0])}>🖨️ Formatka DWA</button>
                   )}
-                  <div style={{ height: '1px', backgroundColor: '#808080', margin: '2px 0' }} />
-                  <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: '#c92a2a' }} onClick={() => removeVehicleFromActiveIncident(activeContextMenuVehicle)}>❌ Wycofaj zastęp</button>
+                  <div style={{ height: '1px', backgroundColor: '#d1d1d1', margin: '2px 0' }} />
+                  <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: '#000' }} onClick={() => handleEditKryptonim(activeContextMenuVehicle)}>✏️ Edytuj Kryptonim</button>
+                  <div style={{ height: '1px', backgroundColor: '#d1d1d1', margin: '2px 0' }} />
+                  <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: '#d13438' }} onClick={() => removeVehicleFromActiveIncident(activeContextMenuVehicle)}>❌ Wycofaj zastęp (Błąd)</button>
                 </div>
               )}
               
               {/* Ewidencja Hydrantow Nearby Search Display */}
               {activeIncident && (
-                <div className="border-inset" style={{ padding: '6px', background: '#d4d0c8', borderRadius: '4px', margin: '4px' }}>
-                  <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#000080', textTransform: 'uppercase', marginBottom: '4px' }}>
+                <div className="border-inset" style={{ padding: '6px', background: '#f3f3f3', borderRadius: '4px', margin: '4px' }}>
+                  <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#005fb8', textTransform: 'uppercase', marginBottom: '4px' }}>
                     💧 Zaopatrzenie Wodne (Ewidencja Hydr-ST)
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -6072,8 +5922,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 
                 <div style={{ flex: 1, overflowY: 'auto', padding: '6px', background: '#ffffff', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {messages.map((m, idx) => (
-                    <div key={idx} style={{ fontSize: '10px', background: m.priority === 'urgent' ? '#ffe3e3' : m.priority === 'confirm' ? '#fff9db' : '#f8f9fa', border: m.priority === 'urgent' ? '1.5px solid #e03131' : '1px solid #d4d0c8', padding: '5px 8px', borderRadius: '3px', color: '#000000' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: m.priority === 'urgent' ? '#c92a2a' : '#000080', fontWeight: 'bold', marginBottom: '2px' }}>
+                    <div key={idx} style={{ fontSize: '10px', background: m.priority === 'urgent' ? '#ffe3e3' : m.priority === 'confirm' ? '#fff9db' : '#f8f9fa', border: m.priority === 'urgent' ? '1.5px solid #e03131' : '1px solid #f3f3f3', padding: '5px 8px', borderRadius: '3px', color: '#000000' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: m.priority === 'urgent' ? '#d13438' : '#005fb8', fontWeight: 'bold', marginBottom: '2px' }}>
                         <span>{m.sender} ({m.senderUnit}) {m.recipient && m.recipient !== 'Wszyscy' ? `➔ ${m.recipient.replace("JRG nr ", "JRG ").replace("OSP ", "")}` : ''}</span>
                         <span style={{ color: '#868e96' }}>
                           {m.createdAt ? (m.createdAt.toDate ? m.createdAt.toDate().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }) : '') : ''}
@@ -6089,7 +5939,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   ))}
                 </div>
 
-                <form onSubmit={handleSendMessage} style={{ display: 'flex', flexDirection: 'column', padding: '4px', gap: '3px', background: '#d4d0c8', borderTop: '1px solid var(--win-shadow)' }}>
+                <form onSubmit={handleSendMessage} style={{ display: 'flex', flexDirection: 'column', padding: '4px', gap: '3px', background: '#f3f3f3', borderTop: '1px solid var(--win-shadow)' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '2px' }}>
                     <select 
                       value={msgRecipient} 
@@ -6165,20 +6015,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
           {/* Mapa GIS moved to modal for SWD-ST 1:1 compliance */}
 
-          <div className="info-stream border-inset">
-            {operationalLogs.map((log, index) => {
-              let color = '#868e96'; // default gray
-              if (log.includes('Zgłoszenie') || log.includes('112!')) color = '#c92a2a'; // red
-              else if (log.includes('Odebrano') || log.includes('Dysponowanie') || log.includes('ZAKTYWOWANA')) color = '#2b8a3e'; // green
-              else if (log.includes('Zakończono') || log.includes('Zabezpieczenie')) color = '#0b7285'; // blue
-              
-              return (
-                <div key={index} style={{ marginBottom: '2px', color: color, fontWeight: color !== '#868e96' ? 'bold' : 'normal' }}>
-                  ⚡ {log}
-                </div>
-              );
-            })}
-          </div>
+
         </footer>
 
         {/* === DOLNY PASEK STATUSU (Status Bar SWD-ST 2.5) === */}
@@ -6191,11 +6028,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
           <div className="status-bar-cell" style={{ flex: 1, minWidth: 0 }}>
             {activeIncident ? (
-              <span style={{ color: '#000080', fontWeight: 'bold', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ color: '#005fb8', fontWeight: 'bold', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 Zdarzenie: {activeIncident.customId} | {activeIncident.location}
               </span>
             ) : (
-              <span style={{ color: '#808080' }}>Rejestr wyjazdów PSP — KM/KP PSP</span>
+              <span style={{ color: '#d1d1d1' }}>Rejestr wyjazdów PSP — KM/KP PSP</span>
             )}
           </div>
           <div className="status-bar-cell" style={{ minWidth: '90px' }}>
@@ -6261,6 +6098,86 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
       {/* -------------------------------------------------------------
           DIALOG MODAL: SHIFT CHANGE / TRANSITION (Otwarcie nowej zmiany - Page 34)
           ------------------------------------------------------------- */}
+      {isVehiclesModalOpen && (
+        <div className="modal-overlay">
+          <div className="win-dialog border-double-outset" style={{ width: '600px' }}>
+            <div className="win-dialog-header">
+              <span style={{ fontWeight: 'bold' }}>Zarządzanie Pojazdami (Siły i Środki)</span>
+              <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsVehiclesModalOpen(false)}>X</button>
+            </div>
+            <div className="win-dialog-content" style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ fontSize: '11px', color: '#333', marginBottom: '8px' }}>Edytuj kryptonimy i usuwaj/dodawaj pojazdy w poszczególnych jednostkach.</div>
+              <div style={{ maxHeight: '350px', overflowY: 'auto', border: '1px solid #d1d1d1', background: '#fff', padding: '4px' }}>
+                {Object.keys(tenantVehicles).map(unit => (
+                  <div key={unit} style={{ marginBottom: '10px' }}>
+                    <div style={{ fontWeight: 'bold', backgroundColor: '#e3e3e3', padding: '4px', fontSize: '11px' }}>{unit}</div>
+                    <table className="swd-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: 'left', padding: '2px' }}>Nazwa (np. GCBA 5/32)</th>
+                          <th style={{ textAlign: 'left', padding: '2px' }}>Kryptonim</th>
+                          <th style={{ textAlign: 'left', padding: '2px', width: '60px' }}>Akcja</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(tenantVehicles[unit] || []).map(veh => (
+                          <tr key={veh.name}>
+                            <td style={{ padding: '2px' }}>{veh.name}</td>
+                            <td style={{ padding: '2px' }}>
+                              <input 
+                                type="text" 
+                                value={veh.kryptonim || ''} 
+                                style={{ width: '100%', fontSize: '10px', border: '1px solid #ccc' }}
+                                onChange={(e) => {
+                                  const updatedVehicles = { ...tenantVehicles };
+                                  updatedVehicles[unit] = updatedVehicles[unit].map(v => 
+                                    v.name === veh.name ? { ...v, kryptonim: e.target.value } : v
+                                  );
+                                  setTenantVehicles(updatedVehicles);
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: '2px' }}>
+                              <button style={{ color: 'red', cursor: 'pointer', border: 'none', background: 'transparent' }} onClick={() => {
+                                if(confirm("Na pewno usunąć?")) {
+                                  const updatedVehicles = { ...tenantVehicles };
+                                  updatedVehicles[unit] = updatedVehicles[unit].filter(v => v.name !== veh.name);
+                                  setTenantVehicles(updatedVehicles);
+                                }
+                              }}>Usuń</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div style={{ marginTop: '2px' }}>
+                      <button className="btn-win" style={{ fontSize: '9px', padding: '2px 4px' }} onClick={() => {
+                        const newName = window.prompt(`Podaj nazwę nowego pojazdu dla ${unit} (np. GBA 2.5/16):`);
+                        if (newName) {
+                          const updatedVehicles = { ...tenantVehicles };
+                          if (!updatedVehicles[unit]) updatedVehicles[unit] = [];
+                          updatedVehicles[unit].push({ name: newName, kryptonim: '', obsada: [] });
+                          setTenantVehicles(updatedVehicles);
+                        }
+                      }}>+ Dodaj pojazd do {unit}</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '5px', marginTop: '5px' }}>
+                <button className="btn-win" onClick={() => setIsVehiclesModalOpen(false)}>❌ Anuluj</button>
+                <button className="btn-win" style={{ fontWeight: 'bold' }} onClick={() => {
+                  updateDoc(doc(db, 'tenantSettings', 'default'), { vehicles: tenantVehicles })
+                    .then(() => alert('Zapisano pojazdy!'))
+                    .catch(e => console.error(e));
+                  setIsVehiclesModalOpen(false);
+                }}>💾 Zapisz zmiany</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isShiftTransitionModalOpen && (
         <div className="win-dialog-overlay" style={{ zIndex: 99999 }}>
           <div className="win-dialog border-double-outset" style={{ width: '420px' }}>
@@ -6269,7 +6186,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsShiftTransitionModalOpen(false)}>X</button>
             </div>
             <div className="win-dialog-body">
-              <div style={{ fontSize: '10px', color: '#555', borderBottom: '1px solid #808080', paddingBottom: '4px', marginBottom: '10px' }}>
+              <div style={{ fontSize: '10px', color: '#555', borderBottom: '1px solid #d1d1d1', paddingBottom: '4px', marginBottom: '10px' }}>
                 Zgodnie z Rozdziałem 7.11 instrukcji, rozpoczęcie nowej służby wyzeruje imienne obsady i statusy wozów dla trwających akcji operacyjnych.
               </div>
 
@@ -6282,10 +6199,10 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 </select>
               </div>
 
-              <div style={{ fontSize: '9.5px', fontWeight: 'bold', color: '#000080', marginTop: '10px', marginBottom: '6px', textTransform: 'uppercase' }}>
+              <div style={{ fontSize: '9.5px', fontWeight: 'bold', color: '#005fb8', marginTop: '10px', marginBottom: '6px', textTransform: 'uppercase' }}>
                 Nieobecni na zmianie (Str. 35 instrukcji):
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: '#ffffff', padding: '8px', border: '1px solid #808080', marginBottom: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: '#ffffff', padding: '8px', border: '1px solid #d1d1d1', marginBottom: '12px' }}>
                 <label style={{ fontSize: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   Urlopy:
                   <input type="number" className="input-field" style={{ width: '50px', padding: '1px' }} value={absentUrlop} onChange={(e) => setAbsentUrlop(parseInt(e.target.value, 10))} />
@@ -6347,12 +6264,12 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsMergeModalOpen(false)}>X</button>
             </div>
             <div className="win-dialog-body">
-              <div style={{ fontSize: '10px', color: '#555', borderBottom: '1px solid #808080', paddingBottom: '4px', marginBottom: '10px' }}>
+              <div style={{ fontSize: '10px', color: '#555', borderBottom: '1px solid #d1d1d1', paddingBottom: '4px', marginBottom: '10px' }}>
                 Wybierz aktywne zdarzenie z bufora, które chcesz scalić z obecnie wybranym zdarzeniem <strong>{activeIncident.customId}</strong>.
                 Wszystkie zadysponowane wozy, logi radiowe oraz zgłoszenia wtórne zostaną przeniesione. Proces ten jest nieodwracalny.
               </div>
 
-              <div style={{ maxHeight: '160px', overflowY: 'auto', background: '#ffffff', border: '1px solid #808080', padding: '4px' }}>
+              <div style={{ maxHeight: '160px', overflowY: 'auto', background: '#ffffff', border: '1px solid #d1d1d1', padding: '4px' }}>
                 {incidents.filter(inc => inc.id !== activeIncident.id && inc.status !== 'processed' && !inc.isArchived).map(inc => (
                   <div 
                     key={inc.id} 
@@ -6373,7 +6290,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   </div>
                 ))}
                 {incidents.filter(inc => inc.id !== activeIncident.id && inc.status !== 'processed' && !inc.isArchived).length === 0 && (
-                  <div style={{ color: '#808080', textAlign: 'center', padding: '20px', fontSize: '10px' }}>Brak innych aktywnych zdarzeń w buforze.</div>
+                  <div style={{ color: '#d1d1d1', textAlign: 'center', padding: '20px', fontSize: '10px' }}>Brak innych aktywnych zdarzeń w buforze.</div>
                 )}
               </div>
 
@@ -6396,12 +6313,12 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsTransferModalOpen(false)}>X</button>
             </div>
             <div className="win-dialog-body">
-              <div style={{ fontSize: '10px', color: '#555', borderBottom: '1px solid #808080', paddingBottom: '4px', marginBottom: '10px' }}>
+              <div style={{ fontSize: '10px', color: '#555', borderBottom: '1px solid #d1d1d1', paddingBottom: '4px', marginBottom: '10px' }}>
                 Wybierz jednostkę dyspozytorską (innego Gracza), której chcesz przekazać obsługę zdarzenia <strong>{activeIncident.customId}</strong>.
                 Zdarzenie zniknie z Twojego bufora i pojawi się w buforze docelowej jednostki. (Rozdz. 8.9)
               </div>
 
-              <div style={{ maxHeight: '160px', overflowY: 'auto', background: '#ffffff', border: '1px solid #808080', padding: '4px' }}>
+              <div style={{ maxHeight: '160px', overflowY: 'auto', background: '#ffffff', border: '1px solid #d1d1d1', padding: '4px' }}>
                 <div 
                   style={{ padding: '4px 8px', borderBottom: '1px solid #e9ecef', cursor: 'pointer', fontSize: '11px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                   onClick={() => handleTransferIncident('KM_Tychy')}
@@ -6506,13 +6423,13 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 className="border-double-outset"
                 style={{ 
                   background: isUrgent ? '#ffe3e3' : '#ffffe0', 
-                  border: isUrgent ? '2px solid #e03131' : '2px solid #d4d0c8',
+                  border: isUrgent ? '2px solid #e03131' : '2px solid #f3f3f3',
                   padding: '8px',
                   boxShadow: '3px 3px 10px rgba(0,0,0,0.5)'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #808080', paddingBottom: '3px', marginBottom: '6px' }}>
-                  <strong style={{ fontSize: '9px', color: isUrgent ? '#c92a2a' : '#000080' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', marginBottom: '6px' }}>
+                  <strong style={{ fontSize: '9px', color: isUrgent ? '#d13438' : '#005fb8' }}>
                     {isUrgent ? '🚨 PILNY KOMUNIKAT' : '✉️ NOWA WIADOMOŚĆ'}
                   </strong>
                   <button 
@@ -6546,6 +6463,38 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           ------------------------------------------------------------- */}
       {isNewIncidentModalOpen && (
         <div className="win-dialog-overlay">
+          {activeIncident && activeIncident.status === 'new' ? (
+            <div className="win-dialog border-double-outset" style={{ width: '450px' }}>
+              <div className="win-dialog-header" style={{ background: '#0a246a', color: '#fff' }}>
+                <span>Formatka WCPR: {activeIncident.customId || 'Nowe Zgłoszenie'}</span>
+                <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsNewIncidentModalOpen(false)}>X</button>
+              </div>
+              <div className="win-dialog-body" style={{ background: '#f3f3f3', padding: '12px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '6px' }}>Otrzymano formatkę zgłoszeniową z CPR:</div>
+                <div style={{ background: '#fff', border: '1px solid #d1d1d1', padding: '10px', fontSize: '11px', fontFamily: 'var(--font-mono)', minHeight: '120px', whiteSpace: 'pre-wrap', marginBottom: '12px' }}>
+                  {activeIncident.description}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                  <button className="btn-win" style={{ fontWeight: 'bold', color: '#2b8a3e', padding: '4px 12px' }} onClick={async () => {
+                    try {
+                      await updateDoc(doc(db, 'incidents', activeIncident.id), { status: 'submitted', updatedAt: serverTimestamp() });
+                      logAction(`Przyjęto formatkę zdarzenia ${activeIncident.customId} do obsługi.`);
+                      setIsNewIncidentModalOpen(false);
+                    } catch (e) { alert("Błąd zapisu."); }
+                  }}>✔️ Przyjmij Zdarzenie</button>
+                  <button className="btn-win" style={{ fontWeight: 'bold', color: '#d13438', padding: '4px 12px' }} onClick={async () => {
+                    if (window.confirm("Czy na pewno chcesz odrzucić tę formatkę (Alarm Fałszywy / Anulowano)?")) {
+                      try {
+                        await updateDoc(doc(db, 'incidents', activeIncident.id), { status: 'processed', isArchived: true, updatedAt: serverTimestamp() });
+                        logAction(`Odrzucono formatkę zdarzenia ${activeIncident.customId}.`);
+                        setIsNewIncidentModalOpen(false);
+                      } catch (e) { alert("Błąd zapisu."); }
+                    }
+                  }}>❌ Odrzuć</button>
+                </div>
+              </div>
+            </div>
+          ) : (
           <div className="win-dialog border-double-outset" style={{ width: activeCallToAnswer ? '980px' : '640px', maxHeight: '95vh', overflowY: 'auto' }}>
             <div className="win-dialog-header">
               <span>{editingIncidentId ? 'Modyfikacja Zgłoszenia Zdarzenia' : 'Nowe Zgłoszenie - Karta Zgłoszenia'}</span>
@@ -6586,7 +6535,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 </div>
 
                 {/* Tab Content */}
-                <div className="border-double-outset" style={{ padding: '10px', background: '#d4d0c8', minHeight: '300px' }}>
+                <div className="border-double-outset" style={{ padding: '10px', background: '#f3f3f3', minHeight: '300px' }}>
                   
                   {incidentModalTab === 'zgloszenie' && (
                     <>
@@ -6663,8 +6612,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   </div>
 
                   {location.trim().length > 2 && (
-                    <div style={{ marginTop: '4px', marginBottom: '6px', padding: '5px 8px', background: '#ffffff', border: '1px inset #808080', fontSize: '9px', color: '#000' }}>
-                      <span style={{ fontWeight: 'bold', color: '#000080', display: 'block', marginBottom: '3px' }}>📡 WCPR SYSTEM REKOMENDACJI SIL (ODLEGŁOŚĆ I ETA DO JRG):</span>
+                    <div style={{ marginTop: '4px', marginBottom: '6px', padding: '5px 8px', background: '#ffffff', border: '1px inset #d1d1d1', fontSize: '9px', color: '#000' }}>
+                      <span style={{ fontWeight: 'bold', color: '#005fb8', display: 'block', marginBottom: '3px' }}>📡 WCPR SYSTEM REKOMENDACJI SIL (ODLEGŁOŚĆ I ETA DO JRG):</span>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                         {JRG_UNITS.map(jrgName => {
                           const pCoords = getCoordinatesForLocation(location);
@@ -6699,7 +6648,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '10px', background: '#ffffff', padding: '4px', border: '1px solid #808080', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: '10px', background: '#ffffff', padding: '4px', border: '1px solid #d1d1d1', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#555', alignSelf: 'center', marginRight: '6px' }}>POWIADOMIONE SŁUŻBY:</span>
                     {['PRM', 'Policja', 'Pogotowie Energetyczne', 'Pogotowie Gazowe', 'Pogotowie Wodne', 'WCPR'].map(s => (
                       <label key={s} style={{ fontSize: '9.5px', display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer' }}>
@@ -6719,7 +6668,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                       <select 
                         value={incidentType} 
                         onChange={(e) => setIncidentType(e.target.value)}
-                        style={{ fontSize: '10px', padding: '1px', background: '#fff', color: '#000', border: '1px solid #808080' }}
+                        style={{ fontSize: '10px', padding: '1px', background: '#fff', color: '#000', border: '1px solid #d1d1d1' }}
                       >
                         <option value="pozar">P (Pożar)</option>
                         <option value="mz">MZ (Zagrożenie)</option>
@@ -6775,7 +6724,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     </div>
                     <div>
                       <label className="input-label" style={{ fontSize: '9px' }}>Flagi zdarzenia (Rys. 8.3.5 SWD):</label>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', padding: '3px', background: '#fff', border: '2px inset #808080', maxHeight: '60px', overflowY: 'auto' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', padding: '3px', background: '#fff', border: '2px inset #d1d1d1', maxHeight: '60px', overflowY: 'auto' }}>
                         {[
                           ['dlugotrl', 'Zdarzenie długotrwałe'],
                           ['masowe', 'Zdarzenie masowe (>10 poszkod.)'],
@@ -6822,7 +6771,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   {/* PZR (Zabezpieczenie Rejonu) target unit selector - Page 47 */}
                   {incidentType === 'pzr' && (
                     <div className="input-group" style={{ marginBottom: '6px' }}>
-                      <label className="input-label" style={{ fontSize: '9px', color: '#000080' }}>Jednostka docelowa (Zabezpieczany rejon):</label>
+                      <label className="input-label" style={{ fontSize: '9px', color: '#005fb8' }}>Jednostka docelowa (Zabezpieczany rejon):</label>
                       <select className="input-field" value={targetUnitDocelowa} onChange={(e) => setTargetUnitDocelowa(e.target.value)}>
                         {JRG_UNITS.map(j => <option key={j} value={j}>{j}</option>)}
                       </select>
@@ -6831,7 +6780,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
                   {/* SOP checklist panel */}
                   <div className="border-inset" style={{ padding: '6px', background: '#ffffff', marginBottom: '6px' }}>
-                    <div style={{ fontSize: '8.5px', fontWeight: 'bold', color: '#555', marginBottom: '3px', borderBottom: '1px solid #d4d0c8', paddingBottom: '1px' }}>PROCEDURA STANDARDOWA (SOP CHECKLIST)</div>
+                    <div style={{ fontSize: '8.5px', fontWeight: 'bold', color: '#555', marginBottom: '3px', borderBottom: '1px solid #f3f3f3', paddingBottom: '1px' }}>PROCEDURA STANDARDOWA (SOP CHECKLIST)</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
                       {(incidentType === 'pozar' || incidentType === 'cw' || incidentType === 'wg') && (
                         <>
@@ -6866,7 +6815,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '12px' }}>
                       <input type="checkbox" id="is_long_duration_chk" checked={isLongDuration} onChange={(e) => setIsLongDuration(e.target.checked)} />
-                      <label htmlFor="is_long_duration_chk" style={{ fontSize: '9.5px', fontWeight: 'bold', color: '#c92a2a', cursor: 'pointer' }}>ZDARZENIE DŁUGOTRWAŁE</label>
+                      <label htmlFor="is_long_duration_chk" style={{ fontSize: '9.5px', fontWeight: 'bold', color: '#d13438', cursor: 'pointer' }}>ZDARZENIE DŁUGOTRWAŁE</label>
                     </div>
                   </div>
 
@@ -6879,7 +6828,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
                 {incidentModalTab === 'zabezpieczenie' && (
                   <div style={{ padding: '10px', background: '#ffffff', minHeight: '200px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#000080', borderBottom: '2px solid #000080', paddingBottom: '4px' }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#005fb8', borderBottom: '2px solid #005fb8', paddingBottom: '4px' }}>
                       Karta Zabezpieczenia Rejonu / Relokacji SiS
                     </div>
                     <div style={{ fontSize: '10px', color: '#495057' }}>
@@ -6913,17 +6862,17 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
                 {incidentModalTab === 'chronologia' && (
                   <div style={{ padding: '10px', background: '#ffffff', minHeight: '300px', maxHeight: '400px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                    <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#000080', borderBottom: '2px solid #000080', paddingBottom: '4px', marginBottom: '6px' }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#005fb8', borderBottom: '2px solid #005fb8', paddingBottom: '4px', marginBottom: '6px' }}>
                       Przebieg zdarzenia (Chronologia radiowa)
                     </div>
                     {(!activeIncident || !activeIncident.radioLogs || activeIncident.radioLogs.length === 0) ? (
-                      <div style={{ color: '#808080', fontStyle: 'italic', fontSize: '10px', textAlign: 'center', marginTop: '20px' }}>
+                      <div style={{ color: '#d1d1d1', fontStyle: 'italic', fontSize: '10px', textAlign: 'center', marginTop: '20px' }}>
                         Brak zdarzeń lub korespondencji radiowej w tym zgłoszeniu.
                       </div>
                     ) : (
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
                         <thead>
-                          <tr style={{ background: '#d4d0c8', borderBottom: '1.5px solid #808080' }}>
+                          <tr style={{ background: '#f3f3f3', borderBottom: '1.5px solid #d1d1d1' }}>
                             <th style={{ padding: '3px', textAlign: 'left', width: '60px' }}>Czas</th>
                             <th style={{ padding: '3px', textAlign: 'left', width: '100px' }}>Kryptonim</th>
                             <th style={{ padding: '3px', textAlign: 'left' }}>Treść komunikatu</th>
@@ -6933,7 +6882,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                           {activeIncident.radioLogs.map((log, idx) => (
                             <tr key={idx} style={{ borderBottom: '1px solid #e9ecef' }}>
                               <td style={{ padding: '3px', fontWeight: 'bold', verticalAlign: 'top' }}>{log.time}</td>
-                              <td style={{ padding: '3px', color: '#000080', fontWeight: 'bold', verticalAlign: 'top' }}>{log.from}</td>
+                              <td style={{ padding: '3px', color: '#005fb8', fontWeight: 'bold', verticalAlign: 'top' }}>{log.from}</td>
                               <td style={{ padding: '3px', verticalAlign: 'top' }}>{log.text}</td>
                             </tr>
                           ))}
@@ -6948,7 +6897,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', borderTop: '1.5px solid var(--win-shadow)', paddingTop: '6px' }}>
                   <button 
                     className="btn-win" 
-                    style={{ backgroundColor: '#c92a2a', color: '#ffffff', marginRight: 'auto', fontWeight: 'bold' }}
+                    style={{ backgroundColor: '#d13438', color: '#ffffff', marginRight: 'auto', fontWeight: 'bold' }}
                     onClick={() => {
                       if (confirm("Czy na pewno chcesz odrzucić to zgłoszenie i oznaczyć jako Błąd (BL)?")) {
                         setIncidentType('bl');
@@ -6966,11 +6915,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
               {/* Right Side: WCPR Call Transcript (Rys.53 CPR panel mockup) */}
               {activeCallToAnswer && (
-                <div className="border-double-outset" style={{ display: 'flex', flexDirection: 'column', background: '#d4d0c8', padding: '10px', height: '100%' }}>
-                  <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000080', borderBottom: '1px solid #808080', paddingBottom: '4px', marginBottom: '8px', textTransform: 'uppercase' }}>
+                <div className="border-double-outset" style={{ display: 'flex', flexDirection: 'column', background: '#f3f3f3', padding: '10px', height: '100%' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#005fb8', borderBottom: '1px solid #d1d1d1', paddingBottom: '4px', marginBottom: '8px', textTransform: 'uppercase' }}>
                     📟 PODGLĄD KARTY WCPR (112)
                   </div>
-                  <div className="border-inset" style={{ flex: 1, background: '#ffffe0', color: '#000000', padding: '8px', fontFamily: 'monospace', fontSize: '9.5px', whiteSpace: 'pre-wrap', overflowY: 'auto', border: '1px solid #808080' }}>
+                  <div className="border-inset" style={{ flex: 1, background: '#ffffe0', color: '#000000', padding: '8px', fontFamily: 'monospace', fontSize: '9.5px', whiteSpace: 'pre-wrap', overflowY: 'auto', border: '1px solid #d1d1d1' }}>
                     {activeCallToAnswer.transcript}
                   </div>
                   <button 
@@ -6988,6 +6937,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
             </div>
           </div>
+          )}
         </div>
       )}
 
@@ -7009,7 +6959,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   <p style={{ color: '#555', fontSize: '10px', marginTop: '2px' }}>Adres: {activeIncident.location}</p>
                 </div>
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#ffffff', padding: '4px 8px', border: '1px solid #808080' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#ffffff', padding: '4px 8px', border: '1px solid #d1d1d1' }}>
                   <input 
                     type="checkbox" 
                     id="partial_checkbox" 
@@ -7031,7 +6981,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     {reportWorkflowState === '1' ? '▶️ JRG Szkic' : '✓ JRG Szkic'}
                   </span>
                   <span style={{ fontSize: '10px', color: '#888' }}>➔</span>
-                  <span style={{ fontSize: '10px', color: reportWorkflowState === '2' ? '#000080' : '#444', fontWeight: reportWorkflowState === '2' ? 'bold' : 'normal' }}>
+                  <span style={{ fontSize: '10px', color: reportWorkflowState === '2' ? '#005fb8' : '#444', fontWeight: reportWorkflowState === '2' ? 'bold' : 'normal' }}>
                     {reportWorkflowState === '2' ? '▶️ KM Zatwierdzony' : parseInt(reportWorkflowState, 10) > 2 ? '✓ KM Zatwierdzony' : 'KM Zatwierdzony'}
                   </span>
                   <span style={{ fontSize: '10px', color: '#888' }}>➔</span>
@@ -7046,32 +6996,32 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
               {/* Operational times fields */}
               <div className="border-inset" style={{ padding: '0', background: '#ffffff' }}>
-                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#fff', background: '#000080', padding: '2px 4px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#fff', background: '#005fb8', padding: '2px 4px' }}>
                   Czasy Operacyjne Akcji
                 </div>
                 <table style={{ width: '100%', fontSize: '10px', borderCollapse: 'collapse' }}>
                   <tbody>
-                    <tr style={{ borderBottom: '1px solid #d4d0c8' }}>
+                    <tr style={{ borderBottom: '1px solid #f3f3f3' }}>
                       <td style={{ padding: '4px 8px', width: '200px' }}>1. Zgłoszenie zdarzenia / Alarmowanie:</td>
                       <td style={{ padding: '2px' }}><input type="time" className="input-field" style={{ width: '100px' }} value={alarmTime} onChange={(e) => setAlarmTime(e.target.value)} /></td>
                     </tr>
-                    <tr style={{ borderBottom: '1px solid #d4d0c8', background: '#f8f8f8' }}>
+                    <tr style={{ borderBottom: '1px solid #f3f3f3', background: '#f8f8f8' }}>
                       <td style={{ padding: '4px 8px' }}>2. Wyjazd pierwszego zastępu z bazy:</td>
                       <td style={{ padding: '2px' }}><input type="time" className="input-field" style={{ width: '100px' }} value={departureTime} onChange={(e) => setDepartureTime(e.target.value)} /></td>
                     </tr>
-                    <tr style={{ borderBottom: '1px solid #d4d0c8' }}>
+                    <tr style={{ borderBottom: '1px solid #f3f3f3' }}>
                       <td style={{ padding: '4px 8px' }}>3. Przyjazd pierwszego zastępu na miejsce:</td>
                       <td style={{ padding: '2px' }}><input type="time" className="input-field" style={{ width: '100px' }} value={arrivalTime} onChange={(e) => setArrivalTime(e.target.value)} /></td>
                     </tr>
-                    <tr style={{ borderBottom: '1px solid #d4d0c8', background: '#f8f8f8' }}>
+                    <tr style={{ borderBottom: '1px solid #f3f3f3', background: '#f8f8f8' }}>
                       <td style={{ padding: '4px 8px' }}>4. Zlokalizowanie zdarzenia (Lokalizacja):</td>
                       <td style={{ padding: '2px' }}><input type="time" className="input-field" style={{ width: '100px' }} value={localizationTime} onChange={(e) => setLocalizationTime(e.target.value)} /></td>
                     </tr>
-                    <tr style={{ borderBottom: '1px solid #d4d0c8' }}>
+                    <tr style={{ borderBottom: '1px solid #f3f3f3' }}>
                       <td style={{ padding: '4px 8px' }}>5. Zakończenie działań operacyjnych (Zakończenie):</td>
                       <td style={{ padding: '2px' }}><input type="time" className="input-field" style={{ width: '100px' }} value={completionTime} onChange={(e) => setCompletionTime(e.target.value)} /></td>
                     </tr>
-                    <tr style={{ borderBottom: '1px solid #d4d0c8', background: '#f8f8f8' }}>
+                    <tr style={{ borderBottom: '1px solid #f3f3f3', background: '#f8f8f8' }}>
                       <td style={{ padding: '4px 8px' }}>6. Powrót wszystkich sił i środków do bazy:</td>
                       <td style={{ padding: '2px' }}><input type="time" className="input-field" style={{ width: '100px' }} value={returnTime} onChange={(e) => setReturnTime(e.target.value)} /></td>
                     </tr>
@@ -7080,7 +7030,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               </div>
 
               {/* Firefighter Injury Roster Tracker */}
-              <div className="border-inset" style={{ padding: '10px', background: '#ffe3e3', border: '1px solid #c92a2a' }}>
+              <div className="border-inset" style={{ padding: '10px', background: '#ffe3e3', border: '1px solid #d13438' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
                   <input 
                     type="checkbox" 
@@ -7089,7 +7039,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     onChange={(e) => setHasInjuries(e.target.checked)} 
                     style={{ cursor: 'pointer' }}
                   />
-                  <label htmlFor="has_injuries" style={{ fontSize: '11px', fontWeight: 'bold', color: '#c92a2a', cursor: 'pointer' }}>
+                  <label htmlFor="has_injuries" style={{ fontSize: '11px', fontWeight: 'bold', color: '#d13438', cursor: 'pointer' }}>
                     ⚠️ Zgłoś Wypadek Ratownika (Wypadki strażaków w akcji)
                   </label>
                 </div>
@@ -7098,7 +7048,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     <label className="input-label" style={{ fontSize: '9px', color: '#000' }}>Opis obrażeń ratownika (Imię, nazwisko, jednostka, typ urazu):</label>
                     <textarea 
                       className="textarea-field" 
-                      style={{ minHeight: '40px', background: '#ffffff', color: '#000000', border: '1px solid #808080' }}
+                      style={{ minHeight: '40px', background: '#ffffff', color: '#000000', border: '1px solid #d1d1d1' }}
                       placeholder="np. asp. Jan Kowalski z JRG 2 - skręcenie lewego stawu skokowego..."
                       value={injuriesDescription}
                       onChange={(e) => setInjuriesDescription(e.target.value)}
@@ -7109,7 +7059,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               </div>
 
               {/* Geocoding precision selector */}
-              <div style={{ display: 'flex', alignItems: 'center', background: '#ffffff', padding: '8px', border: '1px solid #808080', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', background: '#ffffff', padding: '8px', border: '1px solid #d1d1d1', justifyContent: 'space-between' }}>
                 <span style={{ fontWeight: 'bold', fontSize: '10px', color: '#000' }}>SPA Geokodowanie:</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   {getGeocodingDot(geocodingStatus)}
@@ -7125,7 +7075,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               <div className="input-group" style={{ margin: 0 }}>
                 <label className="input-label">Numer Rejestru Meldunków EWID-ST (Końcówka):</label>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <span style={{ background: '#d4d0c8', border: '1.5px solid #808080', borderRight: 'none', padding: '4px 10px', fontFamily: 'monospace', fontWeight: 'bold', color: '#000000' }}>
+                  <span style={{ background: '#f3f3f3', border: '1.5px solid #d1d1d1', borderRight: 'none', padding: '4px 10px', fontFamily: 'monospace', fontWeight: 'bold', color: '#000000' }}>
                     {activeIncident.prefix || getJrgPrefix(activeIncident.targetJrg)}
                   </span>
                   <input 
@@ -7141,7 +7091,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
               {/* Real-time Validation Report Log Box */}
               <div className="border-inset" style={{ padding: '8px', background: '#ffffff' }}>
-                <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000000', marginBottom: '4px', textTransform: 'uppercase', borderBottom: '1px solid #d4d0c8', paddingBottom: '3px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000000', marginBottom: '4px', textTransform: 'uppercase', borderBottom: '1px solid #f3f3f3', paddingBottom: '3px' }}>
                   Kontrola poprawności meldunku (Walidacja)
                 </div>
                 <div className="validation-list">
@@ -7160,7 +7110,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               {/* Obieg meldunku simulation trigger panel */}
               <div className="border-inset" style={{ padding: '8px', background: '#ffffff' }}>
                 <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000', marginBottom: '6px' }}>
-                  Status obiegu meldunku w województwie: <span style={{ color: '#000080' }}>[{reportWorkflowState}] ({WORKFLOW_STATES[reportWorkflowState]})</span>
+                  Status obiegu meldunku w województwie: <span style={{ color: '#005fb8' }}>[{reportWorkflowState}] ({WORKFLOW_STATES[reportWorkflowState]})</span>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
                   <button className="btn-win" style={{ fontSize: '9px', padding: '2px 5px' }} onClick={() => handleWorkflowTransition('2')}>KM PSP Zatw.</button>
@@ -7194,7 +7144,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             </div>
             
             <div className="win-dialog-body">
-              <div style={{ fontSize: '9.5px', fontWeight: 'bold', color: '#000080', marginBottom: '8px', borderBottom: '1px solid #808080', paddingBottom: '3px', textTransform: 'uppercase' }}>
+              <div style={{ fontSize: '9.5px', fontWeight: 'bold', color: '#005fb8', marginBottom: '8px', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', textTransform: 'uppercase' }}>
                 Ewidencja Załogi Zastępu
               </div>
               <div className="input-group">
@@ -7230,7 +7180,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 />
               </div>
 
-              <div style={{ fontSize: '9.5px', fontWeight: 'bold', color: '#000080', marginTop: '12px', marginBottom: '8px', borderBottom: '1px solid #808080', paddingBottom: '3px', textTransform: 'uppercase' }}>
+              <div style={{ fontSize: '9.5px', fontWeight: 'bold', color: '#005fb8', marginTop: '12px', marginBottom: '8px', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', textTransform: 'uppercase' }}>
                 Przejechana trasa i zużycie (Logistyka)
               </div>
               <div className="form-grid-2" style={{ marginBottom: '10px' }}>
@@ -7353,7 +7303,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           }}>
             <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', justifyContent: 'flex-end' }} className="no-print">
               <button className="btn-win" style={{ backgroundColor: '#2b8a3e', color: 'white', fontWeight: 'bold' }} onClick={() => window.print()}>🖨️ Drukuj (Systemowo)</button>
-              <button className="btn-win" style={{ backgroundColor: '#c92a2a', color: 'white' }} onClick={() => setPrintPreviewMode(null)}>Zamknij podgląd</button>
+              <button className="btn-win" style={{ backgroundColor: '#d13438', color: 'white' }} onClick={() => setPrintPreviewMode(null)}>Zamknij podgląd</button>
             </div>
 
             {printPreviewMode === 'dziennik_sluzby' ? (
@@ -7405,7 +7355,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 </div>
 
                 {activeIncident.times?.hasInjuries && (
-                  <div style={{ border: '2px solid #e03131', padding: '8px', background: '#fff5f5', color: '#c92a2a', fontWeight: 'bold', marginBottom: '15px', borderRadius: '3px', fontSize: '10px' }}>
+                  <div style={{ border: '2px solid #e03131', padding: '8px', background: '#fff5f5', color: '#d13438', fontWeight: 'bold', marginBottom: '15px', borderRadius: '3px', fontSize: '10px' }}>
                     🚨 WYPADEK STRAŻAKA PODCZAS PROWADZENIA DZIAŁAŃ:
                     <div style={{ fontStyle: 'italic', fontWeight: 'normal', marginTop: '3px', fontSize: '9.5px', color: '#333' }}>
                       {activeIncident.times.injuriesDescription}
@@ -7578,7 +7528,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             position: 'fixed',
             top: contextMenu.y,
             left: contextMenu.x,
-            background: '#d4d0c8',
+            background: '#f3f3f3',
             border: '2px solid #ffffff',
             borderRightColor: '#404040',
             borderBottomColor: '#404040',
@@ -7600,7 +7550,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
           <div 
             className="menu-item" 
-            style={{ padding: '4px 20px 4px 5px', cursor: 'pointer', color: contextMenu.incidentStatus === 'processed' ? '#808080' : '#000' }}
+            style={{ padding: '4px 20px 4px 5px', cursor: 'pointer', color: contextMenu.incidentStatus === 'processed' ? '#d1d1d1' : '#000' }}
             onClick={() => { 
               if(contextMenu.incidentStatus !== 'processed') {
                 setIsCrewModalOpen(true); 
@@ -7618,7 +7568,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             📊 Meldunek EWID-ST
           </div>
           
-          <div className="menu-separator" style={{ margin: '3px 0', borderBottom: '1px solid #808080', borderTop: '1px solid #fff' }} />
+          <div className="menu-separator" style={{ margin: '3px 0', borderBottom: '1px solid #d1d1d1', borderTop: '1px solid #fff' }} />
           
           <div 
             className="menu-item" 
@@ -7635,11 +7585,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             🖨️ Drukuj: Karta Zdarzenia (KSRG)
           </div>
 
-          <div className="menu-separator" style={{ margin: '3px 0', borderBottom: '1px solid #808080', borderTop: '1px solid #fff' }} />
+          <div className="menu-separator" style={{ margin: '3px 0', borderBottom: '1px solid #d1d1d1', borderTop: '1px solid #fff' }} />
           
           <div 
             className="menu-item" 
-            style={{ padding: '4px 20px 4px 5px', cursor: 'pointer', color: contextMenu.incidentStatus === 'processed' ? '#808080' : '#000' }}
+            style={{ padding: '4px 20px 4px 5px', cursor: 'pointer', color: contextMenu.incidentStatus === 'processed' ? '#d1d1d1' : '#000' }}
             onClick={() => { 
               if(contextMenu.incidentStatus !== 'processed') {
                 setIsMergeModalOpen(true);
@@ -7651,7 +7601,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
           <div 
             className="menu-item" 
-            style={{ padding: '4px 20px 4px 5px', cursor: 'pointer', color: contextMenu.incidentStatus === 'processed' ? '#808080' : '#000' }}
+            style={{ padding: '4px 20px 4px 5px', cursor: 'pointer', color: contextMenu.incidentStatus === 'processed' ? '#d1d1d1' : '#000' }}
             onClick={() => { 
               if(contextMenu.incidentStatus !== 'processed') {
                 setIsTransferModalOpen(true);
