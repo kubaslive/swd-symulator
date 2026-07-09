@@ -2704,17 +2704,81 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
     setIsWcprCallModalOpen(true);
   };
 
-  const proceedWithCallAccept = (call) => {
-    resetForm();
-    setCallerNameStr(call.callerName || '');
-    setCallerPhoneStr(call.phone || '');
-    setLocation(call.location || '');
-    setDescription(call.description || '');
-    setIncidentType(call.type || 'mz');
-    
-    const suggestedJrg = handleLocationChange(call.location || '');
-    setIsWcprCallModalOpen(false);
-    setIsNewIncidentModalOpen(true);
+  const proceedWithCallAccept = async (call) => {
+    try {
+      const currentYear = new Date().getFullYear();
+      const sequenceNumber = String(incidents.length + 4801).padStart(4, '0');
+      const targetJrg = handleLocationChange(call.location || '');
+      const prefix = getJrgPrefix(targetJrg, userProfile?.tenantId || 'Katowice');
+      const customId = `${prefix}-${sequenceNumber}`;
+
+      const isErrorOrFalseAlarm = call.type === 'bl' || call.type === 'af';
+      const nowTimeStr = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+
+      const incidentData = {
+        tenantId: userProfile?.tenantId || '',
+        ospUnit: userProfile?.role === 'kdr_osp' ? userProfile.ospUnit : OSP_UNITS[0],
+        kdrName: userProfile?.displayName || userProfile?.email || 'Dowódca',
+        location: call.location || '',
+        gminaStr: call.gminaStr || '',
+        miejscowoscStr: call.miejscowoscStr || '',
+        obiektStr: '',
+        callerNameStr: call.callerName || '',
+        callerPhoneStr: call.phone || '',
+        callerAddressStr: '',
+        notifiedServices: [],
+        servicesList: '',
+        coordX: '',
+        coordY: '',
+        type: call.type || 'mz',
+        targetUnitDocelowa: '',
+        actionType: '',
+        eventDate: new Date().toISOString().split('T')[0],
+        description: call.description || '',
+        vehicles: [],
+        vehicleStatuses: {},
+        firefightersCount: 0,
+        equipmentUsed: '',
+        targetJrg, 
+        prefix,
+        isLongDuration: false,
+        sopSteps: {},
+        subtype: '',
+        flags: [],
+        times: {
+          alarm: nowTimeStr,
+          departure: '',
+          arrival: '',
+          localization: '',
+          completion: isErrorOrFalseAlarm ? nowTimeStr : '',
+          return: '',
+          geocodingStatus: 'pending',
+          reportWorkflowState: isErrorOrFalseAlarm ? '3' : '1',
+          isPartialReport: !isErrorOrFalseAlarm,
+          hasInjuries: false,
+          injuriesDescription: ''
+        },
+        reportNumber: '',
+        status: isErrorOrFalseAlarm ? 'processed' : 'submitted',
+        isArchived: false,
+        updatedAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+        customId
+      };
+
+      const docRef = await addDoc(collection(db, 'incidents'), incidentData);
+      logIncidentHistory(docRef.id, "Zdarzenie WCPR zostało automatycznie przyjęte do rejestru.");
+      logAction(`Dodano zgłoszenie ${customId} z WCPR bezpośrednio do bieżącego bufora.`);
+      
+      await deleteDoc(doc(db, 'calls', call.id));
+      
+      setIsWcprCallModalOpen(false);
+      setSelectedWcprCallForModal(null);
+      setActiveCallToAnswer(null);
+    } catch (err) {
+      console.error(err);
+      alert('Błąd automatycznego przyjęcia formatki: ' + err.message);
+    }
   };
 
   // Acknowledge battle alarm and log event to history (KDR view)
@@ -6431,27 +6495,27 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           ------------------------------------------------------------- */}
       {isWcprCallModalOpen && selectedWcprCallForModal && (
         <div className="win-dialog-overlay" style={{ zIndex: 99999 }}>
-          <div className="win-dialog border-double-outset" style={{ width: '850px', background: '#ece9d8' }}>
-            <div className="win-dialog-header" style={{ background: '#0a246a', color: '#fff', display: 'flex', justifyContent: 'space-between', padding: '3px 6px' }}>
+          <div className="win-dialog" style={{ width: '850px' }}>
+            <div className="win-dialog-header">
               <span>Nowe zdarzenie - SI WCPR {selectedWcprCallForModal.id?.substring(0, 4) || 'ZG/0000'}</span>
               <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsWcprCallModalOpen(false)}>X</button>
             </div>
-            <div className="win-dialog-body" style={{ display: 'flex', flexDirection: 'column', height: '550px', padding: '2px' }}>
+            <div className="win-dialog-body" style={{ display: 'flex', flexDirection: 'column', height: '550px', padding: '10px', background: '#f3f3f3', gap: '10px' }}>
               
               {/* Tabs */}
-              <div style={{ display: 'flex', gap: '2px', borderBottom: '1px solid #aca899', paddingLeft: '4px', paddingTop: '4px', background: '#ece9d8' }}>
-                <div style={{ background: '#ece9d8', padding: '4px 10px', border: '1px solid #aca899', borderBottom: 'none', borderTopLeftRadius: '3px', borderTopRightRadius: '3px', fontWeight: 'bold', fontSize: '11px', marginTop: '2px' }}>Nowe zgłoszenie</div>
-                <div style={{ background: '#fff', padding: '4px 10px', border: '1px solid #aca899', borderBottom: 'none', borderTopLeftRadius: '3px', borderTopRightRadius: '3px', fontSize: '11px', color: '#666', marginTop: '4px' }}>SI WCPR {selectedWcprCallForModal.id?.substring(0, 4)}</div>
+              <div style={{ display: 'flex', gap: '2px', borderBottom: '1px solid #ccc', paddingLeft: '4px' }}>
+                <div style={{ background: '#fff', padding: '6px 15px', border: '1px solid #ccc', borderBottom: 'none', borderTopLeftRadius: '4px', borderTopRightRadius: '4px', fontWeight: 'bold', fontSize: '12px' }}>Nowe zgłoszenie</div>
+                <div style={{ background: '#e0e0e0', padding: '6px 15px', border: '1px solid #ccc', borderBottom: 'none', borderTopLeftRadius: '4px', borderTopRightRadius: '4px', fontSize: '12px', color: '#666', marginTop: '2px' }}>SI WCPR {selectedWcprCallForModal.id?.substring(0, 4)}</div>
               </div>
 
               {/* Main Content Area */}
-              <div style={{ display: 'flex', flex: 1, border: '1px solid #aca899', borderTop: 'none', background: '#ece9d8', padding: '4px' }}>
+              <div style={{ display: 'flex', flex: 1, border: '1px solid #ccc', borderTop: 'none', background: '#fff', padding: '10px', borderRadius: '0 0 4px 4px', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.05)' }}>
                 
                 {/* Left Column - Zgłoszenia */}
-                <div style={{ width: '150px', borderRight: '1px solid #aca899', paddingRight: '4px', display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ fontSize: '11px', marginBottom: '2px' }}>Lista zgłoszeń SI WCPR</div>
-                  <div style={{ flex: 1, background: '#fff', border: '1px solid #7f9db9', overflowY: 'auto' }}>
-                    <div style={{ padding: '4px', fontSize: '11px', background: '#316ac5', color: '#fff' }}>ZG/{selectedWcprCallForModal.id?.substring(0, 4)}</div>
+                <div style={{ width: '150px', borderRight: '1px solid #ccc', paddingRight: '10px', display: 'flex', flexDirection: 'column', marginRight: '10px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '4px', color: '#333' }}>Lista zgłoszeń SI WCPR</div>
+                  <div style={{ flex: 1, background: '#f9f9f9', border: '1px solid #ccc', borderRadius: '4px', overflowY: 'auto', padding: '2px' }}>
+                    <div style={{ padding: '6px', fontSize: '11px', background: '#005fb8', color: '#fff', borderRadius: '2px' }}>ZG/{selectedWcprCallForModal.id?.substring(0, 4)}</div>
                   </div>
                 </div>
 
@@ -6461,114 +6525,114 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   {/* Top Section */}
                   <div style={{ display: 'flex', gap: '4px' }}>
                     {/* Lokalizacja zgłaszającego */}
-                    <fieldset style={{ flex: 1, border: '1px solid #d4d0c8', padding: '4px', margin: 0 }}>
-                      <legend style={{ fontSize: '11px', color: '#005fb8' }}>Lokalizacja zgłaszającego</legend>
-                      <div style={{ fontSize: '10px', color: '#000', marginBottom: '4px' }}>WOJ. ŚLĄSKIE / POWIAT / gm.</div>
+                    <fieldset style={{ flex: 1, border: '1px solid #ccc', padding: '8px', margin: 0, borderRadius: '4px', background: '#fafafa' }}>
+                      <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#005fb8' }}>Lokalizacja zgłaszającego</legend>
+                      <div style={{ fontSize: '10px', color: '#666', marginBottom: '8px' }}>WOJ. ŚLĄSKIE / POWIAT / gm.</div>
                       
-                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
-                        <input type="radio" checked readOnly style={{ margin: '0 4px 0 0' }} />
-                        <span style={{ fontSize: '11px', width: '70px' }}>Miejscowość</span>
-                        <input type="text" readOnly className="win-input" value={selectedWcprCallForModal.miejscowoscStr || ''} style={{ flex: 1 }} />
+                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                        <input type="radio" checked readOnly style={{ margin: '0 6px 0 0' }} />
+                        <span style={{ fontSize: '11px', width: '70px', fontWeight: '500' }}>Miejscowość</span>
+                        <input type="text" readOnly className="win-input" value={selectedWcprCallForModal.miejscowoscStr || ''} style={{ flex: 1, background: '#fff' }} />
                       </div>
                       
-                      <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
+                      <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                         <div style={{ flex: 2 }}>
-                          <div style={{ fontSize: '10px' }}>Ulica</div>
-                          <input type="text" readOnly className="win-input" style={{ width: '100%' }} value={selectedWcprCallForModal.address?.split('ul.')[1]?.trim() || ''} />
+                          <div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>Ulica</div>
+                          <input type="text" readOnly className="win-input" style={{ width: '100%', background: '#fff' }} value={selectedWcprCallForModal.address?.split('ul.')[1]?.trim() || ''} />
                         </div>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: '10px' }}>Nr budynku</div>
-                          <input type="text" readOnly className="win-input" style={{ width: '100%' }} />
+                          <div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>Nr budynku</div>
+                          <input type="text" readOnly className="win-input" style={{ width: '100%', background: '#fff' }} />
                         </div>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: '10px' }}>Nr lokalu</div>
-                          <input type="text" readOnly className="win-input" style={{ width: '100%' }} />
+                          <div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>Nr lokalu</div>
+                          <input type="text" readOnly className="win-input" style={{ width: '100%', background: '#fff' }} />
                         </div>
                       </div>
                       
-                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                        <span style={{ fontSize: '11px', width: '70px' }}>Opis lokalizacji</span>
-                        <input type="text" readOnly className="win-input" style={{ flex: 1 }} />
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px', width: '70px', fontWeight: '500' }}>Opis lokalizacji</span>
+                        <input type="text" readOnly className="win-input" style={{ flex: 1, background: '#fff' }} />
                       </div>
                     </fieldset>
 
                     {/* Zgłaszający */}
-                    <fieldset style={{ width: '220px', border: '1px solid #d4d0c8', padding: '4px', margin: 0 }}>
-                      <legend style={{ fontSize: '11px', color: '#005fb8' }}>Zgłaszający</legend>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <fieldset style={{ width: '220px', border: '1px solid #ccc', padding: '8px', margin: 0, borderRadius: '4px', background: '#fafafa' }}>
+                      <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#005fb8' }}>Zgłaszający</legend>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
-                          <span style={{ fontSize: '11px', width: '60px' }}>Imię</span>
-                          <input type="text" readOnly className="win-input" style={{ flex: 1 }} value={selectedWcprCallForModal.callerName?.split(' ')[0] || ''} />
+                          <span style={{ fontSize: '11px', width: '60px', fontWeight: '500' }}>Imię</span>
+                          <input type="text" readOnly className="win-input" style={{ flex: 1, background: '#fff' }} value={selectedWcprCallForModal.callerName?.split(' ')[0] || ''} />
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
-                          <span style={{ fontSize: '11px', width: '60px' }}>Nazwisko</span>
-                          <input type="text" readOnly className="win-input" style={{ flex: 1 }} value={selectedWcprCallForModal.callerName?.split(' ')[1] || ''} />
+                          <span style={{ fontSize: '11px', width: '60px', fontWeight: '500' }}>Nazwisko</span>
+                          <input type="text" readOnly className="win-input" style={{ flex: 1, background: '#fff' }} value={selectedWcprCallForModal.callerName?.split(' ')[1] || ''} />
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
-                          <span style={{ fontSize: '11px', width: '60px' }}>Nr telefonu</span>
-                          <input type="text" readOnly className="win-input" style={{ flex: 1 }} value={selectedWcprCallForModal.phone || ''} />
+                          <span style={{ fontSize: '11px', width: '60px', fontWeight: '500' }}>Nr telefonu</span>
+                          <input type="text" readOnly className="win-input" style={{ flex: 1, background: '#fff' }} value={selectedWcprCallForModal.phone || ''} />
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
-                          <span style={{ fontSize: '11px', width: '60px' }}>Służba</span>
-                          <input type="text" readOnly className="win-input" style={{ flex: 1 }} value="POL" />
+                          <span style={{ fontSize: '11px', width: '60px', fontWeight: '500' }}>Służba</span>
+                          <input type="text" readOnly className="win-input" style={{ flex: 1, background: '#fff' }} value="POL" />
                         </div>
                       </div>
                     </fieldset>
                   </div>
 
                   {/* Middle/Bottom Split */}
-                  <div style={{ display: 'flex', gap: '4px', flex: 1 }}>
+                  <div style={{ display: 'flex', gap: '8px', flex: 1, marginTop: '8px' }}>
                     {/* Left: Zdarzenie */}
-                    <fieldset style={{ flex: 1, border: '1px solid #d4d0c8', padding: '4px', margin: 0, display: 'flex', flexDirection: 'column' }}>
-                      <legend style={{ fontSize: '11px', color: '#005fb8' }}>Zdarzenie: ZD/{selectedWcprCallForModal.id?.substring(0, 4)}</legend>
+                    <fieldset style={{ flex: 1, border: '1px solid #ccc', padding: '8px', margin: 0, display: 'flex', flexDirection: 'column', borderRadius: '4px', background: '#fafafa' }}>
+                      <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#005fb8' }}>Zdarzenie: ZD/{selectedWcprCallForModal.id?.substring(0, 4)}</legend>
                       
-                      <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '11px', width: '40px' }}>Data</span>
-                        <input type="text" readOnly className="win-input" style={{ width: '80px' }} value={new Date().toLocaleDateString('pl-PL')} />
-                        <span style={{ fontSize: '11px', width: '30px', textAlign: 'right', paddingRight: '4px' }}>Czas</span>
-                        <input type="text" readOnly className="win-input" style={{ width: '60px' }} value={new Date().toLocaleTimeString('pl-PL').substring(0, 5)} />
+                      <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '11px', width: '40px', fontWeight: '500' }}>Data</span>
+                        <input type="text" readOnly className="win-input" style={{ width: '80px', background: '#fff' }} value={new Date().toLocaleDateString('pl-PL')} />
+                        <span style={{ fontSize: '11px', width: '30px', textAlign: 'right', paddingRight: '4px', fontWeight: '500' }}>Czas</span>
+                        <input type="text" readOnly className="win-input" style={{ width: '60px', background: '#fff' }} value={new Date().toLocaleTimeString('pl-PL').substring(0, 5)} />
                       </div>
 
-                      <div style={{ fontSize: '10px', color: '#000', marginBottom: '4px' }}>WOJ. ŚLĄSKIE / POWIAT / OBSZAR MIEJSKI</div>
+                      <div style={{ fontSize: '10px', color: '#666', marginBottom: '8px' }}>WOJ. ŚLĄSKIE / POWIAT / OBSZAR MIEJSKI</div>
                       
-                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
-                        <input type="radio" checked readOnly style={{ margin: '0 4px 0 0' }} />
-                        <span style={{ fontSize: '11px', width: '70px' }}>Miejscowość</span>
-                        <input type="text" readOnly className="win-input" value={selectedWcprCallForModal.miejscowoscStr || ''} style={{ flex: 1 }} />
+                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                        <input type="radio" checked readOnly style={{ margin: '0 6px 0 0' }} />
+                        <span style={{ fontSize: '11px', width: '70px', fontWeight: '500' }}>Miejscowość</span>
+                        <input type="text" readOnly className="win-input" value={selectedWcprCallForModal.miejscowoscStr || ''} style={{ flex: 1, background: '#fff' }} />
                       </div>
 
-                      <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
+                      <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                         <div style={{ flex: 2 }}>
-                          <div style={{ fontSize: '10px' }}>Ulica</div>
-                          <input type="text" readOnly className="win-input" style={{ width: '100%' }} value={selectedWcprCallForModal.address?.split('ul.')[1]?.trim() || ''} />
+                          <div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>Ulica</div>
+                          <input type="text" readOnly className="win-input" style={{ width: '100%', background: '#fff' }} value={selectedWcprCallForModal.address?.split('ul.')[1]?.trim() || ''} />
                         </div>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: '10px' }}>Nr budynku</div>
-                          <input type="text" readOnly className="win-input" style={{ width: '100%' }} />
+                          <div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>Nr budynku</div>
+                          <input type="text" readOnly className="win-input" style={{ width: '100%', background: '#fff' }} />
                         </div>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: '10px' }}>Nr lokalu</div>
-                          <input type="text" readOnly className="win-input" style={{ width: '100%' }} />
+                          <div style={{ fontSize: '10px', color: '#555', marginBottom: '2px' }}>Nr lokalu</div>
+                          <input type="text" readOnly className="win-input" style={{ width: '100%', background: '#fff' }} />
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', gap: '4px', marginBottom: '4px', alignItems: 'center' }}>
-                        <span style={{ fontSize: '11px', width: '70px' }}>Kategoria</span>
-                        <select className="win-input" style={{ flex: 1 }} readOnly value={selectedWcprCallForModal.category || ''}>
+                      <div style={{ display: 'flex', gap: '6px', marginBottom: '6px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px', width: '70px', fontWeight: '500' }}>Kategoria</span>
+                        <select className="win-input" style={{ flex: 1, background: '#fff' }} readOnly value={selectedWcprCallForModal.category || ''}>
                           <option>{selectedWcprCallForModal.category === 'pozar' ? 'Pożar' : selectedWcprCallForModal.category === 'mz' ? 'Miejscowe Zagrożenie' : 'Inne'}</option>
                         </select>
                       </div>
                       
-                      <div style={{ display: 'flex', gap: '4px', marginBottom: '4px', alignItems: 'center' }}>
-                        <span style={{ fontSize: '11px', width: '70px' }}>Podkategoria</span>
-                        <select className="win-input" style={{ flex: 1 }} readOnly value="Inna">
+                      <div style={{ display: 'flex', gap: '6px', marginBottom: '6px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px', width: '70px', fontWeight: '500' }}>Podkategoria</span>
+                        <select className="win-input" style={{ flex: 1, background: '#fff' }} readOnly value="Inna">
                           <option>Inna</option>
                         </select>
                       </div>
 
-                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                        <span style={{ fontSize: '11px', width: '70px' }}>Priorytet</span>
-                        <select className="win-input" style={{ flex: 1 }} readOnly value="Pilny">
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px', width: '70px', fontWeight: '500' }}>Priorytet</span>
+                        <select className="win-input" style={{ flex: 1, background: '#fff' }} readOnly value="Pilny">
                           <option>Pilny</option>
                         </select>
                       </div>
@@ -6576,39 +6640,39 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     </fieldset>
 
                     {/* Right: Opisy & Table */}
-                    <div style={{ width: '270px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <fieldset style={{ flex: 1, border: '1px solid #d4d0c8', padding: '4px', margin: 0, display: 'flex', flexDirection: 'column' }}>
-                        <legend style={{ fontSize: '11px', color: '#005fb8' }}>Opis zdarzenia</legend>
+                    <div style={{ width: '270px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <fieldset style={{ flex: 1, border: '1px solid #ccc', padding: '8px', margin: 0, display: 'flex', flexDirection: 'column', borderRadius: '4px', background: '#fafafa' }}>
+                        <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#005fb8' }}>Opis zdarzenia</legend>
                         <textarea 
                           className="win-input" 
-                          style={{ flex: 1, resize: 'none', fontSize: '11px', fontFamily: 'var(--font-mono)' }} 
+                          style={{ flex: 1, resize: 'none', fontSize: '11px', fontFamily: 'var(--font-mono)', background: '#fff' }} 
                           readOnly 
                           value={selectedWcprCallForModal.description || ''}
                         />
                       </fieldset>
                       
-                      <div style={{ border: '1px solid #7f9db9', background: '#fff', height: '90px', overflowY: 'auto' }}>
+                      <div style={{ border: '1px solid #ccc', background: '#fff', height: '90px', overflowY: 'auto', borderRadius: '4px' }}>
                         <table style={{ width: '100%', fontSize: '10px', borderCollapse: 'collapse' }}>
-                          <thead style={{ background: '#ece9d8' }}>
+                          <thead style={{ background: '#f3f3f3', borderBottom: '1px solid #ccc' }}>
                             <tr>
-                              <th style={{ border: '1px solid #d4d0c8', fontWeight: 'normal', textAlign: 'left', padding: '2px' }}>Służba</th>
-                              <th style={{ border: '1px solid #d4d0c8', fontWeight: 'normal', textAlign: 'left', padding: '2px' }}>Status</th>
-                              <th style={{ border: '1px solid #d4d0c8', fontWeight: 'normal', textAlign: 'left', padding: '2px' }}>Dyspozytor</th>
-                              <th style={{ border: '1px solid #d4d0c8', fontWeight: 'normal', textAlign: 'left', padding: '2px' }}>Telefon</th>
+                              <th style={{ fontWeight: '600', textAlign: 'left', padding: '4px' }}>Służba</th>
+                              <th style={{ fontWeight: '600', textAlign: 'left', padding: '4px' }}>Status</th>
+                              <th style={{ fontWeight: '600', textAlign: 'left', padding: '4px' }}>Dyspozytor</th>
+                              <th style={{ fontWeight: '600', textAlign: 'left', padding: '4px' }}>Telefon</th>
                             </tr>
                           </thead>
                           <tbody>
-                            <tr>
-                              <td style={{ border: '1px solid #d4d0c8', padding: '2px' }}>POL</td>
-                              <td style={{ border: '1px solid #d4d0c8', padding: '2px' }}>W trakcie</td>
-                              <td style={{ border: '1px solid #d4d0c8', padding: '2px' }}>DYŻURNY_01</td>
-                              <td style={{ border: '1px solid #d4d0c8', padding: '2px' }}>112</td>
+                            <tr style={{ borderBottom: '1px solid #eee' }}>
+                              <td style={{ padding: '4px' }}>POL</td>
+                              <td style={{ padding: '4px' }}>W trakcie</td>
+                              <td style={{ padding: '4px' }}>DYŻURNY_01</td>
+                              <td style={{ padding: '4px' }}>112</td>
                             </tr>
                             <tr>
-                              <td style={{ border: '1px solid #d4d0c8', padding: '2px' }}>PSP</td>
-                              <td style={{ border: '1px solid #d4d0c8', padding: '2px' }}>Dostarczone</td>
-                              <td style={{ border: '1px solid #d4d0c8', padding: '2px' }}>---</td>
-                              <td style={{ border: '1px solid #d4d0c8', padding: '2px' }}>---</td>
+                              <td style={{ padding: '4px' }}>PSP</td>
+                              <td style={{ padding: '4px' }}>Dostarczone</td>
+                              <td style={{ padding: '4px' }}>---</td>
+                              <td style={{ padding: '4px' }}>---</td>
                             </tr>
                           </tbody>
                         </table>
@@ -6620,24 +6684,24 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               </div>
 
               {/* Action Buttons */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', padding: '8px 4px 4px', background: '#ece9d8' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '10px' }}>
                 <button 
                   className="btn-win" 
-                  style={{ width: '90px', fontWeight: 'bold', color: '#2b8a3e', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                  style={{ width: '100px', fontWeight: 'bold', background: '#2b8a3e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                   onClick={() => proceedWithCallAccept(selectedWcprCallForModal)}
                 >
                   <span style={{ fontSize: '14px' }}>✔️</span> Przyjmij
                 </button>
                 <button 
                   className="btn-win" 
-                  style={{ width: '90px', color: '#d13438', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                  style={{ width: '100px', color: '#d13438', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', border: '1px solid #d13438', background: '#fff' }}
                   onClick={() => setIsWcprCallModalOpen(false)}
                 >
                   <span style={{ fontSize: '14px' }}>❌</span> Anuluj
                 </button>
                 <button 
                   className="btn-win" 
-                  style={{ width: '90px', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                  style={{ width: '100px', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', border: '1px solid #888', background: '#fff' }}
                   onClick={() => {
                     deleteDoc(doc(db, 'calls', selectedWcprCallForModal.id)).catch(console.error);
                     setIsWcprCallModalOpen(false);
