@@ -2708,7 +2708,17 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
     try {
       const currentYear = new Date().getFullYear();
       const sequenceNumber = String(incidents.length + 4801).padStart(4, '0');
-      const targetJrg = handleLocationChange(call.location || '');
+      
+      let targetJrg = "JRG 1";
+      const norm = (call.location || '').toLowerCase();
+      if (norm.includes("szopienic") || norm.includes("dąbrówk") || norm.includes("dabrowk") || norm.includes("janów") || norm.includes("janow") || norm.includes("giszowiec") || norm.includes("nikiszowiec") || norm.includes("szopienick")) {
+        targetJrg = "JRG 1";
+      } else if (norm.includes("piotrowic") || norm.includes("kostuchn") || norm.includes("podles") || norm.includes("zarzecz") || norm.includes("ligot") || norm.includes("panewnik") || norm.includes("piotrowick")) {
+        targetJrg = "JRG 2";
+      } else if (norm.includes("centrum") || norm.includes("bogucic") || norm.includes("zawodzi") || norm.includes("koszutk") || norm.includes("wełnowiec") || norm.includes("welnowiec") || norm.includes("korfant") || norm.includes("mariack") || norm.includes("dworco")) {
+        targetJrg = "JRG 3";
+      }
+      
       const prefix = getJrgPrefix(targetJrg, userProfile?.tenantId || 'Katowice');
       const customId = `${prefix}-${sequenceNumber}`;
 
