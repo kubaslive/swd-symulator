@@ -557,7 +557,7 @@ input, textarea, select {
 }
 
 .swd-row:hover {
-  background-color: rgba(0, 95, 184, 0.04);
+  background-color: #d0ebff !important;
   outline: none;
 }
 

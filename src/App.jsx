@@ -1591,7 +1591,7 @@ TREŚĆ ZGŁOSZENIA:
     const sequenceNumber = String(incidents.length + 4801).padStart(4, '0');
     
     // Używamy miasta jako wskaźnika tenant'a jeśli jest potrzebny, na tę chwilę bierzemy "Katowice"
-    const prefix = getJrgPrefix(targetJrg, 'Katowice');
+    const prefix = getJrgPrefix(targetJrg, tenantName);
     const customId = `${prefix}-${sequenceNumber}`;
 
     const servicesList = notifiedServices.join(', ');
@@ -3532,7 +3532,6 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           <button className={`tab-btn ${combatTab === 'WCPR' ? 'active' : ''}`} style={{ borderLeft: '1px solid #f3f3f3', marginLeft: '4px', color: incomingCalls.length > 0 ? '#d13438' : '#000000', fontWeight: incomingCalls.length > 0 ? 'bold' : 'normal' }} onClick={() => setCombatTab('WCPR')}>Bufor zdarzeń {incomingCalls.length > 0 ? `(${incomingCalls.length})` : ''}</button>
           <button className="tab-btn" style={{ color: '#d1d1d1' }} disabled>Szukaj</button>
           <button className="tab-btn" style={{ color: '#d1d1d1' }} disabled>Zdarzenia planowane (0)</button>
-          <button className="tab-btn" style={{ borderLeft: '1px solid #f3f3f3', marginLeft: '4px' }} onClick={() => setActiveMenuTab('bufor')}>Bufor Meldunków</button>
         </div>
         {/* Global overlay for context menu */}
         {vehicleContextMenu && (
@@ -5182,7 +5181,6 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         </div>
         
         <div className={`menu-item ${activeMenuTab === 'rejestr' ? 'active' : ''}`} onClick={() => setActiveMenuTab('rejestr')}>Zdarzenia</div>
-        <div className="menu-item">Meldunki</div>
         <div className={`menu-item ${activeMenuTab === 'katalog_sis' ? 'active' : ''}`} onClick={() => setActiveMenuTab('katalog_sis')}>Siły i środki</div>
         <div className={`menu-item ${activeMenuTab === 'konta' || activeMenuTab === 'monitor' ? 'active' : ''}`} onClick={() => { if(userProfile?.role === 'admin') setActiveMenuTab('konta'); else setActiveMenuTab('monitor'); }}>Urządzenia</div>
         <div className="menu-item">Okna</div>
@@ -5286,16 +5284,6 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           <span style={{ fontSize: '12px' }}>✏️</span>
           <span>Edytuj (F3)</span>
         </button>
-        <button 
-          className="toolbar-btn" 
-          title="Meldunek EWID-ST [F8]" 
-          disabled={!selectedIncidentId}
-          onClick={() => setIsEwidReportModalOpen(true)}
-        >
-          <span style={{ fontSize: '12px' }}>💾</span>
-          <span>Meldunek (F8)</span>
-        </button>
-
         <button 
           className="toolbar-btn" 
           title="Odśwież rejestr i gotowość bojową [F5]" 
@@ -5681,7 +5669,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   <>
                     {/* Dyspozycje Toolbar */}
                     <div style={{ display: 'flex', gap: '2px', padding: '2px 4px', background: '#f3f3f3', borderBottom: '1px solid #d1d1d1' }}>
-                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Meldunek EWID-ST" onClick={() => setIsEwidReportModalOpen(true)}>📄</button>
+
                       <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Wyjazd do akcji">▶️</button>
                       <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Zawrócenie z trasy">↩️</button>
                       <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Lokalizacja zagrożenia">📍</button>
@@ -7554,30 +7542,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           >
             🚒 Dysponuj SiS
           </div>
-          <div 
-            className="menu-item" 
-            style={{ padding: '4px 20px 4px 5px', cursor: 'pointer' }}
-            onClick={() => { setIsEwidReportModalOpen(true); setContextMenu(null); }}
-          >
-            📊 Meldunek EWID-ST
-          </div>
-          
-          <div className="menu-separator" style={{ margin: '3px 0', borderBottom: '1px solid #d1d1d1', borderTop: '1px solid #fff' }} />
-          
-          <div 
-            className="menu-item" 
-            style={{ padding: '4px 20px 4px 5px', cursor: 'pointer' }}
-            onClick={() => { setPrintPreviewMode('karta_manipulacyjna'); setContextMenu(null); }}
-          >
-            🖨️ Drukuj: Karta Manipulacyjna
-          </div>
-          <div 
-            className="menu-item" 
-            style={{ padding: '4px 20px 4px 5px', cursor: 'pointer' }}
-            onClick={() => { setPrintPreviewMode('karta_zdarzenia'); setContextMenu(null); }}
-          >
-            🖨️ Drukuj: Karta Zdarzenia (KSRG)
-          </div>
+
 
           <div className="menu-separator" style={{ margin: '3px 0', borderBottom: '1px solid #d1d1d1', borderTop: '1px solid #fff' }} />
           
