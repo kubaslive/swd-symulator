@@ -3040,21 +3040,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                       </span>
                     </div>
 
-                    {uName.includes("JRG") && (
-                      <div style={{ 
-                        fontSize: '8px', 
-                        backgroundColor: readiness.color, 
-                        color: readiness.pct === 0 ? '#fff' : '#000', 
-                        padding: '1px 3px', 
-                        fontWeight: 'bold', 
-                        textAlign: 'center', 
-                        marginBottom: '4px',
-                        animation: isCritical ? 'led-pulse-red 1s infinite alternate' : 'none',
-                        border: isCritical ? '1px solid #d13438' : 'none'
-                      }}>
-                        {isCritical ? '🚨 BRAK SIŁ!' : `${vehicles.filter(v => getVehicleState(uName, v.name) === 'W koszarach').length} zast. w bazie`}
-                      </div>
-                    )}
+
                     {/* Unit address (usunięto adresy JRG zgodnie z dyspozycją) */}
                     <div style={{ fontSize: '7.5px', color: '#d1d1d1', padding: '1px 5px', borderBottom: '1px solid #f3f3f3' }}>
                       {uName.includes('KM PSP') ? 'ul. Bankowa 8' : ''}
