@@ -2348,6 +2348,12 @@ function App() {
       return;
     }
 
+    // Ograniczenie KSiS: Tylko komenda dowodząca może sterować statusami 2, 3, 4. Odbiorca może tylko nadać status 1 (Wyjazd) lub 0.
+    if (statusNum > 1 && activeIncident.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') {
+      alert('Tylko komenda dowodząca (wysyłająca żądanie) może sterować tym statusem!');
+      return;
+    }
+
     // Close the context menu immediately
     setActiveContextMenuVehicle(null);
 
@@ -6049,10 +6055,10 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   <>
                     {/* Dyspozycje Toolbar */}
                     <div style={{ display: 'flex', gap: '2px', padding: '2px 4px', background: '#f3f3f3', borderBottom: '1px solid #d1d1d1' }}>
-                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Wyjazd do akcji (ST 1)" onClick={() => { if(selectedSisVehicle) handleUpdateVehicleStatus(selectedSisVehicle, 1); else alert('Zaznacz zastęp na liście poniżej!'); }}>▶️</button>
-                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Na miejscu (ST 2)" onClick={() => { if(selectedSisVehicle) handleUpdateVehicleStatus(selectedSisVehicle, 2); else alert('Zaznacz zastęp na liście poniżej!'); }}>📍</button>
-                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Powrót / Zakończenie (ST 3)" onClick={() => { if(selectedSisVehicle) handleUpdateVehicleStatus(selectedSisVehicle, 3); else alert('Zaznacz zastęp na liście poniżej!'); }}>◀️</button>
-                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="W koszarach (ST 4)" onClick={() => { if(selectedSisVehicle) handleUpdateVehicleStatus(selectedSisVehicle, 4); else alert('Zaznacz zastęp na liście poniżej!'); }}>🏠</button>
+                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Wyjazd do akcji (ST 1)" onClick={() => { if(selectedSisVehicle) handleSetVehicleStatus(selectedSisVehicle, 1); else alert('Zaznacz zastęp na liście poniżej!'); }}>▶️</button>
+                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px', opacity: (activeIncident?.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') ? 0.5 : 1 }} title="Na miejscu (ST 2)" onClick={() => { if (activeIncident?.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') { alert('Tylko komenda dowodząca (wysyłająca żądanie) może sterować tym statusem!'); return; } if(selectedSisVehicle) handleSetVehicleStatus(selectedSisVehicle, 2); else alert('Zaznacz zastęp na liście poniżej!'); }}>📍</button>
+                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px', opacity: (activeIncident?.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') ? 0.5 : 1 }} title="Powrót / Zakończenie (ST 3)" onClick={() => { if (activeIncident?.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') { alert('Tylko komenda dowodząca (wysyłająca żądanie) może sterować tym statusem!'); return; } if(selectedSisVehicle) handleSetVehicleStatus(selectedSisVehicle, 3); else alert('Zaznacz zastęp na liście poniżej!'); }}>◀️</button>
+                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px', opacity: (activeIncident?.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') ? 0.5 : 1 }} title="W koszarach (ST 4)" onClick={() => { if (activeIncident?.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') { alert('Tylko komenda dowodząca (wysyłająca żądanie) może sterować tym statusem!'); return; } if(selectedSisVehicle) handleSetVehicleStatus(selectedSisVehicle, 4); else alert('Zaznacz zastęp na liście poniżej!'); }}>🏠</button>
                       <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Drukuj" onClick={() => setPrintPreviewMode('karta_manipulacyjna')}>🖨️</button>
                       <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px', marginLeft: '5px', background: '#dbeafe', border: '1px solid #005fb8' }} title="Żądanie dysponowania KSiS" onClick={() => { setIsKsisSendModalOpen(true); setKsisSendFormData({ targetTenant: '', equipment: '', comment: '', incidentId: activeIncident?.id }); }}>Żądanie KSiS</button>
                     </div>
@@ -6957,9 +6963,10 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   {usersList.map(u => {
                     if (u.tenantId === userProfile.tenantId && userProfile.role !== 'admin') return null; // don't send to self
                     const name = u.displayName || u.email;
-                    return <option key={u.id} value={u.tenantId}>{u.tenantId === '120000' ? 'KW PSP KATOWICE' : name}</option>;
+                    const tenantPrefix = u.tenantId === '120000' ? 'KW PSP KATOWICE' : `KM/KP PSP ${u.tenantId || ''}`;
+                    return <option key={u.id} value={u.tenantId}>{tenantPrefix} ({name})</option>;
                   })}
-                  {userProfile.role !== 'admin' && !usersList.some(u => u.tenantId === '120000') && <option value="120000">KW PSP KATOWICE</option>}
+                  {userProfile.role !== 'admin' && !usersList.some(u => u.tenantId === '120000') && <option value="120000">KW PSP KATOWICE (KW PSP KATOWICE)</option>}
                 </select>
               </div>
               <div style={{ marginBottom: '10px' }}>
