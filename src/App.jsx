@@ -264,6 +264,8 @@ function App() {
   const [tenantName, setTenantName] = useState('');
   const [tenantJrgUnits, setTenantJrgUnits] = useState([]);
   const [tenantOspUnits, setTenantOspUnits] = useState([]);
+  const [ksisTab, setKsisTab] = useState('PSP');
+  const [ksisOspGmina, setKsisOspGmina] = useState('');
   const [tenantVehicles, setTenantVehicles] = useState({});
   const [tenantMapBases, setTenantMapBases] = useState({});
   const [tenantHydrants, setTenantHydrants] = useState([]);
@@ -596,6 +598,53 @@ function App() {
       alert('Błąd bazy danych: ' + err.message);
     }
   };
+
+  // Address Generator - Background Overpass API fetcher
+  useEffect(() => {
+    const settingsCities = userProfile?.settings?.generatorCities || gameModeCities || '';
+    const parsedCities = settingsCities.split(',').map(s => s.trim()).filter(s => s.length > 0);
+    
+    parsedCities.forEach(city => {
+      const cacheKey = `swd_streets_${city.toLowerCase()}`;
+      const cacheTimeKey = `swd_streets_time_${city.toLowerCase()}`;
+      const cachedTime = localStorage.getItem(cacheTimeKey);
+      
+      // Fetch if no cache or cache is older than 30 days
+      const shouldFetch = !localStorage.getItem(cacheKey) || !cachedTime || (Date.now() - parseInt(cachedTime) > 30 * 24 * 60 * 60 * 1000);
+      
+      if (shouldFetch) {
+        // Fetch via Overpass API (all streets in the city area)
+        const query = `
+          [out:json][timeout:25];
+          area[name="${city}"]->.searchArea;
+          way(area.searchArea)[highway][name];
+          out tags;
+        `;
+        fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          body: query
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.elements) {
+            const streets = new Set();
+            data.elements.forEach(e => {
+              if (e.tags && e.tags.name) {
+                streets.add(e.tags.name);
+              }
+            });
+            const streetsArr = Array.from(streets);
+            if (streetsArr.length > 0) {
+              localStorage.setItem(cacheKey, JSON.stringify(streetsArr));
+              localStorage.setItem(cacheTimeKey, Date.now().toString());
+              console.log(`[Overpass] Cached ${streetsArr.length} streets for ${city}`);
+            }
+          }
+        })
+        .catch(err => console.error(`[Overpass] Failed to fetch streets for ${city}`, err));
+      }
+    });
+  }, [userProfile?.settings?.generatorCities, gameModeCities]);
 
   const [sisSelectedUnit, setSisSelectedUnit] = useState(Object.keys(UNIT_VEHICLES)[0]);
   const [sisEditingVehicle, setSisEditingVehicle] = useState(null); // vehicle object being edited
@@ -1033,7 +1082,7 @@ function App() {
         const houseNum = Math.floor(Math.random() * 150) + 1;
         const location = `${city}, ul. ${street} ${houseNum}`;
         
-        const types = ["pozar", "mz", "af", "pozar", "mz", "mz"]; // Weighted towards MZ and Pozar
+        const types = ["pozar", "mz", "pozar", "mz", "mz"]; // Weighted towards MZ and Pozar
         const type = randomElement(types);
         
         let text = "";
@@ -3366,7 +3415,28 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             </div>
           )}
 
-          {combatTab === 'OSP' && (
+          {combatTab === 'OSP' && (() => {
+            const parseOsp = (u) => {
+              if (u.includes('|')) {
+                const parts = u.split('|');
+                return { gmina: parts[0].trim(), name: parts[1].trim(), raw: u };
+              }
+              return { gmina: 'Inne', name: u, raw: u };
+            };
+
+            const ospGroups = {};
+            OSP_UNITS.forEach(u => {
+              const parsed = parseOsp(u);
+              if (!ospGroups[parsed.gmina]) ospGroups[parsed.gmina] = [];
+              ospGroups[parsed.gmina].push(parsed);
+            });
+            const gminas = Object.keys(ospGroups).sort();
+
+            const displayedUnits = selectedOspSidebar === 'ALL' || !ospGroups[selectedOspSidebar] 
+              ? OSP_UNITS 
+              : ospGroups[selectedOspSidebar].map(o => o.raw);
+
+            return (
             // OSP Mode - Gminas on left, ALL vehicles on right
             <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', height: '100%', background: '#f3f3f3' }}>
               <div className="border-inset" style={{ background: '#ffffff', overflowY: 'auto', padding: '4px', margin: '4px' }}>
@@ -3379,19 +3449,38 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     padding: '3px 6px', 
                     fontSize: '10.5px', 
                     cursor: 'pointer', 
-                    backgroundColor: selectedOspSidebar === 'ALL' || !OSP_UNITS.includes(selectedOspSidebar) ? '#0a6ece' : 'transparent',
-                    color: selectedOspSidebar === 'ALL' || !OSP_UNITS.includes(selectedOspSidebar) ? '#ffffff' : '#000000',
-                    fontWeight: selectedOspSidebar === 'ALL' || !OSP_UNITS.includes(selectedOspSidebar) ? 'bold' : 'normal'
+                    backgroundColor: selectedOspSidebar === 'ALL' ? '#0a6ece' : 'transparent',
+                    color: selectedOspSidebar === 'ALL' ? '#ffffff' : '#000000',
+                    fontWeight: selectedOspSidebar === 'ALL' ? 'bold' : 'normal',
+                    marginBottom: '2px'
                   }}
                 >
-                  Gmina m. {tenantName}
+                  [Wszystkie]
                 </div>
+                {gminas.map(gmina => (
+                  <div 
+                    key={gmina}
+                    onClick={() => setSelectedOspSidebar(gmina)}
+                    style={{ 
+                      padding: '3px 6px', 
+                      fontSize: '10.5px', 
+                      cursor: 'pointer', 
+                      backgroundColor: selectedOspSidebar === gmina ? '#0a6ece' : 'transparent',
+                      color: selectedOspSidebar === gmina ? '#ffffff' : '#000000',
+                      fontWeight: selectedOspSidebar === gmina ? 'bold' : 'normal',
+                      marginBottom: '2px'
+                    }}
+                  >
+                    Gmina {gmina}
+                  </div>
+                ))}
               </div>
 
               <div className="border-inset" style={{ background: '#ffffff', overflowY: 'auto', padding: '6px', margin: '4px 4px 4px 0' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  {OSP_UNITS.map(osp => {
+                  {displayedUnits.map(osp => {
                     const vehicles = UNIT_VEHICLES[osp] || [];
+                    const parsedOsp = parseOsp(osp);
                     return vehicles.map(v => {
                       const state = getVehicleState(osp, v.name);
                       const isCrossedOut = state === "Wycofany" || v.outOfService;
@@ -3412,11 +3501,9 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             borderBottom: '1px solid #f3f3f3'
                           }}
                           onClick={() => {
-                            setSelectedOspSidebar(osp);
                             setSelectedCombatVehicle(`${osp} | ${v.name}`);
                           }}
                           onDoubleClick={() => {
-                            setSelectedOspSidebar(osp);
                             setSelectedCombatVehicle(`${osp} | ${v.name}`);
                             if (selectedIncidentId && activeIncident && activeIncident.status !== 'processed') {
                               addVehicleToActiveIncident(`${osp} | ${v.name}`);
@@ -3424,7 +3511,6 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                           }}
                           onContextMenu={(e) => {
                             e.preventDefault();
-                            setSelectedOspSidebar(osp);
                             setSelectedCombatVehicle(`${osp} | ${v.name}`);
                             const activeInc = incidents.find(inc => inc.status !== 'processed' && !inc.isArchived && inc.vehicles?.includes(`${osp} | ${v.name}`));
                             setVehicleContextMenu({
@@ -3445,7 +3531,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             )}
                           </div>
                           <span style={{ fontWeight: isSelected ? 'bold' : 'normal', color: isCrossedOut ? '#868e96' : 'inherit', textDecoration: isCrossedOut ? 'line-through' : 'none' }}>
-                            {osp} - {v.kryptonim ? `${v.kryptonim} (${v.name})` : v.name}
+                            {parsedOsp.name} - {v.kryptonim ? `${v.kryptonim} (${v.name})` : v.name}
                           </span>
                         </div>
                       );
@@ -3454,7 +3540,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
 
 
           {combatTab === 'SPECIALIST' && (
@@ -4008,6 +4095,22 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
     };
 
     const unitVehicles = vehiclesCatalog[currentUnit] || [];
+    
+    // OSP Grouping logic
+    const parseOsp = (u) => {
+      if (u.includes('|')) {
+        const parts = u.split('|');
+        return { gmina: parts[0].trim(), name: parts[1].trim(), raw: u };
+      }
+      return { gmina: 'Inne', name: u, raw: u };
+    };
+
+    const ospGroups = {};
+    (tenantOspUnits || []).forEach(u => {
+      const parsed = parseOsp(u);
+      if (!ospGroups[parsed.gmina]) ospGroups[parsed.gmina] = [];
+      ospGroups[parsed.gmina].push(parsed);
+    });
 
     // Save edited vehicle
     const handleSisEditSave = () => {
@@ -4087,7 +4190,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
     return (
       <div style={{ padding: '14px', overflowY: 'auto', height: '100%', backgroundColor: '#ffffff', color: '#000000' }} className="border-inset fade-in">
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #005fb8', paddingBottom: '10px', marginBottom: '14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #005fb8', paddingBottom: '10px', marginBottom: '10px' }}>
           <div>
             <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#005fb8', margin: 0 }}>
               📦 KATALOG SIŁ I ŚRODKÓW (SiS) — SWD-ST 2.5
@@ -4106,75 +4209,114 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
         </div>
 
+        {/* Zakładki SWD */}
+        <div style={{ display: 'flex', gap: '2px', marginBottom: '8px', borderBottom: '1px solid #ccc' }}>
+          {['PSP', 'OSP', 'Specjaliści', 'Odwody Operacyjne', 'Inne', 'Bufor zdarzeń'].map(tab => (
+            <button 
+              key={tab}
+              className={`btn-win ${ksisTab === tab ? 'active' : ''}`}
+              style={{ padding: '4px 12px', fontSize: '11px', background: ksisTab === tab ? '#fff' : '#e0e0e0', border: '1px solid #999', borderBottom: ksisTab === tab ? '1px solid #fff' : '1px solid #999', marginBottom: '-1px', fontWeight: ksisTab === tab ? 'bold' : 'normal', color: ksisTab === tab ? '#000' : '#444' }}
+              onClick={() => setKsisTab(tab)}
+            >
+              {tab === 'PSP' ? '🚒 ' : tab === 'OSP' ? '🏠 ' : ''}{tab}
+            </button>
+          ))}
+        </div>
+
+
         {/* SWD ST 2.5 - Widok Drzewa i Szczegółów */}
-        <div style={{ display: 'flex', gap: '4px', height: 'calc(100% - 40px)' }}>
+        <div style={{ display: 'flex', gap: '4px', height: 'calc(100% - 70px)' }}>
           {/* Drzewo jednostek (LEWA KOLUMNA) */}
           <div style={{ width: '280px', display: 'flex', flexDirection: 'column', border: '2px inset #d1d1d1', background: '#fff' }}>
-            <div style={{ padding: '2px 4px', background: '#005fb8', color: '#fff', fontSize: '11px', fontWeight: 'bold' }}>
-              Drzewo jednostek
+            <div style={{ padding: '2px 4px', background: '#005fb8', color: '#fff', fontSize: '11px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
+              <span>Drzewo jednostek</span>
+              <span>{ksisTab}</span>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: '4px', fontSize: '11px' }}>
               <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span>[-]</span> 🏢 {tenantName}
               </div>
               <div style={{ paddingLeft: '16px' }}>
-                {["KM/KP PSP", ...(tenantJrgUnits || [])].map(u => (
-                  <div 
-                    key={u} 
-                    style={{ cursor: 'pointer', padding: '2px 0', background: currentUnit === u ? '#0a6ece' : 'transparent', color: currentUnit === u ? '#fff' : '#000' }}
-                    onClick={() => { setSisSelectedUnit(u); setSisEditingVehicle(null); setSisIsAddingVehicle(false); }}
-                  >
-                    └ 🚒 {u}
-                    {currentUnit === u && (
-                      <span style={{ float: 'right', color: '#ffaaaa', cursor: 'pointer', paddingRight: '4px' }} onClick={(e) => {
-                        e.stopPropagation();
-                        if (window.confirm('Usunąć tę jednostkę JRG?')) updateTenantUnits(tenantJrgUnits.filter(x => x !== u), tenantOspUnits);
-                      }} title="Skasuj jednostkę">✖</span>
-                    )}
-                  </div>
-                ))}
-                {tenantOspUnits.map(u => (
-                  <div 
-                    key={u} 
-                    style={{ cursor: 'pointer', padding: '2px 0', background: currentUnit === u ? '#0a6ece' : 'transparent', color: currentUnit === u ? '#fff' : '#000' }}
-                    onClick={() => { setSisSelectedUnit(u); setSisEditingVehicle(null); setSisIsAddingVehicle(false); }}
-                  >
-                    └ 🏠 {u}
-                    {currentUnit === u && (
-                      <span style={{ float: 'right', color: '#ffaaaa', cursor: 'pointer', paddingRight: '4px' }} onClick={(e) => {
-                        e.stopPropagation();
-                        if (window.confirm('Usunąć tę jednostkę OSP?')) updateTenantUnits(tenantJrgUnits, tenantOspUnits.filter(x => x !== u));
-                      }} title="Skasuj jednostkę">✖</span>
-                    )}
-                  </div>
-                ))}
+                {ksisTab === 'PSP' && (
+                  ["KM/KP PSP", ...(tenantJrgUnits || [])].map(u => (
+                    <div 
+                      key={u} 
+                      style={{ cursor: 'pointer', padding: '2px 0', background: currentUnit === u ? '#0a6ece' : 'transparent', color: currentUnit === u ? '#fff' : '#000' }}
+                      onClick={() => { setSisSelectedUnit(u); setSisEditingVehicle(null); setSisIsAddingVehicle(false); }}
+                    >
+                      └ 🚒 {u}
+                      {currentUnit === u && (
+                        <span style={{ float: 'right', color: '#ffaaaa', cursor: 'pointer', paddingRight: '4px' }} onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm('Usunąć tę jednostkę JRG?')) updateTenantUnits(tenantJrgUnits.filter(x => x !== u), tenantOspUnits);
+                        }} title="Skasuj jednostkę">✖</span>
+                      )}
+                    </div>
+                  ))
+                )}
+                
+                {ksisTab === 'OSP' && (
+                  Object.keys(ospGroups).sort().map(gmina => (
+                    <div key={gmina} style={{ marginBottom: '4px' }}>
+                      <div 
+                        style={{ cursor: 'pointer', fontWeight: 'bold', background: ksisOspGmina === gmina ? '#e0e0e0' : 'transparent', padding: '2px 0' }}
+                        onClick={() => setKsisOspGmina(ksisOspGmina === gmina ? '' : gmina)}
+                      >
+                        {ksisOspGmina === gmina ? '[-]' : '[+]'} Gmina {gmina}
+                      </div>
+                      {ksisOspGmina === gmina && (
+                        <div style={{ paddingLeft: '12px' }}>
+                          {ospGroups[gmina].map(osp => (
+                            <div 
+                              key={osp.raw} 
+                              style={{ cursor: 'pointer', padding: '2px 0', background: currentUnit === osp.raw ? '#0a6ece' : 'transparent', color: currentUnit === osp.raw ? '#fff' : '#000' }}
+                              onClick={() => { setSisSelectedUnit(osp.raw); setSisEditingVehicle(null); setSisIsAddingVehicle(false); }}
+                            >
+                              └ 🏠 {osp.name}
+                              {currentUnit === osp.raw && (
+                                <span style={{ float: 'right', color: '#ffaaaa', cursor: 'pointer', paddingRight: '4px' }} onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (window.confirm('Usunąć tę jednostkę OSP?')) updateTenantUnits(tenantJrgUnits, tenantOspUnits.filter(x => x !== osp.raw));
+                                }} title="Skasuj jednostkę">✖</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
               </div>
             </div>
             {/* Dodawanie nowych jednostek */}
             <div style={{ padding: '4px', borderTop: '1px solid #ccc', background: '#f0f0f0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <div style={{ display: 'flex', gap: '2px' }}>
-                <input type="text" id="newJrgName" placeholder="Nazwa JRG (np. JRG 1)" style={{ flex: 1, fontSize: '10px', padding: '2px' }} />
-                <button style={{ fontSize: '10px', padding: '2px 4px' }} onClick={() => {
-                  const val = document.getElementById('newJrgName').value;
-                  if (val && !tenantJrgUnits.includes(val)) updateTenantUnits([...tenantJrgUnits, val], tenantOspUnits);
-                  document.getElementById('newJrgName').value = '';
-                }}>Dopis</button>
-              </div>
-              <div style={{ display: 'flex', gap: '2px' }}>
-                <input type="text" id="newOspName" placeholder="Nazwa OSP" style={{ flex: 1, fontSize: '10px', padding: '2px' }} />
-                <button style={{ fontSize: '10px', padding: '2px 4px' }} onClick={() => {
-                  const val = document.getElementById('newOspName').value;
-                  if (val && !tenantOspUnits.includes(val)) updateTenantUnits(tenantJrgUnits, [...tenantOspUnits, val]);
-                  document.getElementById('newOspName').value = '';
-                }}>Dopis</button>
-              </div>
+              {ksisTab === 'PSP' && (
+                <div style={{ display: 'flex', gap: '2px' }}>
+                  <input type="text" id="newJrgName" placeholder="Nazwa JRG (np. JRG 1)" style={{ flex: 1, fontSize: '10px', padding: '2px' }} />
+                  <button style={{ fontSize: '10px', padding: '2px 4px' }} onClick={() => {
+                    const val = document.getElementById('newJrgName').value;
+                    if (val && !tenantJrgUnits.includes(val)) updateTenantUnits([...tenantJrgUnits, val], tenantOspUnits);
+                    document.getElementById('newJrgName').value = '';
+                  }}>Dopis</button>
+                </div>
+              )}
+              {ksisTab === 'OSP' && (
+                <div style={{ display: 'flex', gap: '2px' }}>
+                  <input type="text" id="newOspName" placeholder="Format: Gmina|Nazwa OSP" style={{ flex: 1, fontSize: '10px', padding: '2px' }} title="Podaj nazwę gminy, znak pionowej kreski i nazwę OSP np. Siewierz|OSP Żelisławice" />
+                  <button style={{ fontSize: '10px', padding: '2px 4px' }} onClick={() => {
+                    const val = document.getElementById('newOspName').value;
+                    if (val && !tenantOspUnits.includes(val)) updateTenantUnits(tenantJrgUnits, [...tenantOspUnits, val]);
+                    document.getElementById('newOspName').value = '';
+                  }}>Dopis</button>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Siły i środki wybranej jednostki (PRAWA KOLUMNA) */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', border: '2px inset #d1d1d1', background: '#f3f3f3' }}>
             <div style={{ padding: '2px 4px', background: '#005fb8', color: '#fff', fontSize: '11px', fontWeight: 'bold' }}>
-              Dane o jednostce — {currentUnit}
+              Dane o jednostce — {parseOsp(currentUnit).name}
             </div>
             
             {/* Wewnętrzne zakładki */}
