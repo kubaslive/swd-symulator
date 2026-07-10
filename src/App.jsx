@@ -695,6 +695,42 @@ function App() {
     return unsubscribe;
   }, [userProfile]);
 
+  // Fetch real streets from Overpass API based on generatorCities
+  useEffect(() => {
+    const fetchStreets = async (city) => {
+      const cacheKey = `swd_streets_${city.toLowerCase()}`;
+      if (localStorage.getItem(cacheKey)) return;
+
+      try {
+        const query = `[out:json]; area["name"="${city}"]->.searchArea; way(area.searchArea)["highway"]["name"]; out tags;`;
+        const res = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'data=' + encodeURIComponent(query)
+        });
+        const data = await res.json();
+        const streets = [];
+        if (data && data.elements) {
+          data.elements.forEach(e => {
+            if (e.tags && e.tags.name && !streets.includes(e.tags.name)) {
+              streets.push(e.tags.name);
+            }
+          });
+        }
+        if (streets.length > 0) {
+          localStorage.setItem(cacheKey, JSON.stringify(streets));
+          console.log(`Pobrano i zapisano ${streets.length} ulic dla miasta ${city}`);
+        }
+      } catch (e) {
+        console.error(`Failed to fetch streets for ${city}:`, e);
+      }
+    };
+
+    const settingsCities = userProfile?.settings?.generatorCities || gameModeCities || '';
+    const parsedCities = settingsCities.split(',').map(s => s.trim()).filter(s => s.length > 0);
+    parsedCities.forEach(city => fetchStreets(city));
+  }, [userProfile?.settings?.generatorCities, gameModeCities]);
+
   // Listen to Incidents
   useEffect(() => {
     if (!userProfile) return;
@@ -980,10 +1016,21 @@ function App() {
         
         const city = parsedCities.length > 0 ? randomElement(parsedCities) : randomElement(cityPool);
 
+        let activeStreets = streets;
+        const cachedStreetsStr = localStorage.getItem(`swd_streets_${city.toLowerCase()}`);
+        if (cachedStreetsStr) {
+          try {
+            const cachedArr = JSON.parse(cachedStreetsStr);
+            if (Array.isArray(cachedArr) && cachedArr.length > 0) {
+              activeStreets = cachedArr;
+            }
+          } catch (e) { console.error(e); }
+        }
+
         const callerName = `${randomElement(firstNames)} ${randomElement(lastNames)}`;
         const phone = `${Math.floor(500 + Math.random() * 200)}-${Math.floor(100 + Math.random() * 800)}-${Math.floor(100 + Math.random() * 800)}`;
-        const street = randomElement(streets);
-        const houseNum = Math.floor(Math.random() * 120) + 1;
+        const street = randomElement(activeStreets);
+        const houseNum = Math.floor(Math.random() * 150) + 1;
         const location = `${city}, ul. ${street} ${houseNum}`;
         
         const types = ["pozar", "mz", "af", "pozar", "mz", "mz"]; // Weighted towards MZ and Pozar
