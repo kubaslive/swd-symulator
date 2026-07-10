@@ -568,6 +568,7 @@ input, textarea, select {
 
 .swd-row.selected td {
   color: #ffffff !important;
+  background-color: #005fb8 !important;
 }
 
 .swd-row.selected .led-indicator {

@@ -997,7 +997,17 @@ function App() {
             "Pali się opona w ciężarówce na autostradzie A4. Kierowca zjechał na pas awaryjny.",
             "Pożar mieszkania na parterze. Starsza osoba najprawdopodobniej została w środku.",
             "Ogień na dachu stacji benzynowej w rejonie dystrybutorów!",
-            "Pożar śmieci na balkonie na 6. piętrze. Spada płonący plastik na niższe piętra."
+            "Pożar śmieci na balkonie na 6. piętrze. Spada płonący plastik na niższe piętra.",
+            "Płonie stolarnia, ogień wychodzi na zewnątrz przez świetliki w dachu. Brak osób wewnątrz.",
+            "Pożar lasu w okolicy leśniczówki. Płonie poszycie na powierzchni około 50 arów.",
+            "Zapalił się stóg siana na polu. Silny wiatr rozprzestrzenia ogień.",
+            "Dym i płomienie w warsztacie samochodowym. Wewnątrz znajdują się butle z gazem technicznym i acetonem.",
+            "Kłęby dymu nad halą recyklingu tworzyw sztucznych. Pożar wewnątrz hali sortowni.",
+            "Zgłoszono pożar transformatora na osiedlu. Słychać było głośny huk, a teraz iskrzy się i płonie olej.",
+            "Płonie drewniana konstrukcja dachu budowanego kościoła. Ogień jest bardzo duży, widoczny z kilku kilometrów.",
+            "Podczas jazdy zapalił się autobus miejski. Pasażerowie zostali ewakuowani, autobus jest cały w ogniu.",
+            "Pali się garaż blaszany. Wewnątrz stoi motocykl i kanistry z paliwem.",
+            "Pożar pustostanu, widoczny ogień w oknach na pierwszym piętrze. Często przebywają tam osoby bezdomne."
           ];
           text = randomElement(pozScenarios);
         } else if (type === "mz") {
@@ -1017,7 +1027,17 @@ function App() {
             "Zderzenie motocykla z samochodem dostawczym. Motocyklista leży na jezdni, brak funkcji życiowych - CPR rozpoczęte.",
             "Czujnik tlenku węgla (czadu) załączył się w łazience z piecykiem gazowym. Mieszkańcy skarżą się na zawroty głowy.",
             "Gniazdo szerszeni bezpośrednio nad oknem przedszkola.",
-            "Osoba poślizgnęła się na nasypie przy rzece i nie może samodzielnie wyjść po stromym zboczu ze złamaną nogą."
+            "Osoba poślizgnęła się na nasypie przy rzece i nie może samodzielnie wyjść po stromym zboczu ze złamaną nogą.",
+            "Podejrzana walizka na przystanku autobusowym, brak właściciela od 2 godzin. Ewakuowano najbliższy teren.",
+            "Rozszczelnienie rurociągu z amoniakiem w zakładzie produkcyjnym. Gęsta mgła chemiczna wokół hali.",
+            "Kolejka górska zacięła się na wysokości 20 metrów. W wagonikach znajdują się uwięzione osoby.",
+            "Mężczyzna grozi skokiem z mostu do rzeki. Na miejscu obecna jest już policja.",
+            "Zawalenie się ściany podczas prac rozbiórkowych. Pod gruzami znajduje się jeden z robotników.",
+            "Rój pszczół osiadł na przejściu dla pieszych przy ruchliwej ulicy, zagraża przechodniom.",
+            "Zalane tory tramwajowe po oberwaniu chmury, woda dostaje się do okolicznych sklepów.",
+            "Wypadek autokaru na zjeździe z autostrady. Autokar leży na boku, wielu poszkodowanych wewnątrz.",
+            "Woda podmyła wał przeciwpowodziowy, istnieje ryzyko przerwania i zalania kilku posesji.",
+            "Samochód osobowy wpadł do stawu hodowlanego, powoli tonie. Kierowca wewnątrz walczy z drzwiami."
           ];
           text = randomElement(mzScenarios);
         } else {
@@ -1027,7 +1047,11 @@ function App() {
             "Ktoś dzwoni i mówi, że szkoła się pali, po czym po prostu się rozłącza (dziecięcy głos).",
             "Zgłoszenie pożaru w fabryce, ale ochrona obiektu niczego nie potwierdza.",
             "Pani zgłasza nieprzyjemny zapach gazu, jednak po przyjeździe okazuje się to zapachem gotowanej kapusty.",
-            "Wciśnięty Ręczny Ostrzegacz Pożarowy (ROP) w galerii handlowej bez powodu przez nieznanego sprawcę."
+            "Wciśnięty Ręczny Ostrzegacz Pożarowy (ROP) w galerii handlowej bez powodu przez nieznanego sprawcę.",
+            "Sygnał uaktywnionej czujki tlenku węgla. Przyczyną okazuje się niski stan baterii (sygnał rozładowania).",
+            "Sąsiad zgłasza dziwne błyski w sąsiednim mieszkaniu. To nowa instalacja LED choinki świątecznej.",
+            "Przechodzień melduje o parze ulatniającej się ze studzienki ciepłowniczej, myśląc że to dym pożarowy.",
+            "Fałszywe powiadomienie systemu eCall z samochodu. Pojazd był tylko mocniej uderzony drzwiami na parkingu."
           ];
           text = randomElement(afScenarios);
         }
