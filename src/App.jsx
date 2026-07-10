@@ -401,6 +401,16 @@ function App() {
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
+
+  // KSiS Requests State
+  const [ksisRequests, setKsisRequests] = useState([]);
+  const [activeKsisPopups, setActiveKsisPopups] = useState([]);
+  const [isKsisSendModalOpen, setIsKsisSendModalOpen] = useState(false);
+  const [ksisSendFormData, setKsisSendFormData] = useState({ targetTenant: '', equipment: '', comment: '', incidentId: null });
+  const [isKsisReceiveModalOpen, setIsKsisReceiveModalOpen] = useState(false);
+  const [ksisReceiveData, setKsisReceiveData] = useState(null);
+  const [ksisAssignedVehicles, setKsisAssignedVehicles] = useState([]);
+
   const [agentsInventory, setAgentsInventory] = useState({
     "JRG 1": [
       { name: "Środek pianotwórczy", norm: 2000, min: 1200, current: 1600, unit: "kg" },
@@ -900,9 +910,9 @@ function App() {
 
 
 
-  // Listen to Users (Admin Only)
+  // Listen to Users (Everyone)
   useEffect(() => {
-    if (!userProfile || userProfile?.role !== 'admin') return;
+    if (!userProfile) return;
     const usersRef = collection(db, 'users');
     const q = query(usersRef, orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -916,6 +926,41 @@ function App() {
     });
     return unsubscribe;
   }, [userProfile]);
+
+  // Listen to KSiS requests
+  useEffect(() => {
+    if (!userProfile) return;
+    const ksisRef = collection(db, 'ksis_requests');
+    let initialLoad = true;
+    
+    const unsubscribe = onSnapshot(ksisRef, (snapshot) => {
+      const items = [];
+      snapshot.forEach(doc => items.push({ id: doc.id, ...doc.data() }));
+      
+      const relevant = items.filter(req => 
+        userProfile.role === 'admin' || req.toTenantId === userProfile.tenantId || req.fromTenantId === userProfile.tenantId
+      );
+      
+      setKsisRequests(relevant);
+      
+      if (!initialLoad) {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'added') {
+            const req = { id: change.doc.id, ...change.doc.data() };
+            if (req.status === 'pending' && (req.toTenantId === userProfile.tenantId || (userProfile.role === 'admin' && req.toTenantId === '120000'))) {
+              if (isSystemAudioEnabled) playSynthSound('message_beep');
+              setActiveKsisPopups(prev => {
+                if (prev.some(p => p.id === req.id)) return prev;
+                return [...prev, req];
+              });
+            }
+          }
+        });
+      }
+      initialLoad = false;
+    });
+    return unsubscribe;
+  }, [userProfile, isSystemAudioEnabled]);
 
   // ============================================================
   // MULTIPLAYER GAME: AUTOMATIC BOT SIMULATOR & GAME ENGINE
@@ -5987,6 +6032,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                       <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Powrót / Zakończenie (ST 3)" onClick={() => { if(selectedSisVehicle) handleUpdateVehicleStatus(selectedSisVehicle, 3); else alert('Zaznacz zastęp na liście poniżej!'); }}>◀️</button>
                       <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="W koszarach (ST 4)" onClick={() => { if(selectedSisVehicle) handleUpdateVehicleStatus(selectedSisVehicle, 4); else alert('Zaznacz zastęp na liście poniżej!'); }}>🏠</button>
                       <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Drukuj" onClick={() => setPrintPreviewMode('karta_manipulacyjna')}>🖨️</button>
+                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px', marginLeft: '5px', background: '#dbeafe', border: '1px solid #005fb8' }} title="Żądanie dysponowania KSiS" onClick={() => { setIsKsisSendModalOpen(true); setKsisSendFormData({ targetTenant: '', equipment: '', comment: '', incidentId: activeIncident?.id }); }}>Żądanie KSiS</button>
                     </div>
 
                     {/* SiS Table */}
@@ -6819,6 +6865,198 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* KSiS Popups */}
+      {activeKsisPopups.length > 0 && (
+        <div style={{ position: 'fixed', bottom: '400px', right: '15px', zIndex: 99999, display: 'flex', flexDirection: 'column', gap: '8px', width: '300px' }}>
+          {activeKsisPopups.map((popup) => (
+            <div key={popup.id} className="border-double-outset" style={{ background: '#ffffe0', border: '2px solid #f3f3f3', padding: '8px', boxShadow: '3px 3px 10px rgba(0,0,0,0.5)', cursor: 'pointer' }} onClick={() => {
+                setActiveKsisPopups(prev => prev.filter(p => p.id !== popup.id));
+                setKsisReceiveData(popup);
+                setKsisAssignedVehicles([]);
+                setIsKsisReceiveModalOpen(true);
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', marginBottom: '6px' }}>
+                <strong style={{ fontSize: '9px', color: '#005fb8' }}>
+                  ✉️ Żądanie zadysponowania (KSiS)
+                </strong>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveKsisPopups(prev => prev.filter(p => p.id !== popup.id));
+                  }}
+                  style={{ fontSize: '9px', background: 'none', border: 'none', color: '#ff3333', cursor: 'pointer', fontWeight: 'bold' }}
+                >
+                  X
+                </button>
+              </div>
+              <div style={{ fontSize: '10px', color: 'black' }}>
+                <strong>Od:</strong> {popup.fromName}<br />
+                <strong>Sprzęt:</strong> <span style={{ color: '#d13438', fontWeight: 'bold' }}>{popup.requestedEquipment}</span><br />
+                <br />
+                <em>Kliknij tutaj, aby odpowiedzieć!</em>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* KSiS Send Modal */}
+      {isKsisSendModalOpen && (
+        <div className="win-dialog-overlay" style={{ zIndex: 100000 }}>
+          <div className="win-dialog border-double-outset" style={{ width: '400px' }}>
+            <div className="win-dialog-header">
+              <span>Żądanie dyspozycji KSiS</span>
+              <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsKsisSendModalOpen(false)}>X</button>
+            </div>
+            <div className="win-dialog-body" style={{ background: '#f3f3f3', padding: '15px' }}>
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Do kogo wysłać? (Wybierz adresata):</label>
+                <select 
+                  className="win-input"
+                  style={{ width: '100%', fontSize: '11px', padding: '3px' }} 
+                  value={ksisSendFormData.targetTenant} 
+                  onChange={(e) => setKsisSendFormData(prev => ({ ...prev, targetTenant: e.target.value }))}
+                >
+                  <option value="">-- Wybierz komendę / dyspozytora --</option>
+                  {usersList.map(u => {
+                    if (u.tenantId === userProfile.tenantId && userProfile.role !== 'admin') return null; // don't send to self
+                    const name = u.displayName || u.email;
+                    return <option key={u.id} value={u.tenantId}>{u.tenantId === '120000' ? 'KW PSP KATOWICE' : name}</option>;
+                  })}
+                  {userProfile.role !== 'admin' && !usersList.some(u => u.tenantId === '120000') && <option value="120000">KW PSP KATOWICE</option>}
+                </select>
+              </div>
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Proszę wyznaczyć sprzęt do zadysponowania:</label>
+                <input 
+                  type="text" 
+                  className="win-input"
+                  style={{ width: '100%', fontSize: '11px', padding: '3px' }} 
+                  placeholder="np. Drabina mechaniczna, Lekki, Płetwonurkowie..." 
+                  value={ksisSendFormData.equipment} 
+                  onChange={(e) => setKsisSendFormData(prev => ({ ...prev, equipment: e.target.value }))} 
+                />
+              </div>
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Uzasadnienie / Komentarz (opcjonalnie):</label>
+                <textarea 
+                  className="win-input"
+                  style={{ width: '100%', height: '50px', fontSize: '11px', padding: '3px', resize: 'none' }} 
+                  value={ksisSendFormData.comment} 
+                  onChange={(e) => setKsisSendFormData(prev => ({ ...prev, comment: e.target.value }))} 
+                />
+              </div>
+              <div style={{ textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <button className="btn-win" style={{ padding: '4px 12px', fontSize: '11px' }} onClick={() => setIsKsisSendModalOpen(false)}>Anuluj</button>
+                <button className="btn-win" style={{ padding: '4px 12px', fontSize: '11px', fontWeight: 'bold', color: '#005fb8' }} onClick={async () => {
+                  if (!ksisSendFormData.targetTenant) return alert("Wybierz jednostkę docelową!");
+                  if (!ksisSendFormData.equipment) return alert("Wpisz sprzęt do zadysponowania!");
+                  if (!activeIncident) return alert("Brak aktywnego zdarzenia do którego chcesz zadysponować siły!");
+                  const targetUser = usersList.find(u => u.tenantId === ksisSendFormData.targetTenant) || { displayName: ksisSendFormData.targetTenant };
+                  try {
+                    await addDoc(collection(db, 'ksis_requests'), {
+                      incidentId: activeIncident.id,
+                      fromTenantId: userProfile.tenantId,
+                      fromName: userProfile.displayName || userProfile.email || 'Nieznany Dyspozytor',
+                      toTenantId: ksisSendFormData.targetTenant,
+                      toName: targetUser.tenantId === '120000' ? 'KW PSP KATOWICE' : (targetUser.displayName || targetUser.email || ksisSendFormData.targetTenant),
+                      requestedEquipment: ksisSendFormData.equipment,
+                      comment: ksisSendFormData.comment,
+                      status: 'pending',
+                      assignedVehicles: [],
+                      createdAt: serverTimestamp()
+                    });
+                    setIsKsisSendModalOpen(false);
+                    alert("Żądanie KSiS wysłane pomyślnie.");
+                  } catch(e) {
+                    console.error("KSiS Error:", e);
+                    alert("Błąd podczas wysyłania: " + e.message);
+                  }
+                }}>Prześlij dalej</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* KSiS Receive Modal */}
+      {isKsisReceiveModalOpen && ksisReceiveData && (
+        <div className="win-dialog-overlay" style={{ zIndex: 100000 }}>
+          <div className="win-dialog border-double-outset" style={{ width: '450px' }}>
+            <div className="win-dialog-header">
+              <span>Żądanie dyspozycji KSiS</span>
+              <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsKsisReceiveModalOpen(false)}>X</button>
+            </div>
+            <div className="win-dialog-body" style={{ background: '#f3f3f3', padding: '15px' }}>
+              <div style={{ marginBottom: '15px', fontSize: '11px', background: '#fff', padding: '10px', border: '1px solid #ccc' }}>
+                <strong>Nadawca:</strong> {ksisReceiveData.fromName}<br/>
+                <strong>Żądany sprzęt:</strong> <span style={{ color: '#d13438', fontSize: '12px', fontWeight: 'bold' }}>{ksisReceiveData.requestedEquipment}</span><br />
+                <strong>Uzasadnienie:</strong> {ksisReceiveData.comment || '---'}
+              </div>
+              
+              <fieldset className="border-inset" style={{ padding: '8px', marginBottom: '15px', background: '#e9ecef' }}>
+                <legend style={{ fontSize: '11px', fontWeight: 'bold' }}>Wybierz siły i środki (z Twojego katalogu)</legend>
+                <div style={{ height: '120px', overflowY: 'auto', background: '#fff', border: '1px solid #ccc', padding: '5px' }}>
+                  {Object.keys(vehiclesCatalog).map(unit => 
+                    vehiclesCatalog[unit].map(v => (
+                      <div key={v.id || v.name} style={{ display: 'flex', alignItems: 'center', fontSize: '11px', padding: '2px 0', borderBottom: '1px dashed #eee' }}>
+                        <input 
+                          type="checkbox" 
+                          style={{ margin: '0 8px 0 0', transform: 'scale(1.1)' }}
+                          checked={ksisAssignedVehicles.includes(`${unit} | ${v.name}`)}
+                          onChange={(e) => {
+                            const val = `${unit} | ${v.name}`;
+                            if (e.target.checked) setKsisAssignedVehicles(prev => [...prev, val]);
+                            else setKsisAssignedVehicles(prev => prev.filter(x => x !== val));
+                          }}
+                        />
+                        <strong>{unit}</strong>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;{v.name} ({v.type})
+                      </div>
+                    ))
+                  )}
+                  {Object.keys(vehiclesCatalog).length === 0 && (
+                    <div style={{ padding: '10px', color: '#666', fontStyle: 'italic', textAlign: 'center' }}>
+                      Brak wprowadzonych sił i środków w Twoim katalogu!
+                    </div>
+                  )}
+                </div>
+              </fieldset>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <button className="btn-win" style={{ padding: '4px 10px', fontSize: '11px', color: '#d13438' }} onClick={async () => {
+                  try {
+                    await updateDoc(doc(db, 'ksis_requests', ksisReceiveData.id), { status: 'rejected' });
+                    setIsKsisReceiveModalOpen(false);
+                  } catch(e) {
+                    console.error("Reject KSiS error", e);
+                  }
+                }}>Odrzuć Żądanie</button>
+                <button className="btn-win" style={{ padding: '4px 10px', fontSize: '11px', color: '#fff', backgroundColor: '#005fb8', fontWeight: 'bold' }} onClick={async () => {
+                  try {
+                    await updateDoc(doc(db, 'ksis_requests', ksisReceiveData.id), { status: 'accepted', assignedVehicles: ksisAssignedVehicles });
+                    
+                    if (ksisAssignedVehicles.length > 0) {
+                      const incRef = doc(db, 'incidents', ksisReceiveData.incidentId);
+                      const incSnap = await getDoc(incRef);
+                      if (incSnap.exists()) {
+                        const currentVehicles = incSnap.data().vehicles || [];
+                        const newVehicles = [...new Set([...currentVehicles, ...ksisAssignedVehicles])];
+                        await updateDoc(incRef, { vehicles: newVehicles });
+                      }
+                    }
+                    setIsKsisReceiveModalOpen(false);
+                    alert("Żądanie zaakceptowane! Wybrane siły zostały dopisane do zdarzenia.");
+                  } catch(e) {
+                    console.error("Accept KSiS error", e);
+                    alert("Błąd: " + e.message);
+                  }
+                }}>Wyznacz SiS i Zaakceptuj</button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
