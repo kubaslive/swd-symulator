@@ -1356,8 +1356,7 @@ function App() {
   }, [outOfServiceVehicles]);
 
   const activeIncident = incidents.find(i => i.id === selectedIncidentId) 
-    || friendlyIncidents.find(i => i.id === selectedIncidentId)
-    || archivedIncidents.find(i => i.id === selectedIncidentId);
+    || friendlyIncidents.find(i => i.id === selectedIncidentId);
 
   // 7-day Lock Status Calculation
   const getIncidentLockStatus = (inc) => {
