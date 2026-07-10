@@ -872,7 +872,11 @@ function App() {
       // Dispatcher alarm triggers on incoming calls - electronic beep + fixed voice phrase
       if (sortedItems.length > 0 && activeRole === 'dyspozytor') {
         if (isSystemAudioEnabled) {
-          playSynthSound('dispatch_alarm');
+          const soundPref = userProfile?.settings?.customSound || 'buzzer';
+          if (soundPref === 'buzzer') playSynthSound('dispatch_alarm');
+          else if (soundPref === 'bell') playSynthSound('ring');
+          else if (soundPref === 'siren') playSynthSound('siren');
+          else if (soundPref === 'ping') playSynthSound('message_beep');
           setTimeout(() => {
             speakAnnouncement("Nowe zdarzenie, odbierz!", isSystemAudioEnabled);
           }, 800);
@@ -1115,9 +1119,27 @@ function App() {
           
           // Wait random time between 25 and 45 seconds after arrival
           if (elapsedArrival >= 30) {
-            const kdrMsg = incident.type === 'pozar' ? "KDR zgłasza pożar w fazie rozwiniętej, dachy zawalone. Pilnie prosimy o zadysponowanie dodatkowych SiS w tym sprzętu wysokościowego!" : 
-                           incident.type === 'mz' ? "Na miejscu zlokalizowano osoby poszkodowane. Rozpoznanie w toku. Proszę o natychmiastowe zadysponowanie ZRM oraz dodatkowych zastępów." :
-                           "Zgłaszam nietypowy rozwój sytuacji. Proszę o zadysponowanie dodatkowego zastępu ratowniczego na miejsce.";
+            
+            const randomElement = (arr) => arr[Math.floor(Math.random() * arr.length)];
+            let kdrMsg = "";
+            if (incident.type === 'pozar') {
+              kdrMsg = randomElement([
+                "KDR zgłasza pożar w fazie rozwiniętej, dachy zawalone. Pilnie prosimy o zadysponowanie dodatkowych SiS, w tym sprzętu wysokościowego!",
+                "Sytuacja nieopanowana. Silne zadymienie, potrzebujemy wsparcia aparatów ODO. Proszę o pluton gaśniczy.",
+                "Ogień przenosi się na sąsiednie budynki. Proszę o zadysponowanie cysterny z wodą i 2 zastępy ratownicze.",
+                "Zlokalizowaliśmy poszkodowanych wewnątrz strefy pożarowej. Potrzebujemy dodatkowych ZRM i ratowników."
+              ]);
+            } else if (incident.type === 'mz') {
+              kdrMsg = randomElement([
+                "Na miejscu zlokalizowano osoby poszkodowane. Rozpoznanie w toku. Proszę o natychmiastowe zadysponowanie ZRM oraz dodatkowych zastępów.",
+                "Potwierdzam wypadek masowy! Proszę o natychmiastowe wysłanie na miejsce oficera operacyjnego oraz dodatkowych sił.",
+                "Zdarzenie wymaga specjalistycznego sprzętu burzącego. Proszę zadysponować kontener ratownictwa technicznego.",
+                "Wyciek substancji niebezpiecznej. Proszę o SGRChem i poinformowanie WIOŚ.",
+                "Zagrożenie zawalenia konstrukcji. Proszę ściągnąć SGRW (Wysokościowa/Poszukiwawcza) z psami."
+              ]);
+            } else {
+              kdrMsg = "Zgłaszam nietypowy rozwój sytuacji. Proszę o zadysponowanie dodatkowego zastępu ratowniczego na miejsce.";
+            }
             
             const vStr = vehiclesOnScene[0];
             
@@ -1134,6 +1156,7 @@ function App() {
               await updateDoc(doc(db, 'incidents', incident.id), {
                 radioLogs: [...radioLogs, newRadioLog],
                 kdrRequestSent: true,
+                kdrRequestPending: true,
                 updatedAt: serverTimestamp()
               });
               
@@ -1166,8 +1189,12 @@ function App() {
       if (now - lastGameIncidentTime >= currentInterval || lastGameIncidentTime === 0) {
         setLastGameIncidentTime(now);
         
-        // Randomize the next incident interval to make it realistic (120s - 240s)
-        window._nextGameIncidentInterval = Math.floor(120000 + Math.random() * 120000); 
+        const difficulty = userProfile?.settings?.difficulty || 'normal';
+        let minDelay = 120000, randAdd = 120000;
+        if (difficulty === 'easy') { minDelay = 240000; randAdd = 60000; }
+        else if (difficulty === 'hard') { minDelay = 30000; randAdd = 30000; }
+        
+        window._nextGameIncidentInterval = Math.floor(minDelay + Math.random() * randAdd);
 
         // Polish names generator
         const firstNames = ["Jan", "Andrzej", "Piotr", "Krzysztof", "Stanisław", "Tomasz", "Paweł", "Józef", "Marcin", "Marek", "Anna", "Maria", "Katarzyna", "Małgorzata", "Agnieszka", "Krystyna", "Barbara", "Ewa", "Elżbieta", "Zofia", "Karol", "Michał", "Artur", "Dawid", "Mateusz", "Zuzanna", "Julia", "Maja", "Oliwia", "Jakub", "Szymon"];
@@ -2401,7 +2428,9 @@ function App() {
       kmkpName: userProfile?.settings?.kmkpName || '',
       generatorCities: userProfile?.settings?.generatorCities || '',
       incidentFormat: userProfile?.settings?.incidentFormat || '{prefix}-{nr}',
-      reportFormat: userProfile?.settings?.reportFormat || 'EWID/{nr}/{rok}'
+      reportFormat: userProfile?.settings?.reportFormat || 'EWID/{nr}/{rok}',
+      difficulty: userProfile?.settings?.difficulty || 'normal',
+      customSound: userProfile?.settings?.customSound || 'buzzer'
     });
     setIsSettingsModalOpen(true);
   };
@@ -2463,6 +2492,7 @@ function App() {
       await updateDoc(doc(db, 'incidents', activeIncident.id), {
         vehicleStatuses: updatedStatuses,
         vehicleStatusTimes: updatedStatusTimes,
+        kdrRequestPending: false, // Reset KDR request state
         updatedAt: serverTimestamp()
       });
       
@@ -2536,15 +2566,6 @@ function App() {
     const currentTimes = activeIncident.times || {};
     const updatedTimes = { ...currentTimes };
 
-    const statusLabels = {
-      0: 'Dysponowanie (ST1)',
-      1: 'Wyjazd do akcji',
-      2: 'Na miejscu zdarzenia',
-      3: 'Zakończenie działań',
-      4: 'Powrót do bazy'
-    };
-    const label = typeof statusNum === 'string' ? statusNum : (statusLabels[statusNum] || `ST ${statusNum}`);
-
     if ((statusNum === 0 || statusNum === 1 || statusNum === 'Wyjazd do akcji') && !updatedTimes.departure) {
       updatedTimes.departure = nowTimeStr;
     } else if ((statusNum === 2 || statusNum === 'Na miejscu zdarzenia') && !updatedTimes.arrival) {
@@ -2554,6 +2575,8 @@ function App() {
     } else if ((statusNum === 4 || statusNum === 'Powrót do bazy') && !updatedTimes.return) {
       updatedTimes.return = nowTimeStr;
     }
+
+
 
     try {
       const dbStatusLabels = {
@@ -2573,13 +2596,20 @@ function App() {
       };
       const updatedLogs = [...(activeIncident.radioLogs || []), newRadioLog];
 
-      await updateDoc(doc(db, 'incidents', activeIncident.id), {
+      const payload = {
         vehicleStatuses: updatedStatuses,
         vehicleStatusTimes: updatedStatusTimes,
         times: updatedTimes,
         radioLogs: updatedLogs,
         updatedAt: serverTimestamp()
-      });
+      };
+
+      // Reset KDR pending when dispatcher interacts (except when just assigning ST4)
+      if (statusNum === 1 || statusNum === 2 || statusNum === 3) {
+         payload.kdrRequestPending = false;
+      }
+
+      await updateDoc(doc(db, 'incidents', activeIncident.id), payload);
       
       logIncidentHistory(activeIncident.id, `Zastęp ${vStr.split(' | ')[1] || vStr} zmienił stan radiowy na: ${dbStatusLabels[statusNum] || statusNum}`);
       logAction(`Zastęp ${vStr.split(' | ')[1] || vStr}: status radiowy -> STATUS ${statusNum} (${dbStatusLabels[statusNum] || statusNum})`);
@@ -2774,9 +2804,44 @@ function App() {
 
   // Zakończenie działań (Context Menu)
   const handleFinishIncident = async (incidentId) => {
-    alert("Zgodnie z procedurą SWD, zakończenie zdarzenia wymaga wypełnienia Meldunku (F8) w module EWID.");
-    setSelectedIncidentId(incidentId);
-    setIsEwidReportModalOpen(true);
+    const inc = incidents.find(i => i.id === incidentId);
+    if (!inc) return;
+    
+    // Walidacja: Czy wozy wróciły do bazy?
+    const vehicles = inc.vehicles || [];
+    const statuses = inc.vehicleStatuses || {};
+    let allAtBase = true;
+    for (let v of vehicles) {
+      if (statuses[v] !== 4) {
+        allAtBase = false;
+        break;
+      }
+    }
+    
+    if (vehicles.length > 0 && !allAtBase) {
+      alert("Nie można zakończyć zdarzenia! Wszystkie zadysponowane zastępy muszą powrócić do koszar (Status 4).");
+      return;
+    }
+    
+    if (inc.kdrRequestPending) {
+      alert("Nie można zakończyć zdarzenia! KDR poprosił o więcej sił i środków. Najpierw zadysponuj dodatkowe jednostki, aby opanować sytuację.");
+      return;
+    }
+
+    if (window.confirm("Zakończyć to zdarzenie? Zniknie z listy aktywnych interwencji.")) {
+      try {
+        await updateDoc(doc(db, 'incidents', incidentId), {
+          status: 'processed',
+          isArchived: true,
+          updatedAt: serverTimestamp()
+        });
+        logAction(`Zakończono zdarzenie ${inc.formattedId || incidentId}. Sytuacja opanowana.`);
+        setActiveIncident(null);
+      } catch(e) {
+        console.error(e);
+        alert("Błąd zamykania zdarzenia.");
+      }
+    }
   };
 
   // Radio logs quick template autofill
@@ -6884,6 +6949,39 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   placeholder="EWID/{nr}/{rok}"
                   style={{ width: '100%' }}
                 />
+              </div>
+
+              <div style={{ marginBottom: '15px', padding: '10px', background: '#f5f5f5', border: '1px solid #d1d1d1' }}>
+                <strong style={{ display: 'block', marginBottom: '8px', color: '#005fb8' }}>Rozgrywka / Symulator</strong>
+                
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Częstotliwość wpływania zgłoszeń WCPR (Poziom Trudności)</label>
+                  <select 
+                    className="input-field" 
+                    value={settingsData.difficulty || 'normal'} 
+                    onChange={e => setSettingsData({...settingsData, difficulty: e.target.value})}
+                    style={{ width: '100%' }}
+                  >
+                    <option value="easy">Spokojny dyżur (zdarzenie co 4-5 min)</option>
+                    <option value="normal">Normalny dzień (zdarzenie co 2-3 min)</option>
+                    <option value="hard">Armagedon / Front Burzowy (zdarzenie co 30-60 sek)</option>
+                  </select>
+                </div>
+
+                <div style={{ marginBottom: '5px' }}>
+                  <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Dźwięk nowej formatki WCPR</label>
+                  <select 
+                    className="input-field" 
+                    value={settingsData.customSound || 'buzzer'} 
+                    onChange={e => setSettingsData({...settingsData, customSound: e.target.value})}
+                    style={{ width: '100%' }}
+                  >
+                    <option value="buzzer">Domyślny WCPR (Buzzer)</option>
+                    <option value="bell">Klasyczny Dzwonek (Telefoniczny)</option>
+                    <option value="siren">Dyskretna Syrena</option>
+                    <option value="ping">Krótki PING</option>
+                  </select>
+                </div>
               </div>
               
               <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', borderTop: '1px solid var(--win-shadow)', paddingTop: '8px' }}>
