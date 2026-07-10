@@ -5985,13 +5985,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   <>
                     {/* Dyspozycje Toolbar */}
                     <div style={{ display: 'flex', gap: '2px', padding: '2px 4px', background: '#f3f3f3', borderBottom: '1px solid #d1d1d1' }}>
-
-                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Wyjazd do akcji">▶️</button>
-                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Zawrócenie z trasy">↩️</button>
-                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Lokalizacja zagrożenia">📍</button>
+                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Wyjazd do akcji (ST 1)" onClick={() => { if(selectedSisVehicle) handleUpdateVehicleStatus(selectedSisVehicle, 1); else alert('Zaznacz zastęp na liście poniżej!'); }}>▶️</button>
+                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Na miejscu (ST 2)" onClick={() => { if(selectedSisVehicle) handleUpdateVehicleStatus(selectedSisVehicle, 2); else alert('Zaznacz zastęp na liście poniżej!'); }}>📍</button>
+                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Powrót / Zakończenie (ST 3)" onClick={() => { if(selectedSisVehicle) handleUpdateVehicleStatus(selectedSisVehicle, 3); else alert('Zaznacz zastęp na liście poniżej!'); }}>◀️</button>
+                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="W koszarach (ST 4)" onClick={() => { if(selectedSisVehicle) handleUpdateVehicleStatus(selectedSisVehicle, 4); else alert('Zaznacz zastęp na liście poniżej!'); }}>🏠</button>
                       <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Drukuj" onClick={() => setPrintPreviewMode('karta_manipulacyjna')}>🖨️</button>
-                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px', color: '#888' }} title="Brak opcji">🚛</button>
-                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px', color: '#8b008b', fontWeight: 'bold' }} title="Lokalizacja zagrożenia">L</button>
                     </div>
 
                     {/* SiS Table */}
