@@ -1101,6 +1101,61 @@ function App() {
           }
         }
       }
+      
+      // --- KDR Request Logic (Meldunek z miejsca zdarzenia) ---
+      if (!incident.kdrRequestSent && vehicles.length > 0) {
+        const vehiclesOnScene = vehicles.filter(v => currentStatuses[v] === 2);
+        if (vehiclesOnScene.length > 0) {
+          const firstArrival = Object.entries(statusTimes)
+            .filter(([v, time]) => currentStatuses[v] === 2)
+            .map(([v, time]) => new Date(time).getTime())
+            .sort()[0];
+            
+          const elapsedArrival = Math.floor((new Date().getTime() - firstArrival) / 1000);
+          
+          // Wait random time between 25 and 45 seconds after arrival
+          if (elapsedArrival >= 30) {
+            const kdrMsg = incident.type === 'pozar' ? "KDR zgłasza pożar w fazie rozwiniętej, dachy zawalone. Pilnie prosimy o zadysponowanie dodatkowych SiS w tym sprzętu wysokościowego!" : 
+                           incident.type === 'mz' ? "Na miejscu zlokalizowano osoby poszkodowane. Rozpoznanie w toku. Proszę o natychmiastowe zadysponowanie ZRM oraz dodatkowych zastępów." :
+                           "Zgłaszam nietypowy rozwój sytuacji. Proszę o zadysponowanie dodatkowego zastępu ratowniczego na miejsce.";
+            
+            const vStr = vehiclesOnScene[0];
+            
+            try {
+              const radioLogs = incident.radioLogs || [];
+              const timeSecStr = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+              const newRadioLog = {
+                time: timeSecStr,
+                from: vStr.split(' | ')[1] || vStr,
+                to: "Dyspozytornia",
+                text: kdrMsg
+              };
+
+              await updateDoc(doc(db, 'incidents', incident.id), {
+                radioLogs: [...radioLogs, newRadioLog],
+                kdrRequestSent: true,
+                updatedAt: serverTimestamp()
+              });
+              
+              // Also add to global Radio Log
+              import('firebase/firestore').then(({ addDoc, collection }) => {
+                 addDoc(collection(db, 'radio_messages'), {
+                   text: `[KDR] ${vStr.split(' | ')[1] || vStr}: ${kdrMsg}`,
+                   senderName: "KDR na miejscu",
+                   senderTenant: incident.tenantId,
+                   createdAt: new Date().toISOString()
+                 }).catch(console.error);
+              });
+              
+              // Play alert sound if audio enabled
+              if (isSystemAudioEnabled) playSynthSound('message_beep');
+            } catch (e) {
+              console.error("KDR message error:", e);
+            }
+          }
+        }
+      }
+      
     });
 
     // 2. Game scenario auto generator (triggers at random interval: 120s to 240s)
