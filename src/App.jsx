@@ -407,9 +407,7 @@ function App() {
   const [activeKsisPopups, setActiveKsisPopups] = useState([]);
   const [isKsisSendModalOpen, setIsKsisSendModalOpen] = useState(false);
   const [ksisSendFormData, setKsisSendFormData] = useState({ targetTenant: '', equipment: '', comment: '', incidentId: null });
-  const [isKsisReceiveModalOpen, setIsKsisReceiveModalOpen] = useState(false);
-  const [ksisReceiveData, setKsisReceiveData] = useState(null);
-  const [ksisAssignedVehicles, setKsisAssignedVehicles] = useState([]);
+
 
   const [agentsInventory, setAgentsInventory] = useState({
     "JRG 1": [
@@ -2817,7 +2815,13 @@ OPIS DZIAŁAŃ: ${activeIncident.description}`;
 
   // Filter incidents in registry
   const filteredIncidents = (() => {
-    const sourceIncidents = viewMode === 'zaprzyjaznione' ? friendlyIncidents : incidents;
+    let sourceIncidents = viewMode === 'zaprzyjaznione' ? friendlyIncidents : incidents;
+
+    // Add shared incidents to the main list if not in friendly mode
+    if (viewMode !== 'zaprzyjaznione' && userProfile?.tenantId) {
+      const sharedIncidents = friendlyIncidents.filter(inc => inc.sharedWith && inc.sharedWith.includes(userProfile.tenantId));
+      sourceIncidents = [...sourceIncidents, ...sharedIncidents];
+    }
 
     return sourceIncidents.filter(inc => {
       if (viewMode !== 'zaprzyjaznione') {
@@ -2912,6 +2916,23 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
   const proceedWithCallAccept = async (call) => {
     try {
+      if (call.isKsis && call.incidentId) {
+        // Handle KSiS request acceptance
+        const incidentRef = doc(db, 'incidents', call.incidentId);
+        await updateDoc(incidentRef, {
+          sharedWith: arrayUnion(userProfile.tenantId)
+        });
+        
+        const timestamp = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+        logAction(`Odebrano i zaakceptowano KSiS dla zdarzenia ${call.incidentId}`);
+        await deleteDoc(doc(db, 'ksis_requests', call.id));
+        
+        setIsWcprCallModalOpen(false);
+        setSelectedWcprCallForModal(null);
+        setActiveCallToAnswer(null);
+        return;
+      }
+
       const currentYear = new Date().getFullYear();
       const sequenceNumber = String(incidents.length + 4801).padStart(4, '0');
       
@@ -6875,9 +6896,20 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           {activeKsisPopups.map((popup) => (
             <div key={popup.id} className="border-double-outset" style={{ background: '#ffffe0', border: '2px solid #f3f3f3', padding: '8px', boxShadow: '3px 3px 10px rgba(0,0,0,0.5)', cursor: 'pointer' }} onClick={() => {
                 setActiveKsisPopups(prev => prev.filter(p => p.id !== popup.id));
-                setKsisReceiveData(popup);
-                setKsisAssignedVehicles([]);
-                setIsKsisReceiveModalOpen(true);
+                const fakeCall = {
+                  id: popup.id,
+                  isKsis: true,
+                  incidentId: popup.incidentId,
+                  miejscowoscStr: `KSiS od: ${popup.fromName}`,
+                  address: `Żądany sprzęt: ${popup.equipment}`,
+                  callerName: popup.fromName,
+                  phone: '---',
+                  category: 'ksis',
+                  type: 'ksis',
+                  description: `Zgłoszenie KSiS (Współdziałanie)\n\nOd: ${popup.fromName}\nSprzęt do zadysponowania: ${popup.equipment}\nKomentarz: ${popup.comment || 'Brak'}`
+                };
+                setSelectedWcprCallForModal(fakeCall);
+                setIsWcprCallModalOpen(true);
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', marginBottom: '6px' }}>
                 <strong style={{ fontSize: '9px', color: '#005fb8' }}>
@@ -6983,83 +7015,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         </div>
       )}
 
-      {/* KSiS Receive Modal */}
-      {isKsisReceiveModalOpen && ksisReceiveData && (
-        <div className="win-dialog-overlay" style={{ zIndex: 100000 }}>
-          <div className="win-dialog border-double-outset" style={{ width: '450px' }}>
-            <div className="win-dialog-header">
-              <span>Żądanie dyspozycji KSiS</span>
-              <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsKsisReceiveModalOpen(false)}>X</button>
-            </div>
-            <div className="win-dialog-body" style={{ background: '#f3f3f3', padding: '15px' }}>
-              <div style={{ marginBottom: '15px', fontSize: '11px', background: '#fff', padding: '10px', border: '1px solid #ccc' }}>
-                <strong>Nadawca:</strong> {ksisReceiveData.fromName}<br/>
-                <strong>Żądany sprzęt:</strong> <span style={{ color: '#d13438', fontSize: '12px', fontWeight: 'bold' }}>{ksisReceiveData.requestedEquipment}</span><br />
-                <strong>Uzasadnienie:</strong> {ksisReceiveData.comment || '---'}
-              </div>
-              
-              <fieldset className="border-inset" style={{ padding: '8px', marginBottom: '15px', background: '#e9ecef' }}>
-                <legend style={{ fontSize: '11px', fontWeight: 'bold' }}>Wybierz siły i środki (z Twojego katalogu)</legend>
-                <div style={{ height: '120px', overflowY: 'auto', background: '#fff', border: '1px solid #ccc', padding: '5px' }}>
-                  {Object.keys(vehiclesCatalog).map(unit => 
-                    vehiclesCatalog[unit].map(v => (
-                      <div key={v.id || v.name} style={{ display: 'flex', alignItems: 'center', fontSize: '11px', padding: '2px 0', borderBottom: '1px dashed #eee' }}>
-                        <input 
-                          type="checkbox" 
-                          style={{ margin: '0 8px 0 0', transform: 'scale(1.1)' }}
-                          checked={ksisAssignedVehicles.includes(`${unit} | ${v.name}`)}
-                          onChange={(e) => {
-                            const val = `${unit} | ${v.name}`;
-                            if (e.target.checked) setKsisAssignedVehicles(prev => [...prev, val]);
-                            else setKsisAssignedVehicles(prev => prev.filter(x => x !== val));
-                          }}
-                        />
-                        <strong>{unit}</strong>&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;{v.name} ({v.type})
-                      </div>
-                    ))
-                  )}
-                  {Object.keys(vehiclesCatalog).length === 0 && (
-                    <div style={{ padding: '10px', color: '#666', fontStyle: 'italic', textAlign: 'center' }}>
-                      Brak wprowadzonych sił i środków w Twoim katalogu!
-                    </div>
-                  )}
-                </div>
-              </fieldset>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <button className="btn-win" style={{ padding: '4px 10px', fontSize: '11px', color: '#d13438' }} onClick={async () => {
-                  try {
-                    await updateDoc(doc(db, 'ksis_requests', ksisReceiveData.id), { status: 'rejected' });
-                    setIsKsisReceiveModalOpen(false);
-                  } catch(e) {
-                    console.error("Reject KSiS error", e);
-                  }
-                }}>Odrzuć Żądanie</button>
-                <button className="btn-win" style={{ padding: '4px 10px', fontSize: '11px', color: '#fff', backgroundColor: '#005fb8', fontWeight: 'bold' }} onClick={async () => {
-                  try {
-                    await updateDoc(doc(db, 'ksis_requests', ksisReceiveData.id), { status: 'accepted', assignedVehicles: ksisAssignedVehicles });
-                    
-                    if (ksisAssignedVehicles.length > 0) {
-                      const incRef = doc(db, 'incidents', ksisReceiveData.incidentId);
-                      const incSnap = await getDoc(incRef);
-                      if (incSnap.exists()) {
-                        const currentVehicles = incSnap.data().vehicles || [];
-                        const newVehicles = [...new Set([...currentVehicles, ...ksisAssignedVehicles])];
-                        await updateDoc(incRef, { vehicles: newVehicles });
-                      }
-                    }
-                    setIsKsisReceiveModalOpen(false);
-                    alert("Żądanie zaakceptowane! Wybrane siły zostały dopisane do zdarzenia.");
-                  } catch(e) {
-                    console.error("Accept KSiS error", e);
-                    alert("Błąd: " + e.message);
-                  }
-                }}>Wyznacz SiS i Zaakceptuj</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* -------------------------------------------------------------
           DIALOG MODAL: WCPR FORMATKA (SWD-ST classic)
@@ -7274,7 +7230,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   className="btn-win" 
                   style={{ width: '100px', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', border: '1px solid #888', background: '#fff' }}
                   onClick={() => {
-                    deleteDoc(doc(db, 'calls', selectedWcprCallForModal.id)).catch(console.error);
+                    if (selectedWcprCallForModal.isKsis) {
+                      updateDoc(doc(db, 'ksis_requests', selectedWcprCallForModal.id), { status: 'rejected' }).catch(console.error);
+                    } else {
+                      deleteDoc(doc(db, 'calls', selectedWcprCallForModal.id)).catch(console.error);
+                    }
                     setIsWcprCallModalOpen(false);
                     setSelectedWcprCallForModal(null);
                   }}
