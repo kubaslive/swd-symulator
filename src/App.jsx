@@ -1355,7 +1355,9 @@ function App() {
     localStorage.setItem('swd_out_of_service_kat', JSON.stringify(outOfServiceVehicles));
   }, [outOfServiceVehicles]);
 
-  const activeIncident = incidents.find(i => i.id === selectedIncidentId);
+  const activeIncident = incidents.find(i => i.id === selectedIncidentId) 
+    || friendlyIncidents.find(i => i.id === selectedIncidentId)
+    || archivedIncidents.find(i => i.id === selectedIncidentId);
 
   // 7-day Lock Status Calculation
   const getIncidentLockStatus = (inc) => {
@@ -6954,11 +6956,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 <button className="btn-win" style={{ padding: '4px 12px', fontSize: '11px', fontWeight: 'bold', color: '#005fb8' }} onClick={async () => {
                   if (!ksisSendFormData.targetTenant) return alert("Wybierz jednostkę docelową!");
                   if (!ksisSendFormData.equipment) return alert("Wpisz sprzęt do zadysponowania!");
-                  if (!activeIncident) return alert("Brak aktywnego zdarzenia do którego chcesz zadysponować siły!");
+                  if (!ksisSendFormData.incidentId) return alert("Brak aktywnego zdarzenia do którego chcesz zadysponować siły!");
                   const targetUser = usersList.find(u => u.tenantId === ksisSendFormData.targetTenant) || { displayName: ksisSendFormData.targetTenant };
                   try {
                     await addDoc(collection(db, 'ksis_requests'), {
-                      incidentId: activeIncident.id,
+                      incidentId: ksisSendFormData.incidentId,
                       fromTenantId: userProfile.tenantId,
                       fromName: userProfile.displayName || userProfile.email || 'Nieznany Dyspozytor',
                       toTenantId: ksisSendFormData.targetTenant,
