@@ -2998,71 +2998,65 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
   };
 
   // Helper to render high-fidelity Table 4 status icons (Page 24/57)
-  const renderTable4StatusIcon = (unitName, vehicleName) => {
-    const state = getVehicleState(unitName, vehicleName);
-    const isOsp = unitName.includes('OSP');
+  const renderTable4StatusIcon = (unitName, vehicleName, customState = null) => {
+    const state = customState || getVehicleState(unitName, vehicleName);
+    const vehObj = tenantVehicles?.[unitName]?.find(v => v.name === vehicleName) || {};
+    const isKsrg = vehObj.ksrg;
     
-    // Brown/orange X for out of service (wycofany)
+    // Basic sphere style
+    const sphere = (color, gradient, size) => (
+      <span style={{
+        display: 'inline-flex',
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        background: `radial-gradient(circle at 30% 30%, ${color}, ${gradient})`,
+        boxShadow: '1px 1px 2px rgba(0,0,0,0.4)',
+        marginRight: '6px',
+        flexShrink: 0
+      }} />
+    );
+
+    const size = isKsrg ? '12px' : '8px';
+    const greenSphere = () => sphere('#aaffaa', '#008800', size);
+    const redSphere = () => sphere('#ffaaaa', '#cc0000', size);
+    const yellowSphere = () => sphere('#ffffaa', '#bbbb00', size);
+
     if (state === "Wycofany") {
+      // Small red X for permanently withdrawn or green sphere with red X.
+      // We'll use the green sphere with red X as per Tab.4
       return (
-        <span 
-          style={{ 
-            display: 'inline-flex', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
-            width: '8px', 
-            height: '8px', 
-            color: '#8b4513', 
-            fontSize: '9px', 
-            fontWeight: 'bold', 
-            marginRight: '6px' 
-          }} 
-          title="Siły i środki wycofane (OOS) - status 5"
-        >
-          ✖
+        <span style={{ display: 'inline-flex', position: 'relative', marginRight: '6px', width: size, height: size }} title="Wycofany">
+          {sphere('#aaffaa', '#008800', size)}
+          <span style={{ position: 'absolute', top: '-3px', left: '-1px', color: '#cc0000', fontSize: '13px', fontWeight: 'bold', lineHeight: 1 }}>✖</span>
         </span>
       );
     }
 
-    // Yellow circle for Dispatched but not departed (ST 0)
     if (state === "Zadysponowany") {
-      return <span className="led-indicator yellow" style={{ marginRight: '6px' }} title="Zadysponowany (ST 0) - oczekuje na wyjazd" />;
+      return <span title="Zadysponowany (ST 0)">{yellowSphere()}</span>;
     }
 
-    // Orange circle for Departed/traveling (ST 1)
-    if (state === "Wyjazd") {
-      return <span className="led-indicator orange" style={{ marginRight: '6px' }} title="Zastęp w drodze (ST 1) - Wyjazd" />;
+    if (state === "Wyjazd" || state === "Na miejscu" || state === "Powrót") {
+      return <span title={`W akcji: ${state}`}>{redSphere()}</span>;
     }
 
-    // Red circle for Arrived/On scene (ST 2)
-    if (state === "Na miejscu") {
-      return <span className="led-indicator red" style={{ marginRight: '6px' }} title="Zastęp na miejscu akcji (ST 2) - Działania" />;
-    }
-
-    // Blue circle for Returning/Free on radio (ST 3)
-    if (state === "Powrót") {
-      return <span className="led-indicator blue" style={{ marginRight: '6px' }} title="Zastęp wolny w rejonie / Powrót (ST 3)" />;
-    }
-
-    // Violet circle for Station cover standby (PZR)
     if (state === "Na zabezpieczeniu") {
       return (
-        <span 
-          className="led-indicator blue" 
-          style={{ marginRight: '6px', opacity: 0.8, borderStyle: 'dashed' }} 
-          title="Na zabezpieczeniu rejonu" 
-        />
+        <span style={{
+          display: 'inline-flex',
+          width: '10px',
+          height: '10px',
+          background: 'linear-gradient(135deg, #aaffaa, #008800)',
+          border: '1px solid #005500',
+          boxShadow: '1px 1px 2px rgba(0,0,0,0.4)',
+          marginRight: '6px',
+          flexShrink: 0
+        }} title="Przekazane tymczasowo / Zabezpieczenie" />
       );
     }
 
-    // Green circle for available w koszarach (ST 4)
-    return (
-      <span 
-        className="led-indicator green" 
-        style={{ marginRight: '6px', transform: (isOsp && !unitName.includes('Szopienice') && !unitName.includes('Dąbrówka') && !unitName.includes('Kostuchna')) ? 'scale(0.7)' : 'none' }} 
-        title="Sprawne w koszarach, gotowość (ST 4)" 
-      />
-    );
+    return <span title="W koszarach (ST 4)">{greenSphere()}</span>;
   };
 
   // -----------------------------------------------------------------
@@ -4557,9 +4551,12 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             </td>
                             <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold' }}>{v.obsada}</td>
                             <td style={{ ...tdStyle, textAlign: 'center' }}>
-                              <span style={{ background: st.bg, color: st.color, padding: '2px 6px', borderRadius: '2px', fontWeight: 'bold', fontSize: '9px', border: `1px solid ${st.color}` }}>
-                                {st.label}
-                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {renderTable4StatusIcon(currentUnit, v.name)}
+                                <span style={{ background: st.bg, color: st.color, padding: '2px 6px', borderRadius: '2px', fontWeight: 'bold', fontSize: '9px', border: `1px solid ${st.color}` }}>
+                                  {st.label}
+                                </span>
+                              </div>
                             </td>
                             <td style={{ ...tdStyle, textAlign: 'center' }}>
                               {v.ksrg ? (
@@ -6015,15 +6012,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
                             const vStatus = activeIncident.vehicleStatuses?.[vStr] || 0;
                             
-                            let statusIcon = "⚠️";
-                            let statusColor = "#000000";
                             let statusBg = i % 2 === 0 ? '#ffffff' : '#fafafa';
-                            
-                            if (vStatus === 1) { statusIcon = "▶️"; statusColor = "#c92a2a"; } 
-                            else if (vStatus === 2) { statusIcon = "📍"; statusColor = "#c92a2a"; } 
-                            else if (vStatus === 3) { statusIcon = "◀️"; statusColor = "#2b8a3e"; } 
-                            else if (vStatus === 4) { statusIcon = "🏠"; statusColor = "#2b8a3e"; } 
-                            else if (vStatus === 0) { statusIcon = "⏳"; statusColor = "#555555"; } 
+                            let statusColor = "#000000";
                             
                             if (vStatus === 1 || vStatus === 2) {
                               statusBg = '#e3e3e3'; 
@@ -6037,6 +6027,12 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                               statusColor = '#ffffff';
                             }
                             
+                            let customState = "Zadysponowany";
+                            if (vStatus === 1) customState = "Wyjazd";
+                            if (vStatus === 2) customState = "Na miejscu";
+                            if (vStatus === 3) customState = "Powrót";
+                            if (vStatus === 4) customState = "W koszarach";
+                            
                             return (
                               <tr 
                                 key={i} 
@@ -6045,7 +6041,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                                 onClick={() => setSelectedSisVehicle(vStr)}
                                 onContextMenu={(e) => { setSelectedSisVehicle(vStr); openVehicleContextMenu(e, vStr); }}
                               >
-                                <td style={{ textAlign: 'center', padding: '1px 2px', fontSize: '10px' }}>{statusIcon}</td>
+                                <td style={{ textAlign: 'center', padding: '1px 2px', fontSize: '10px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                                    {renderTable4StatusIcon(unit, vName, customState)}
+                                  </div>
+                                </td>
                                 <td style={{ padding: '1px 4px', fontSize: '9.5px', color: statusColor, fontWeight: 'bold' }}>{vName}</td>
                                 <td style={{ padding: '1px 4px', fontSize: '9.5px', color: statusColor }}>{kryptonim}</td>
                                 <td style={{ padding: '1px 4px', fontSize: '9.5px', color: statusColor }}>{unit}</td>
