@@ -7086,445 +7086,271 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               </div>
             </div>
           ) : (
-          <div className="win-dialog border-double-outset" style={{ width: activeCallToAnswer ? '980px' : '640px', maxHeight: '95vh', overflowY: 'auto' }}>
+          <div className="win-dialog border-double-outset" style={{ width: '800px', maxHeight: '95vh', overflowY: 'auto' }}>
             <div className="win-dialog-header">
-              <span>{editingIncidentId ? 'Modyfikacja Zgłoszenia Zdarzenia' : 'Nowe Zgłoszenie - Karta Zgłoszenia'}</span>
+              <span>{editingIncidentId ? `Modyfikacja Zgłoszenia Zdarzenia - ${activeIncident?.customId}` : 'Nowe zdarzenie - ZGŁOSZENIE'}</span>
               <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsNewIncidentModalOpen(false)}>X</button>
             </div>
             
-            <div className="win-dialog-body" style={{ display: 'grid', gridTemplateColumns: activeCallToAnswer ? '1fr 320px' : '1fr', gap: '10px' }}>
+            <div className="win-dialog-body" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '6px', background: 'var(--win-face)' }}>
               
-              {/* Left Side: SWD-ST Form */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {/* TOP SECTION: ZGŁOSZENIE */}
+              <fieldset style={{ border: '2px inset #d1d1d1', padding: '6px', margin: 0, position: 'relative' }}>
+                <legend style={{ fontSize: '11px', fontWeight: 'bold', marginLeft: '10px' }}>Karta Zdarzenia</legend>
                 
-                {/* Win32 Tabs Header */}
-                <div className="tab-header">
-                  <button 
-                    className={`tab-btn ${incidentModalTab === 'zgloszenie' ? 'active' : ''}`}
-                    onClick={() => setIncidentModalTab('zgloszenie')}
-                  >
-                    Karta Zgłoszenia
-                  </button>
-                  <button 
-                    className={`tab-btn ${incidentModalTab === 'operacyjne' ? 'active' : ''}`}
-                    onClick={() => setIncidentModalTab('operacyjne')}
-                  >
-                    Dane Operacyjne
-                  </button>
-                  <button 
-                    className={`tab-btn ${incidentModalTab === 'zabezpieczenie' ? 'active' : ''}`}
-                    onClick={() => setIncidentModalTab('zabezpieczenie')}
-                  >
-                    Zabezpieczenie Miejsca
-                  </button>
-                  <button 
-                    className={`tab-btn ${incidentModalTab === 'chronologia' ? 'active' : ''}`}
-                    onClick={() => setIncidentModalTab('chronologia')}
-                  >
-                    Przebieg Zdarzenia
-                  </button>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  {/* Czas */}
+                  <fieldset style={{ padding: '4px', margin: 0, flex: 0.3 }}>
+                    <legend style={{ fontSize: '9px' }}>Czas</legend>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <span style={{ fontSize: '9px' }}>Data</span>
+                      <input type="date" className="win-input" style={{ width: '90px' }} value={incidentDateStr} onChange={(e) => setIncidentDateStr(e.target.value)} />
+                      <span style={{ fontSize: '9px' }}>Godzina</span>
+                      <input type="text" className="win-input" style={{ width: '60px' }} value={incidentTimeStr} onChange={(e) => setIncidentTimeStr(e.target.value)} />
+                    </div>
+                  </fieldset>
+
+                  {/* Zgłaszający */}
+                  <fieldset style={{ padding: '4px', margin: 0, flex: 0.7 }}>
+                    <legend style={{ fontSize: '9px' }}>Przyjęcie zgł.</legend>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <select className="win-input" style={{ width: '100px' }}>
+                        <option>Telefon</option>
+                        <option>Radio</option>
+                      </select>
+                      <select className="win-input" style={{ flex: 1 }}>
+                        <option>Straż Pożarna</option>
+                        <option>WCPR</option>
+                      </select>
+                      <select className="win-input" style={{ flex: 1.5 }} value={targetJrg} onChange={(e) => setTargetJrg(e.target.value)}>
+                        {JRG_UNITS.map(j => <option key={j} value={j}>{j}</option>)}
+                      </select>
+                    </div>
+                  </fieldset>
                 </div>
 
-                {/* Tab Content */}
-                <div className="border-double-outset" style={{ padding: '10px', background: '#f3f3f3', minHeight: '300px' }}>
-                  
-                  {incidentModalTab === 'zgloszenie' && (
-                    <>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', paddingBottom: '3px' }}>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <label style={{ fontSize: '10px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                            Data: 
-                            <input type="date" className="input-field" style={{ width: '100px', padding: '2px' }} value={incidentDateStr} onChange={(e) => setIncidentDateStr(e.target.value)} />
-                          </label>
-                          <label style={{ fontSize: '10px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                            Godzina:
-                            <input type="text" className="input-field" style={{ width: '70px', padding: '2px', fontFamily: 'monospace' }} value={incidentTimeStr} onChange={(e) => setIncidentTimeStr(e.target.value)} />
-                          </label>
+                <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                  {/* Lokalizacja + Opis */}
+                  <fieldset style={{ padding: '4px', margin: 0, flex: 0.6 }}>
+                    <legend style={{ fontSize: '9px' }}>Lokalizacja</legend>
+                    <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 30px 40px', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '9px', textAlign: 'right' }}>Gmina</span>
+                      <input type="text" className="win-input" value={gminaStr} onChange={(e) => setGminaStr(e.target.value)} style={{ gridColumn: '2 / span 3' }} />
+                      
+                      <span style={{ fontSize: '9px', textAlign: 'right' }}>Miejscowość</span>
+                      <input type="text" className="win-input" value={miejscowoscStr} onChange={(e) => setMiejscowoscStr(e.target.value)} />
+                      <span style={{ fontSize: '9px', textAlign: 'right' }}>T</span>
+                      <input type="text" className="win-input" />
+
+                      <span style={{ fontSize: '9px', textAlign: 'right' }}>Adres</span>
+                      <input type="text" className="win-input" value={location} onChange={(e) => handleLocationChange(e.target.value)} style={{ gridColumn: '2 / span 3' }} />
+
+                      <span style={{ fontSize: '9px', textAlign: 'right' }}>Obiekt</span>
+                      <input type="text" className="win-input" value={obiektStr} onChange={(e) => setObiektStr(e.target.value)} style={{ gridColumn: '2 / span 3' }} />
+
+                      <span style={{ fontSize: '9px', textAlign: 'right' }}>Nr drogi</span>
+                      <input type="text" className="win-input" />
+                      <span style={{ fontSize: '9px', textAlign: 'right' }}>Pikietaż</span>
+                      <input type="text" className="win-input" />
+                    </div>
+                    <div style={{ fontSize: '9px', marginTop: '4px' }}>Informacje dodatkowe - opis zdarzenia</div>
+                    <textarea className="win-input" style={{ width: '100%', height: '60px', resize: 'none', fontFamily: 'var(--font-mono)' }} value={description} onChange={(e) => setDescription(e.target.value)} />
+                  </fieldset>
+
+                  {/* Dane osoby + Powiadomione służby */}
+                  <div style={{ flex: 0.4, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <fieldset style={{ padding: '4px', margin: 0 }}>
+                      <legend style={{ fontSize: '9px' }}>Dane osoby zgłaszającej</legend>
+                      <label style={{ fontSize: '9px', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                        <input type="checkbox" /> Nie zgłaszającego
+                      </label>
+                      <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: '2px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '9px', textAlign: 'right' }}>Imię</span>
+                        <input type="text" className="win-input" value={callerNameStr.split(' ')[0] || ''} onChange={(e) => setCallerNameStr(e.target.value + ' ' + (callerNameStr.split(' ')[1]||''))} />
+                        <span style={{ fontSize: '9px', textAlign: 'right' }}>Nazwisko</span>
+                        <input type="text" className="win-input" value={callerNameStr.split(' ')[1] || ''} onChange={(e) => setCallerNameStr((callerNameStr.split(' ')[0]||'') + ' ' + e.target.value)} />
+                        <span style={{ fontSize: '9px', textAlign: 'right' }}>Nr telefonu</span>
+                        <input type="text" className="win-input" value={callerPhoneStr} onChange={(e) => setCallerPhoneStr(e.target.value)} />
+                        <span style={{ fontSize: '9px', textAlign: 'right' }}>Miejscowość</span>
+                        <input type="text" className="win-input" value={callerAddressStr} onChange={(e) => setCallerAddressStr(e.target.value)} />
+                        <span style={{ fontSize: '9px', textAlign: 'right' }}>Ulica</span>
+                        <input type="text" className="win-input" />
+                      </div>
+                    </fieldset>
+                    
+                    <fieldset style={{ padding: '4px', margin: 0, flex: 1 }}>
+                      <legend style={{ fontSize: '9px' }}>Zawiadomione służby</legend>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <button className={`btn-win ${notifiedServices.includes('PRM') ? 'active' : ''}`} style={{ fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', padding: '2px' }} onClick={() => handleServiceToggle('PRM')}><span style={{ fontSize: '14px' }}>⚕️</span> PRM</button>
+                          <button className={`btn-win ${notifiedServices.includes('Policja') ? 'active' : ''}`} style={{ fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', padding: '2px' }} onClick={() => handleServiceToggle('Policja')}><span style={{ fontSize: '14px' }}>🚓</span> Policja</button>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '9px' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><input type="checkbox" checked={notifiedServices.includes('Pogotowie Gazowe')} onChange={() => handleServiceToggle('Pogotowie Gazowe')} /> Pogotowie Gazowe</label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><input type="checkbox" checked={notifiedServices.includes('Pogotowie Energetyczne')} onChange={() => handleServiceToggle('Pogotowie Energetyczne')} /> Pogotowie Energ.</label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><input type="checkbox" checked={notifiedServices.includes('Pogotowie Wodociągowe')} onChange={() => handleServiceToggle('Pogotowie Wodociągowe')} /> Pogotowie Wodoc.</label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><input type="checkbox" checked={notifiedServices.includes('Inna służba')} onChange={() => handleServiceToggle('Inna służba')} /> Inna służba</label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><input type="checkbox" checked={notifiedServices.includes('SI WCPR')} onChange={() => handleServiceToggle('SI WCPR')} /> SI WCPR</label>
                         </div>
                       </div>
-
-                  <div className="form-grid-3" style={{ marginBottom: '6px' }}>
-                    <div>
-                      <label className="input-label" style={{ fontSize: '9px' }}>Gmina:</label>
-                      <input type="text" className="input-field" value={gminaStr} onChange={(e) => setGminaStr(e.target.value)} />
-                    </div>
-                    <div>
-                      <label className="input-label" style={{ fontSize: '9px' }}>Miejscowość:</label>
-                      <input type="text" className="input-field" value={miejscowoscStr} onChange={(e) => setMiejscowoscStr(e.target.value)} />
-                    </div>
-                    <div>
-                      <label className="input-label" style={{ fontSize: '9px' }}>Adres / Ulica / Skrzyżowanie:</label>
-                      <input type="text" className="input-field" placeholder="np. ul. Szopienicka 12" value={location} onChange={(e) => handleLocationChange(e.target.value)} />
-                    </div>
+                    </fieldset>
                   </div>
-
-                  {location.trim().length > 4 && incidents.some(inc => 
-                    inc.id !== editingIncidentId &&
-                    inc.status !== 'processed' && 
-                    !inc.isArchived && 
-                    inc.location.toLowerCase().trim().includes(location.toLowerCase().trim())
-                  ) && (
-                    <div style={{ 
-                      fontSize: '9.5px', 
-                      backgroundColor: '#fff3cd', 
-                      border: '1px solid #ffeeba', 
-                      color: '#856404', 
-                      padding: '4px 8px', 
-                      marginBottom: '6px', 
-                      fontWeight: 'bold', 
-                      borderRadius: '2px' 
-                    }}>
-                      ⚠️ SWD-ST Ostrzeżenie (Str. 54): Istnieje już zarejestrowane aktywne zdarzenie o podobnej lokalizacji ({
-                        incidents.find(inc => 
-                          inc.id !== editingIncidentId &&
-                          inc.status !== 'processed' && 
-                          !inc.isArchived && 
-                          inc.location.toLowerCase().trim().includes(location.toLowerCase().trim())
-                        )?.customId
-                      })!
-                    </div>
-                  )}
-
-                  <div className="form-grid-2" style={{ marginBottom: '6px' }}>
-                    <div>
-                      <label className="input-label" style={{ fontSize: '9px' }}>Obiekt / Zakład / Droga:</label>
-                      <input type="text" className="input-field" placeholder="np. Szkoła Podstawowa nr 5" value={obiektStr} onChange={(e) => setObiektStr(e.target.value)} />
-                    </div>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <div style={{ flex: 1 }}>
-                        <label className="input-label" style={{ fontSize: '9px' }}>Dł. Geo. (X):</label>
-                        <input type="text" className="input-field" value={coordX} onChange={(e) => setCoordX(e.target.value)} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <label className="input-label" style={{ fontSize: '9px' }}>Szer. Geo. (Y):</label>
-                        <input type="text" className="input-field" value={coordY} onChange={(e) => setCoordY(e.target.value)} />
-                      </div>
-                    </div>
-                  </div>
-
-                  {location.trim().length > 2 && (
-                    <div style={{ marginTop: '4px', marginBottom: '6px', padding: '5px 8px', background: '#ffffff', border: '1px inset #d1d1d1', fontSize: '9px', color: '#000' }}>
-                      <span style={{ fontWeight: 'bold', color: '#005fb8', display: 'block', marginBottom: '3px' }}>📡 WCPR SYSTEM REKOMENDACJI SIL (ODLEGŁOŚĆ I ETA DO JRG):</span>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-                        {JRG_UNITS.map(jrgName => {
-                          const pCoords = getCoordinatesForLocation(location);
-                          const jrgCoords = MAP_BASES[jrgName];
-                          if (!jrgCoords) return null;
-                          const distPx = Math.sqrt(Math.pow(jrgCoords.x - pCoords.x, 2) + Math.pow(jrgCoords.y - pCoords.y, 2));
-                          const distKm = (distPx * 0.08).toFixed(1);
-                          const etaMin = Math.max(1, Math.ceil(distKm / 0.8));
-                          return (
-                            <div key={jrgName} style={{ borderLeft: `2.5px solid ${jrgCoords.color}`, paddingLeft: '4px' }}>
-                              <strong>{jrgName.replace("nr ", "")}</strong><br />
-                              Dystans: {distKm} km | ETA: ~{etaMin} min
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="form-grid-3" style={{ marginBottom: '6px' }}>
-                    <div>
-                      <label className="input-label" style={{ fontSize: '9px' }}>Zgłaszający (Nazwisko):</label>
-                      <input type="text" className="input-field" placeholder="np. Kowalski Jan" value={callerNameStr} onChange={(e) => setCallerNameStr(e.target.value)} />
-                    </div>
-                    <div>
-                      <label className="input-label" style={{ fontSize: '9px' }}>Nr telefonu:</label>
-                      <input type="text" className="input-field" placeholder="112 / 601-xxx-xxx" value={callerPhoneStr} onChange={(e) => setCallerPhoneStr(e.target.value)} />
-                    </div>
-                    <div>
-                      <label className="input-label" style={{ fontSize: '9px' }}>Adres zgłaszającego:</label>
-                      <input type="text" className="input-field" value={callerAddressStr} onChange={(e) => setCallerAddressStr(e.target.value)} />
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '10px', background: '#ffffff', padding: '4px', border: '1px solid #d1d1d1', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#555', alignSelf: 'center', marginRight: '6px' }}>POWIADOMIONE SŁUŻBY:</span>
-                    {['PRM', 'Policja', 'Pogotowie Energetyczne', 'Pogotowie Gazowe', 'Pogotowie Wodne', 'WCPR'].map(s => (
-                      <label key={s} style={{ fontSize: '9.5px', display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={notifiedServices.includes(s)} onChange={() => handleServiceToggle(s)} />
-                        {s}
-                      </label>
-                    ))}
-                  </div>
-                    </>
-                  )}
-
-                  {incidentModalTab === 'operacyjne' && (
-                    <>
-                      <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', marginBottom: '8px', paddingBottom: '3px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '10px', fontWeight: 'bold', marginRight: '4px' }}>RODZAJ:</span>
-                      <select 
-                        value={incidentType} 
-                        onChange={(e) => setIncidentType(e.target.value)}
-                        style={{ fontSize: '10px', padding: '1px', background: '#fff', color: '#000', border: '1px solid #d1d1d1' }}
-                      >
-                        <option value="pozar">P (Pożar)</option>
-                        <option value="mz">MZ (Zagrożenie)</option>
-                        <option value="af">AF (Alarm Fałszywy)</option>
-                        <option value="cw">CW (Ćwiczenia)</option>
-                        <option value="wg">WG (Wyjazd Gospodarczy)</option>
-                        <option value="pzr">PZR (Zabezpieczenie Rejonu)</option>
-                        <option value="zpr">ZPR (Zgłoszenie Przekazane)</option>
-                        <option value="bl">BL (Błąd)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Podrodzaj zdarzenia + Flagi (SWD-ST rozdz. 8.3.5) */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '6px' }}>
-                    <div>
-                      <label className="input-label" style={{ fontSize: '9px' }}>Podrodzaj zdarzenia:</label>
-                      <select
-                        className="input-field"
-                        value={incidentSubtype}
-                        onChange={e => setIncidentSubtype(e.target.value)}
-                      >
-                        <option value="">— Brak (ogólne) —</option>
-                        {incidentType === 'pozar' && (<>
-                          <option value="poz_mieszk">Pożar mieszkania / lokalu</option>
-                          <option value="poz_lasu">Pożar lasu / upraw</option>
-                          <option value="poz_sam">Pożar samochodu</option>
-                          <option value="poz_przem">Pożar przemysłowy</option>
-                          <option value="poz_toru">Pożar toru/nasypów kolejowych</option>
-                          <option value="poz_komin">Pożar sadzy w kominie</option>
-                          <option value="poz_inne">Pożar inny</option>
-                        </>)}
-                        {incidentType === 'mz' && (<>
-                          <option value="mz_rd">MZ Ratownictwo drogowe</option>
-                          <option value="mz_med">MZ Ratownictwo medyczne</option>
-                          <option value="mz_wod">MZ Ratownictwo wodne</option>
-                          <option value="mz_wys">MZ Ratownictwo wysokościowe</option>
-                          <option value="mz_chem">MZ Zagrożenie chemiczne</option>
-                          <option value="mz_gaz">MZ Zagrożenie gazowe</option>
-                          <option value="mz_bud">MZ Katastrofa budowlana</option>
-                          <option value="mz_pow">MZ Powódź / zalanie</option>
-                          <option value="mz_inne">MZ inne zagrożenie</option>
-                        </>)}
-                        {incidentType === 'af' && (<>
-                          <option value="af_auto">AF Automatyczny (SAP/DSO)</option>
-                          <option value="af_zlos">AF Złośliwy alarm</option>
-                          <option value="af_omyl">AF Pomyłkowe zgłoszenie</option>
-                        </>)}
-                        {(incidentType === 'cw' || incidentType === 'wg' || incidentType === 'pzr' || incidentType === 'zpr' || incidentType === 'bl') && (
-                          <option value={incidentType}>{incidentType.toUpperCase()} — ogólny</option>
-                        )}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="input-label" style={{ fontSize: '9px' }}>Flagi zdarzenia (Rys. 8.3.5 SWD):</label>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', padding: '3px', background: '#fff', border: '2px inset #d1d1d1', maxHeight: '60px', overflowY: 'auto' }}>
-                        {[
-                          ['dlugotrl', 'Zdarzenie długotrwałe'],
-                          ['masowe', 'Zdarzenie masowe (>10 poszkod.)'],
-                          ['hbzn', 'HBZN (materiały niebezp.)'],
-                          ['wielopow', 'Wielopowiatowe'],
-                          ['interwenc', 'Interwencja KW/KG PSP'],
-                          ['katastrofa', 'Katastrofa'],
-                        ].map(([flag, label]) => (
-                          <label key={flag} style={{ fontSize: '9px', display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer' }}>
-                            <input
-                              type="checkbox"
-                              checked={incidentFlags.includes(flag)}
-                              onChange={() => setIncidentFlags(prev =>
-                                prev.includes(flag) ? prev.filter(f => f !== flag) : [...prev, flag]
-                              )}
-                            />
-                            {label}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="form-grid-3" style={{ marginBottom: '6px' }}>
-                    <div>
-                      <label className="input-label" style={{ fontSize: '9px' }}>Jednostka Prowadząca:</label>
-                      <select className="input-field" value={targetJrg} onChange={(e) => setTargetJrg(e.target.value)}>
-                        {JRG_UNITS.map(j => <option key={j} value={j}>{j}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="input-label" style={{ fontSize: '9px' }}>Typ działania:</label>
-                      <select className="input-field" value={actionType} onChange={(e) => setActionType(e.target.value)}>
-                        <option value="ratownicze">Ratownicze (KSRG)</option>
-                        <option value="nieratownicze">Nieratownicze (Prewencja)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="input-label" style={{ fontSize: '9px' }}>Obsada strażaków:</label>
-                      <input type="number" className="input-field" min="1" value={firefightersCount} onChange={(e) => setFirefightersCount(e.target.value)} />
-                    </div>
-                  </div>
-
-                  {/* PZR (Zabezpieczenie Rejonu) target unit selector - Page 47 */}
-                  {incidentType === 'pzr' && (
-                    <div className="input-group" style={{ marginBottom: '6px' }}>
-                      <label className="input-label" style={{ fontSize: '9px', color: '#005fb8' }}>Jednostka docelowa (Zabezpieczany rejon):</label>
-                      <select className="input-field" value={targetUnitDocelowa} onChange={(e) => setTargetUnitDocelowa(e.target.value)}>
-                        {JRG_UNITS.map(j => <option key={j} value={j}>{j}</option>)}
-                      </select>
-                    </div>
-                  )}
-
-                  {/* SOP checklist panel */}
-                  <div className="border-inset" style={{ padding: '6px', background: '#ffffff', marginBottom: '6px' }}>
-                    <div style={{ fontSize: '8.5px', fontWeight: 'bold', color: '#555', marginBottom: '3px', borderBottom: '1px solid #f3f3f3', paddingBottom: '1px' }}>PROCEDURA STANDARDOWA (SOP CHECKLIST)</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-                      {(incidentType === 'pozar' || incidentType === 'cw' || incidentType === 'wg') && (
-                        <>
-                          <label style={{ fontSize: '9.5px', display: 'flex', alignItems: 'center', gap: '3px' }}><input type="checkbox" checked={sopSteps.includes('recon')} onChange={() => handleSopToggle('recon')} /> Rozpoznanie i zabezpieczenie</label>
-                          <label style={{ fontSize: '9.5px', display: 'flex', alignItems: 'center', gap: '3px' }}><input type="checkbox" checked={sopSteps.includes('utilities')} onChange={() => handleSopToggle('utilities')} /> Odcięcie mediów</label>
-                          <label style={{ fontSize: '9.5px', display: 'flex', alignItems: 'center', gap: '3px' }}><input type="checkbox" checked={sopSteps.includes('odo')} onChange={() => handleSopToggle('odo')} /> Praca w aparatach ODO</label>
-                          <label style={{ fontSize: '9.5px', display: 'flex', alignItems: 'center', gap: '3px' }}><input type="checkbox" checked={sopSteps.includes('water')} onChange={() => handleSopToggle('water')} /> Zaopatrzenie wodne</label>
-                        </>
-                      )}
-                      {(incidentType === 'mz' || incidentType === 'pzr') && (
-                        <>
-                          <label style={{ fontSize: '9.5px', display: 'flex', alignItems: 'center', gap: '3px' }}><input type="checkbox" checked={sopSteps.includes('zone')} onChange={() => handleSopToggle('zone')} /> Wyznaczenie strefy</label>
-                          <label style={{ fontSize: '9.5px', display: 'flex', alignItems: 'center', gap: '3px' }}><input type="checkbox" checked={sopSteps.includes('kpp')} onChange={() => handleSopToggle('kpp')} /> Ocena stanu i KPP</label>
-                          <label style={{ fontSize: '9.5px', display: 'flex', alignItems: 'center', gap: '3px' }}><input type="checkbox" checked={sopSteps.includes('sorbent')} onChange={() => handleSopToggle('sorbent')} /> Neutralizacja plam</label>
-                        </>
-                      )}
-                      {(incidentType === 'af' || incidentType === 'zpr' || incidentType === 'bl') && (
-                        <>
-                          <label style={{ fontSize: '9.5px', display: 'flex', alignItems: 'center', gap: '3px' }}><input type="checkbox" checked={sopSteps.includes('verification')} onChange={() => handleSopToggle('verification')} /> Weryfikacja alarmu</label>
-                          <label style={{ fontSize: '9.5px', display: 'flex', alignItems: 'center', gap: '3px' }}><input type="checkbox" checked={sopSteps.includes('search')} onChange={() => handleSopToggle('search')} /> Przeszukanie pomieszczeń</label>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-
-
-                  <div className="form-grid-2">
-                    <div className="input-group">
-                      <label className="input-label" style={{ fontSize: '9px' }}>Użyty sprzęt gaśniczy/środki:</label>
-                      <input type="text" className="input-field" placeholder="np. 20kg sorbentu, linia szybkiego natarcia" value={equipmentUsed} onChange={(e) => setEquipmentUsed(e.target.value)} />
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '12px' }}>
-                      <input type="checkbox" id="is_long_duration_chk" checked={isLongDuration} onChange={(e) => setIsLongDuration(e.target.checked)} />
-                      <label htmlFor="is_long_duration_chk" style={{ fontSize: '9.5px', fontWeight: 'bold', color: '#d13438', cursor: 'pointer' }}>ZDARZENIE DŁUGOTRWAŁE</label>
-                    </div>
-                  </div>
-
-                  <div className="input-group" style={{ marginTop: '4px', margin: 0 }}>
-                    <label className="input-label" style={{ fontSize: '9px' }}>Opis przebiegu działań:</label>
-                    <textarea className="textarea-field" style={{ minHeight: '45px' }} placeholder="Szczegółowy opis..." value={description} onChange={(e) => setDescription(e.target.value)} />
-                  </div>
-                  </>
-                )}
-
-                {incidentModalTab === 'zabezpieczenie' && (
-                  <div style={{ padding: '10px', background: '#ffffff', minHeight: '200px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#005fb8', borderBottom: '2px solid #005fb8', paddingBottom: '4px' }}>
-                      Karta Zabezpieczenia Rejonu / Relokacji SiS
-                    </div>
-                    <div style={{ fontSize: '10px', color: '#495057' }}>
-                      Moduł pozwala na dysponowanie jednostek (np. OSP) do pełnienia dyżuru w opuszczonej JRG, w celu zachowania ciągłości operacyjnej.
-                    </div>
-                    <div className="input-group">
-                      <label className="input-label" style={{ fontSize: '10px', fontWeight: 'bold' }}>Cel Relokacji (Rejon Chroniony):</label>
-                      <select 
-                        className="input-field"
-                        onChange={(e) => {
-                          const target = e.target.value;
-                          if (target && activeIncident) {
-                            if (confirm(`Czy chcesz wygenerować meldunek PZR o przemieszczeniu SiS do: ${target}?`)) {
-                              setIncidentType('pzr');
-                              setLocation(`Zabezpieczenie rejonu operacyjnego: ${target}`);
-                              setDescription(`Polecenie wyjazdu z miejsca stacjonowania i objęcia dyżuru w ${target} (Zabezpieczenie rejonu operacyjnego).`);
-                              setIncidentModalTab('operacyjne');
-                            }
-                          }
-                        }}
-                      >
-                        <option value="">-- Wybierz JRG do zabezpieczenia --</option>
-                        {JRG_UNITS.filter(j => j !== 'KM/KP PSP').map(j => <option key={j} value={j}>{j}</option>)}
-                      </select>
-                    </div>
-                    <div style={{ marginTop: 'auto', background: '#fff9db', padding: '8px', border: '1px solid #fcc419', borderRadius: '3px', fontSize: '10px' }}>
-                      <strong>Wskazówka:</strong> Wybierz JRG, aby automatycznie uzupełnić formatkę jako zdarzenie <strong>PZR (Zabezpieczenie Rejonu)</strong>.
-                    </div>
-                  </div>
-                )}
-
-                {incidentModalTab === 'chronologia' && (
-                  <div style={{ padding: '10px', background: '#ffffff', minHeight: '300px', maxHeight: '400px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                    <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#005fb8', borderBottom: '2px solid #005fb8', paddingBottom: '4px', marginBottom: '6px' }}>
-                      Przebieg zdarzenia (Chronologia radiowa)
-                    </div>
-                    {(!activeIncident || !activeIncident.radioLogs || activeIncident.radioLogs.length === 0) ? (
-                      <div style={{ color: '#d1d1d1', fontStyle: 'italic', fontSize: '10px', textAlign: 'center', marginTop: '20px' }}>
-                        Brak zdarzeń lub korespondencji radiowej w tym zgłoszeniu.
-                      </div>
-                    ) : (
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
-                        <thead>
-                          <tr style={{ background: '#f3f3f3', borderBottom: '1.5px solid #d1d1d1' }}>
-                            <th style={{ padding: '3px', textAlign: 'left', width: '60px' }}>Czas</th>
-                            <th style={{ padding: '3px', textAlign: 'left', width: '100px' }}>Kryptonim</th>
-                            <th style={{ padding: '3px', textAlign: 'left' }}>Treść komunikatu</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {activeIncident.radioLogs.map((log, idx) => (
-                            <tr key={idx} style={{ borderBottom: '1px solid #e9ecef' }}>
-                              <td style={{ padding: '3px', fontWeight: 'bold', verticalAlign: 'top' }}>{log.time}</td>
-                              <td style={{ padding: '3px', color: '#005fb8', fontWeight: 'bold', verticalAlign: 'top' }}>{log.from}</td>
-                              <td style={{ padding: '3px', verticalAlign: 'top' }}>{log.text}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-                )}
                 </div>
+              </fieldset>
 
-                {/* Action buttons */}
-                <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', borderTop: '1.5px solid var(--win-shadow)', paddingTop: '6px' }}>
-                  <button 
-                    className="btn-win" 
-                    style={{ backgroundColor: '#d13438', color: '#ffffff', marginRight: 'auto', fontWeight: 'bold' }}
-                    onClick={() => {
-                      if (confirm("Czy na pewno chcesz odrzucić to zgłoszenie i oznaczyć jako Błąd (BL)?")) {
-                        setIncidentType('bl');
-                        setTimeout(() => handleSaveIncident('processed'), 100);
-                      }
-                    }}
-                  >
-                    ❌ Oznacz jako BŁĄD (BL)
-                  </button>
-                  <button className="btn-win" onClick={() => setIsNewIncidentModalOpen(false)}>❌ Anuluj</button>
-                  <button className="btn-win" onClick={() => handleSaveIncident('draft')}>💾 Zapisz jako Szkic</button>
-                  <button className="btn-win" style={{ fontWeight: 'bold', backgroundColor: '#0a6ece', color: '#ffffff' }} onClick={() => handleSaveIncident('submitted')}>✔️ Zapisz (Wyślij do JRG)</button>
+              {/* BOTTOM SECTION: ZDARZENIA */}
+              <div style={{ border: '2px inset #d1d1d1', position: 'relative', marginTop: '10px' }}>
+                <div style={{ position: 'absolute', top: '-18px', left: '0', display: 'flex' }}>
+                  <div style={{ background: '#fff', border: '2px outset #f3f3f3', borderBottom: 'none', padding: '2px 10px', fontSize: '10px', fontWeight: 'bold', zIndex: 1 }}>Nowe zdarzenie</div>
+                  <div style={{ background: '#f3f3f3', border: '1px solid #d1d1d1', borderBottom: 'none', padding: '2px 10px', fontSize: '10px', marginTop: '2px' }}>Zdarzenia</div>
+                </div>
+                
+                <div style={{ padding: '8px', background: '#d0d8e0', minHeight: '200px' }}>
+                  
+                  {/* Rodzaj zdarzenia */}
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '10px' }}>Rodzaj</span>
+                    <div style={{ display: 'flex', gap: '2px' }}>
+                      <button className={`btn-win ${incidentType === 'pozar' ? 'active' : ''}`} style={{ fontWeight: 'bold', width: '30px' }} onClick={() => setIncidentType('pozar')}>P</button>
+                      <button className={`btn-win ${incidentType === 'mz' ? 'active' : ''}`} style={{ fontWeight: 'bold', width: '30px' }} onClick={() => setIncidentType('mz')}>MZ</button>
+                      <button className={`btn-win ${incidentType === 'cw' ? 'active' : ''}`} style={{ fontWeight: 'bold', width: '30px' }} onClick={() => setIncidentType('cw')}>CW</button>
+                      <button className={`btn-win ${incidentType === 'wg' ? 'active' : ''}`} style={{ fontWeight: 'bold', width: '30px' }} onClick={() => setIncidentType('wg')}>WG</button>
+                      <button className={`btn-win ${incidentType === 'bl' ? 'active' : ''}`} style={{ fontWeight: 'bold', width: '30px' }} onClick={() => setIncidentType('bl')}>BL</button>
+                      <button className={`btn-win ${incidentType === 'zpr' ? 'active' : ''}`} style={{ fontWeight: 'bold', width: '35px' }} onClick={() => setIncidentType('zpr')}>ZPR</button>
+                      <button className={`btn-win ${incidentType === 'pzr' ? 'active' : ''}`} style={{ fontWeight: 'bold', width: '35px' }} onClick={() => setIncidentType('pzr')}>PZR</button>
+                    </div>
+                    
+                    <span style={{ fontSize: '10px', marginLeft: '10px' }}>Podrodzaj</span>
+                    <select className="win-input" style={{ width: '150px' }} value={incidentSubtype} onChange={e => setIncidentSubtype(e.target.value)}>
+                      <option value="">Brak</option>
+                      {incidentType === 'pozar' && (<><option value="poz_mieszk">Pożar mieszkania / lokalu</option><option value="poz_lasu">Pożar lasu / upraw</option><option value="poz_sam">Pożar samochodu</option><option value="poz_przem">Pożar przemysłowy</option><option value="poz_toru">Pożar toru/nasypów</option><option value="poz_komin">Pożar sadzy w kominie</option><option value="poz_inne">Pożar inny</option></>)}
+                      {incidentType === 'mz' && (<><option value="mz_rd">MZ Ratownictwo drogowe</option><option value="mz_med">MZ Ratownictwo medyczne</option><option value="mz_wod">MZ Ratownictwo wodne</option><option value="mz_wys">MZ Ratownictwo wysokościowe</option><option value="mz_chem">MZ Zagrożenie chemiczne</option><option value="mz_gaz">MZ Zagrożenie gazowe</option><option value="mz_bud">MZ Katastrofa budowlana</option><option value="mz_pow">MZ Powódź / zalanie</option><option value="mz_inne">MZ inne zagrożenie</option></>)}
+                      {incidentType === 'af' && (<><option value="af_auto">AF Automatyczny (SAP/DSO)</option><option value="af_zlos">AF Złośliwy alarm</option><option value="af_omyl">AF Pomyłkowe zgłoszenie</option></>)}
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    {/* Left half: Czasy & Jednostki */}
+                    <div style={{ flex: 0.6, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 20px', gap: '4px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '10px', textAlign: 'right' }}>Jednostka prowadząca</span>
+                        <select className="win-input" value={targetJrg} onChange={(e) => setTargetJrg(e.target.value)}>
+                          {JRG_UNITS.map(j => <option key={j} value={j}>{j}</option>)}
+                        </select>
+                        <button className="btn-win" style={{ padding: '0', fontSize: '10px' }}>🎯</button>
+
+                        <span style={{ fontSize: '10px', textAlign: 'right' }}>Teren działania</span>
+                        <select className="win-input">
+                          <option>{targetJrg}</option>
+                        </select>
+                        <button className="btn-win" style={{ padding: '0', fontSize: '10px' }}>🎯</button>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '20px 100px 80px 60px', gap: '4px', alignItems: 'center', marginTop: '6px' }}>
+                        <input type="checkbox" checked readOnly />
+                        <span style={{ fontSize: '10px' }}>Czas rozpoczęcia</span>
+                        <input type="date" className="win-input" value={incidentDateStr} onChange={(e) => setIncidentDateStr(e.target.value)} />
+                        <input type="text" className="win-input" value={incidentTimeStr} onChange={(e) => setIncidentTimeStr(e.target.value)} />
+
+                        <input type="checkbox" />
+                        <span style={{ fontSize: '10px' }}>Zdarzenie planowane</span>
+                        <input type="date" className="win-input" />
+                        <input type="text" className="win-input" />
+
+                        <input type="checkbox" />
+                        <span style={{ fontSize: '10px' }}>Czas lokalizacji</span>
+                        <input type="date" className="win-input" />
+                        <input type="text" className="win-input" />
+
+                        <input type="checkbox" />
+                        <span style={{ fontSize: '10px' }}>Czas likwidacji</span>
+                        <input type="date" className="win-input" />
+                        <input type="text" className="win-input" />
+                      </div>
+
+                      <fieldset style={{ padding: '4px', margin: '4px 0 0 0', background: '#d0d8e0' }}>
+                        <legend style={{ fontSize: '9px' }}>Procedura postępowania</legend>
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                          <select className="win-input" style={{ flex: 1 }}>
+                            <option>-- Brak procedury --</option>
+                            <option>Procedura KSRG nr 1</option>
+                            <option>Procedura KSRG nr 2</option>
+                          </select>
+                        </div>
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                          <label style={{ fontSize: '9px', display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
+                            <input type="checkbox" /> Zastosuj procedurę
+                          </label>
+                          <button className="btn-win" style={{ fontSize: '9px', padding: '2px 6px' }}>Pokaż wszystkie</button>
+                        </div>
+                      </fieldset>
+                    </div>
+
+                    {/* Right half: Współrzędne & Flagi */}
+                    <div style={{ flex: 0.4, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 20px', gap: '4px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '10px', textAlign: 'right' }}>Współrzędne geograficzne</span>
+                        <span /> <span />
+                        <span style={{ fontSize: '10px', textAlign: 'right', color: '#888' }}>Dł. geo.</span>
+                        <input type="text" className="win-input" style={{ background: '#ffe3e3' }} value={coordX} onChange={(e) => setCoordX(e.target.value)} placeholder="Brak" />
+                        <button className="btn-win" style={{ padding: '0', fontSize: '10px' }}>🌐</button>
+                        <span style={{ fontSize: '10px', textAlign: 'right', color: '#888' }}>Szer. geo.</span>
+                        <input type="text" className="win-input" style={{ background: '#ffe3e3' }} value={coordY} onChange={(e) => setCoordY(e.target.value)} placeholder="Brak" />
+                        <button className="btn-win" style={{ padding: '0', fontSize: '10px' }}>🌐</button>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+                        <span style={{ fontSize: '10px', width: '120px', textAlign: 'right' }}>Numer meldunku</span>
+                        <input type="text" className="win-input" style={{ flex: 1 }} readOnly />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ fontSize: '10px', width: '120px', textAlign: 'right' }}>Pliki zew.</span>
+                        <input type="text" className="win-input" style={{ flex: 1 }} readOnly />
+                        <button className="btn-win" style={{ padding: '0 4px', fontSize: '10px' }}>📁</button>
+                      </div>
+
+                      <div style={{ position: 'relative', flex: 1, border: '1px inset #d1d1d1', background: '#fff', marginTop: '4px', padding: '2px', overflowY: 'auto', maxHeight: '100px' }}>
+                        <div style={{ position: 'absolute', top: '-6px', left: '10px', background: '#d0d8e0', fontSize: '9px', fontWeight: 'bold', padding: '0 4px' }}>Flagi zdarzeń</div>
+                        <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <label style={{ fontSize: '9px', display: 'flex', alignItems: 'center', gap: '4px' }}><input type="checkbox" checked={incidentFlags.length===0} readOnly /> Brak flag</label>
+                          {[
+                            ['dlugotrl', 'Długotrwałe zdarzenie'],
+                            ['masowe', 'Ciężkie uszkodzenia ciała > 3 osób'],
+                            ['hbzn', 'HBZN (Materiały niebezpieczne)'],
+                            ['wielopow', 'Wielopowiatowe'],
+                            ['interwenc', 'Działania poza granicami kraju'],
+                            ['katastrofa', 'Katastrofa budowlana']
+                          ].map(([flag, label]) => (
+                            <label key={flag} style={{ fontSize: '9px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <input type="checkbox" checked={incidentFlags.includes(flag)} onChange={() => setIncidentFlags(prev => prev.includes(flag) ? prev.filter(f => f !== flag) : [...prev, flag])} /> {label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                 </div>
               </div>
 
-              {/* Right Side: WCPR Call Transcript (Rys.53 CPR panel mockup) */}
-              {activeCallToAnswer && (
-                <div className="border-double-outset" style={{ display: 'flex', flexDirection: 'column', background: '#f3f3f3', padding: '10px', height: '100%' }}>
-                  <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#005fb8', borderBottom: '1px solid #d1d1d1', paddingBottom: '4px', marginBottom: '8px', textTransform: 'uppercase' }}>
-                    📟 PODGLĄD KARTY WCPR (112)
-                  </div>
-                  <div className="border-inset" style={{ flex: 1, background: '#ffffe0', color: '#000000', padding: '8px', fontFamily: 'monospace', fontSize: '9.5px', whiteSpace: 'pre-wrap', overflowY: 'auto', border: '1px solid #d1d1d1' }}>
-                    {activeCallToAnswer.transcript}
-                  </div>
-                  <button 
-                    className="btn-win" 
-                    style={{ marginTop: '8px', fontWeight: 'bold', fontSize: '9px' }} 
-                    onClick={() => {
-                      setDescription(prev => (prev ? prev + "\n\n" : "") + `[Dane CPR] Zgłoszenie od ${activeCallToAnswer.callerName} (tel. ${activeCallToAnswer.phone}): ${activeCallToAnswer.description}`);
-                      logAction("Zaimportowano dane transkrypcji CPR do opisu działań.");
-                    }}
-                  >
-                    📥 Kopiuj opis do SWD
-                  </button>
-                </div>
-              )}
+              {/* Action buttons at the bottom */}
+              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', marginTop: '6px', paddingRight: '4px', alignItems: 'center' }}>
+                <span style={{ fontSize: '9px', color: '#555', marginRight: 'auto', marginLeft: '10px' }}>Skrót karty: CTRL + F1</span>
+                {editingIncidentId && (
+                  <button className="btn-win" style={{ fontWeight: 'bold', color: '#d13438', padding: '4px 12px' }} onClick={() => {
+                    if (confirm("Czy na pewno chcesz odrzucić to zgłoszenie i oznaczyć jako Błąd (BL)?")) {
+                      setIncidentType('bl');
+                      setTimeout(() => handleSaveIncident('processed'), 100);
+                    }
+                  }}>❌ Oznacz jako BŁĄD (BL)</button>
+                )}
+                <button className="btn-win" style={{ fontWeight: 'bold', color: '#2b8a3e', padding: '4px 20px', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => handleSaveIncident('submitted')}>
+                  ✔️ Zapisz
+                </button>
+                <button className="btn-win" style={{ fontWeight: 'bold', color: '#d13438', padding: '4px 20px', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => setIsNewIncidentModalOpen(false)}>
+                  ❌ Anuluj
+                </button>
+              </div>
 
             </div>
           </div>
