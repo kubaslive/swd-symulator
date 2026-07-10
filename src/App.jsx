@@ -2348,16 +2348,24 @@ function App() {
       return;
     }
 
+    const currentStatuses = activeIncident.vehicleStatuses || {};
+    const currentStatus = currentStatuses[vStr] || 0;
+
     // Ograniczenie KSiS: Tylko komenda dowodząca może sterować statusami 2, 3, 4. Odbiorca może tylko nadać status 1 (Wyjazd) lub 0.
     if (statusNum > 1 && activeIncident.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') {
       alert('Tylko komenda dowodząca (wysyłająca żądanie) może sterować tym statusem!');
       return;
     }
 
+    // Ograniczenie KSiS: Odbiorca KSiS (wysyłający zastępy na żądanie) nie może sterować statusem jednostek już zadysponowanych (Status >= 1)
+    if (currentStatus >= 1 && activeIncident.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') {
+      alert('Ta jednostka została już zadysponowana i przeszła pod dowództwo nadawcy KSiS!');
+      return;
+    }
+
     // Close the context menu immediately
     setActiveContextMenuVehicle(null);
 
-    const currentStatuses = activeIncident.vehicleStatuses || {};
     const updatedStatuses = {
       ...currentStatuses,
       [vStr]: statusNum
