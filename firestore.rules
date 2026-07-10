@@ -59,5 +59,17 @@ service cloud.firestore {
     match /tenants/{tenantId} {
       allow read, write: if isAuthenticated();
     }
+
+    // Rules for KSiS requests
+    match /ksis_requests/{requestId} {
+      allow read, create, update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // Rules for Radio Log
+    match /radio_messages/{msgId} {
+      allow read, create, update: if isAuthenticated();
+      allow delete: if hasRole('admin');
+    }
   }
 }

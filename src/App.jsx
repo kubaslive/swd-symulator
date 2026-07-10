@@ -408,6 +408,10 @@ function App() {
   const [isKsisSendModalOpen, setIsKsisSendModalOpen] = useState(false);
   const [ksisSendFormData, setKsisSendFormData] = useState({ targetTenant: '', equipment: '', comment: '', incidentId: null });
 
+  // Radio Log State
+  const [radioMessages, setRadioMessages] = useState([]);
+  const [isRadioLogOpen, setIsRadioLogOpen] = useState(false);
+  const [radioInputText, setRadioInputText] = useState('');
 
   const [agentsInventory, setAgentsInventory] = useState({
     "JRG 1": [
@@ -960,6 +964,24 @@ function App() {
     return unsubscribe;
   }, [userProfile, isSystemAudioEnabled]);
 
+  // Listen to Radio Messages
+  useEffect(() => {
+    if (!userProfile) return;
+    const radioRef = collection(db, 'radio_messages');
+    // We only load the last 50 messages to save bandwidth
+    const q = query(radioRef, orderBy('createdAt', 'desc'), limit(50));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const items = [];
+      snapshot.forEach(doc => {
+        items.push({ id: doc.id, ...doc.data() });
+      });
+      // Reverse so oldest is top, newest is bottom
+      setRadioMessages(items.reverse());
+    });
+    return unsubscribe;
+  }, [userProfile]);
+
   // ============================================================
   // MULTIPLAYER GAME: AUTOMATIC BOT SIMULATOR & GAME ENGINE
   // ============================================================
@@ -1154,7 +1176,13 @@ function App() {
             "Płonie drewniana konstrukcja dachu budowanego kościoła. Ogień jest bardzo duży, widoczny z kilku kilometrów.",
             "Podczas jazdy zapalił się autobus miejski. Pasażerowie zostali ewakuowani, autobus jest cały w ogniu.",
             "Pali się garaż blaszany. Wewnątrz stoi motocykl i kanistry z paliwem.",
-            "Pożar pustostanu, widoczny ogień w oknach na pierwszym piętrze. Często przebywają tam osoby bezdomne."
+            "Pożar pustostanu, widoczny ogień w oknach na pierwszym piętrze. Często przebywają tam osoby bezdomne.",
+            "Pożar hali magazynowej z materiałami chemicznymi. Ogień szybko się rozprzestrzenia, słychać wybuchy beczek.",
+            "Zgłoszenie o pożarze w szpitalu na oddziale ratunkowym. Gęsty dym na korytarzach, trwa gorączkowa ewakuacja.",
+            "Pożar w centrum handlowym. Ogień na food courcie. Setki ludzi ucieka do wyjść ewakuacyjnych.",
+            "Pali się podziemny parking pod apartamentowcem. Słychać strzały opon, dym wchodzi na klatki schodowe.",
+            "Wybuch pyłu w zakładzie drzewnym (tartaku). Płonie główna hala, zniszczony dach, prawdopodobnie są poszkodowani.",
+            "Pożar składowiska opon i gabarytów na wysypisku śmieci. Czarny słup dymu widoczny z 10 kilometrów."
           ];
           text = randomElement(pozScenarios);
         } else if (type === "mz") {
@@ -1176,15 +1204,18 @@ function App() {
             "Gniazdo szerszeni bezpośrednio nad oknem przedszkola.",
             "Osoba poślizgnęła się na nasypie przy rzece i nie może samodzielnie wyjść po stromym zboczu ze złamaną nogą.",
             "Podejrzana walizka na przystanku autobusowym, brak właściciela od 2 godzin. Ewakuowano najbliższy teren.",
-            "Rozszczelnienie rurociągu z amoniakiem w zakładzie produkcyjnym. Gęsta mgła chemiczna wokół hali.",
-            "Kolejka górska zacięła się na wysokości 20 metrów. W wagonikach znajdują się uwięzione osoby.",
-            "Mężczyzna grozi skokiem z mostu do rzeki. Na miejscu obecna jest już policja.",
-            "Zawalenie się ściany podczas prac rozbiórkowych. Pod gruzami znajduje się jeden z robotników.",
+            "Rozszczelnienie rurociągu z amoniakiem w zakładzie produkcyjnym. Gęsta mgła chemiczna wokół hali. Wewnątrz zostały 3 osoby.",
+            "Kolejka górska zacięła się na wysokości 20 metrów. W wagonikach znajdują się uwięzione osoby, jedna ma atak paniki.",
+            "Mężczyzna grozi skokiem z mostu do rzeki. Na miejscu obecna jest już policja, która prosi o zabezpieczenie skoku (skokochron/łódź).",
+            "Zawalenie się ściany podczas prac rozbiórkowych. Pod gruzami znajduje się jeden z robotników. Brak z nim kontaktu.",
             "Rój pszczół osiadł na przejściu dla pieszych przy ruchliwej ulicy, zagraża przechodniom.",
-            "Zalane tory tramwajowe po oberwaniu chmury, woda dostaje się do okolicznych sklepów.",
-            "Wypadek autokaru na zjeździe z autostrady. Autokar leży na boku, wielu poszkodowanych wewnątrz.",
-            "Woda podmyła wał przeciwpowodziowy, istnieje ryzyko przerwania i zalania kilku posesji.",
-            "Samochód osobowy wpadł do stawu hodowlanego, powoli tonie. Kierowca wewnątrz walczy z drzwiami."
+            "Zalane tory tramwajowe po oberwaniu chmury, woda dostaje się do okolicznych sklepów. Podtopionych kilkanaście piwnic.",
+            "Wypadek autokaru turystycznego na zjeździe z autostrady. Autokar leży na boku, wewnątrz ok. 40 osób. Zdarzenie Masowe!",
+            "Woda podmyła wał przeciwpowodziowy, istnieje ryzyko przerwania i zalania kilku posesji. Potrzebne worki z piaskiem.",
+            "Samochód osobowy wpadł do stawu hodowlanego, powoli tonie. Kierowca wewnątrz walczy z drzwiami, auto zanurza się.",
+            "Rozszczelniona cysterna kolejowa z kwasem siarkowym na bocznicy. Wyciek jest intensywny, chmura gazu idzie na pobliskie osiedle.",
+            "Wypadek awionetki podczas podchodzenia do lądowania. Samolot spadł na las obok lotniska aeroklubu. Brak kontaktu z pilotem.",
+            "Awaria zasilania w szpitalu. Agregat prądotwórczy nie odpalił. Respirator na OIOM działa na baterii, która zaraz się rozładuje."
           ];
           text = randomElement(mzScenarios);
         } else {
@@ -2365,6 +2396,74 @@ function App() {
 
     // Close the context menu immediately
     setActiveContextMenuVehicle(null);
+    const nowTimeStr = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+
+    // OSP Delay Logic
+    const isOSP = vStr.toLowerCase().includes('osp');
+    if (statusNum === 1 && isOSP && currentStatus === 0) {
+      const updatedStatuses = { ...currentStatuses, [vStr]: 0.5 };
+      const updatedStatusTimes = { ...activeIncident.vehicleStatusTimes, [vStr]: new Date().toISOString() };
+      
+      await updateDoc(doc(db, 'incidents', activeIncident.id), {
+        vehicleStatuses: updatedStatuses,
+        vehicleStatusTimes: updatedStatusTimes,
+        updatedAt: serverTimestamp()
+      });
+      
+      logAction(`Zastęp OSP ${vStr}: rozpoczęto ALARMOWANIE (oczekiwanie na wyjazd)`);
+      import('firebase/firestore').then(({ addDoc, collection }) => {
+        addDoc(collection(db, 'radio_messages'), {
+          text: `[SYSTEM] Rozpoczęto alarmowanie zastępu ${vStr.split(' | ')[1] || vStr}. Czas do wyjazdu ok. 30-90s.`,
+          senderName: 'Dyspozytornia',
+          senderTenant: activeIncident.tenantId,
+          createdAt: new Date().toISOString()
+        }).catch(console.error);
+      });
+      
+      const delayMs = Math.floor(Math.random() * (90000 - 30000 + 1) + 30000);
+      
+      setTimeout(async () => {
+         const { getDoc, doc, updateDoc, serverTimestamp, addDoc, collection } = await import('firebase/firestore');
+         const incSnap = await getDoc(doc(db, 'incidents', activeIncident.id));
+         if (incSnap.exists()) {
+           const freshInc = incSnap.data();
+           const freshStatuses = freshInc.vehicleStatuses || {};
+           if (freshStatuses[vStr] === 0.5) {
+             const nowStr = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+             const freshTimes = { ...freshInc.times };
+             if (!freshTimes.departure) freshTimes.departure = nowStr;
+             
+             const freshStatusTimes = { ...freshInc.vehicleStatusTimes, [vStr]: new Date().toISOString() };
+             freshStatuses[vStr] = 1;
+             
+             const newLog = {
+               time: nowStr + ':' + new Date().getSeconds().toString().padStart(2, '0'),
+               from: vStr.split(' | ')[1] || vStr,
+               to: "Dyspozytornia",
+               text: `Zgłaszam status radiowy: WYJAZD (ST 1)`,
+               channel: "K01 - Kanał Powiatowy",
+               createdAt: new Date().toISOString()
+             };
+             
+             await updateDoc(doc(db, 'incidents', activeIncident.id), {
+               vehicleStatuses: freshStatuses,
+               vehicleStatusTimes: freshStatusTimes,
+               times: freshTimes,
+               radioLogs: [...(freshInc.radioLogs || []), newLog],
+               updatedAt: serverTimestamp()
+             });
+             
+             addDoc(collection(db, 'radio_messages'), {
+                text: `[AUTOMAT] Zastęp ${vStr.split(' | ')[1] || vStr} zgłasza WYJAZD (ST 1) do zdarzenia.`,
+                senderName: vStr.split(' | ')[1] || vStr,
+                senderTenant: activeIncident.tenantId,
+                createdAt: new Date().toISOString()
+             }).catch(console.error);
+           }
+         }
+      }, delayMs);
+      return;
+    }
 
     const updatedStatuses = {
       ...currentStatuses,
@@ -2379,7 +2478,6 @@ function App() {
     };
 
     const currentTimes = activeIncident.times || {};
-    const nowTimeStr = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
     const updatedTimes = { ...currentTimes };
 
     const statusLabels = {
@@ -2402,7 +2500,7 @@ function App() {
     }
 
     try {
-      const statusLabels = {
+      const dbStatusLabels = {
         1: "WYJAZD (ST 1)",
         2: "NA MIEJSCU (ST 2)",
         3: "ZAKOŃCZENIE DZIAŁAŃ/POWRÓT (ST 3)",
@@ -2413,7 +2511,7 @@ function App() {
         time: nowTimeStr + ':' + new Date().getSeconds().toString().padStart(2, '0'),
         from: vStr.split(' | ')[1] || vStr,
         to: "Dyspozytornia",
-        text: `Zgłaszam status radiowy: ${statusLabels[statusNum]}`,
+        text: `Zgłaszam status radiowy: ${dbStatusLabels[statusNum] || statusNum}`,
         channel: "K01 - Kanał Powiatowy",
         createdAt: new Date().toISOString()
       };
@@ -2427,8 +2525,21 @@ function App() {
         updatedAt: serverTimestamp()
       });
       
-      logIncidentHistory(activeIncident.id, `Zastęp ${vStr.split(' | ')[1] || vStr} zmienił stan radiowy na: ${statusLabels[statusNum]}`);
-      logAction(`Zastęp ${vStr.split(' | ')[1] || vStr}: status radiowy -> STATUS ${statusNum} (${statusLabels[statusNum]})`);
+      logIncidentHistory(activeIncident.id, `Zastęp ${vStr.split(' | ')[1] || vStr} zmienił stan radiowy na: ${dbStatusLabels[statusNum] || statusNum}`);
+      logAction(`Zastęp ${vStr.split(' | ')[1] || vStr}: status radiowy -> STATUS ${statusNum} (${dbStatusLabels[statusNum] || statusNum})`);
+      
+      // Dodaj wiadomość do globalnego Radia (Dziennika)
+      if (statusNum >= 1 && statusNum <= 4) {
+        import('firebase/firestore').then(({ addDoc, collection }) => {
+          addDoc(collection(db, 'radio_messages'), {
+            text: `[AUTOMAT] Zastęp ${vStr.split(' | ')[1] || vStr} zgłasza ${dbStatusLabels[statusNum]} do zdarzenia.`,
+            senderName: vStr.split(' | ')[1] || vStr,
+            senderTenant: activeIncident.tenantId,
+            createdAt: new Date().toISOString()
+          }).catch(console.error);
+        });
+      }
+      
     } catch (err) {
       console.error("Error setting vehicle status:", err);
       alert("Błąd podczas zapisywania statusu w bazie danych: " + err.message);
@@ -6110,10 +6221,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             }
                             
                             let customState = "Zadysponowany";
-                            if (vStatus === 1) customState = "Wyjazd";
-                            if (vStatus === 2) customState = "Na miejscu";
-                            if (vStatus === 3) customState = "Powrót";
-                            if (vStatus === 4) customState = "W koszarach";
+                            if (vStatus === 0.5) customState = "Alarmowanie";
+                            else if (vStatus === 1) customState = "Wyjazd";
+                            else if (vStatus === 2) customState = "Na miejscu";
+                            else if (vStatus === 3) customState = "Powrót";
+                            else if (vStatus === 4) customState = "W koszarach";
                             
                             return (
                               <tr 
@@ -6396,6 +6508,53 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
 
         </footer>
+
+        {/* --- DZIENNIK RADIOWY WIDGET --- */}
+        <div style={{ position: 'fixed', bottom: '26px', right: '5px', width: '320px', zIndex: 9999, display: 'flex', flexDirection: 'column', pointerEvents: 'none' }}>
+          <div style={{ pointerEvents: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#e0e0e0', border: '1px solid #a0a0a0', padding: '2px 5px', cursor: 'pointer', borderTopLeftRadius: '3px', borderTopRightRadius: '3px' }} onClick={() => setIsRadioLogOpen(!isRadioLogOpen)}>
+            <strong style={{ fontSize: '10px' }}>📻 Dziennik Radiowy (KRG/KSW)</strong>
+            <button style={{ border: 'none', background: 'none', fontSize: '10px', fontWeight: 'bold' }}>{isRadioLogOpen ? '▼' : '▲'}</button>
+          </div>
+          
+          {isRadioLogOpen && (
+            <div style={{ pointerEvents: 'auto', height: '200px', background: '#fff', border: '1px solid #a0a0a0', borderTop: 'none', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ flex: 1, overflowY: 'auto', padding: '4px', fontSize: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {radioMessages.map(msg => (
+                  <div key={msg.id} style={{ background: msg.senderTenant === userProfile?.tenantId ? '#e3f2fd' : '#f5f5f5', padding: '4px', borderRadius: '3px', border: '1px solid #ddd' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', color: '#555', fontSize: '9px' }}>
+                      <strong>{msg.senderName}</strong>
+                      <span>{new Date(msg.createdAt).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                    </div>
+                    <div style={{ color: '#000' }}>{msg.text}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ borderTop: '1px solid #ccc', padding: '2px', display: 'flex' }}>
+                <input 
+                  type="text" 
+                  value={radioInputText}
+                  onChange={e => setRadioInputText(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && radioInputText.trim()) {
+                      import('firebase/firestore').then(({ addDoc, collection }) => {
+                        addDoc(collection(db, 'radio_messages'), {
+                          text: radioInputText.trim(),
+                          senderName: userProfile?.tenantId === '120000' ? 'KW PSP' : (userProfile?.displayName || userProfile?.email),
+                          senderTenant: userProfile?.tenantId,
+                          createdAt: new Date().toISOString()
+                        });
+                        setRadioInputText('');
+                      });
+                    }
+                  }}
+                  className="win-input" 
+                  style={{ flex: 1, fontSize: '10px', padding: '3px' }} 
+                  placeholder="Napisz meldunek..." 
+                />
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* === DOLNY PASEK STATUSU (Status Bar SWD-ST 2.5) === */}
         <div className="status-bar">
