@@ -375,6 +375,13 @@ function App() {
   const [callStatusMessage, setCallStatusMessage] = useState('');
 
   const [isShiftTransitionModalOpen, setIsShiftTransitionModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [settingsData, setSettingsData] = useState({
+    kmkpName: '',
+    generatorCities: '',
+    incidentFormat: '{prefix}-{nr}',
+    reportFormat: 'EWID/{nr}/{rok}'
+  });
   const [isSystemMenuOpen, setIsSystemMenuOpen] = useState(false);
     const [absentUrlop, setAbsentUrlop] = useState(1);
   const [absentChorzy, setAbsentChorzy] = useState(0);
@@ -661,7 +668,7 @@ function App() {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setTenantStreets(data.streets || []);
-        setTenantName(data.name || getTenantDefaultName(userProfile.tenantId));
+        setTenantName(userProfile?.settings?.kmkpName || data.name || getTenantDefaultName(userProfile.tenantId));
         setTenantJrgUnits(data.jrgUnits || []);
         setTenantOspUnits(data.ospUnits || []);
         setTenantVehicles(data.vehicles || {});
@@ -673,7 +680,7 @@ function App() {
       } else {
         // Clear state if tenant config doesn't exist yet
         setTenantStreets([]);
-        setTenantName(getTenantDefaultName(userProfile.tenantId));
+        setTenantName(userProfile?.settings?.kmkpName || getTenantDefaultName(userProfile.tenantId));
         setTenantJrgUnits([]);
         setTenantOspUnits([]);
         setTenantVehicles({});
@@ -963,7 +970,8 @@ function App() {
         
         const randomElement = (arr) => arr[Math.floor(Math.random() * arr.length)];
         
-        const parsedCities = gameModeCities.split(',').map(s => s.trim()).filter(s => s.length > 0);
+        const settingsCities = userProfile?.settings?.generatorCities || gameModeCities || '';
+        const parsedCities = settingsCities.split(',').map(s => s.trim()).filter(s => s.length > 0);
         let cityPool = [tenantName];
         if (tenantName === 'Będzin') cityPool = ['Będzin', 'Czeladź', 'Siewierz', 'Wojkowice', 'Sławków', 'Psary', 'Mierzęcice', 'Bobrowniki'];
         else if (tenantName === 'Katowice') cityPool = ['Katowice'];
@@ -1608,7 +1616,8 @@ function App() {
     
     // Używamy miasta jako wskaźnika tenant'a jeśli jest potrzebny, na tę chwilę bierzemy "Katowice"
     const prefix = getJrgPrefix(targetJrg, tenantName);
-    const customId = `${prefix}-${sequenceNumber}`;
+    const incidentFormat = userProfile?.settings?.incidentFormat || '{prefix}-{nr}';
+    const customId = incidentFormat.replace('{prefix}', prefix).replace('{nr}', sequenceNumber).replace('{rok}', currentYear.toString());
 
     const servicesList = notifiedServices.join(', ');
 
@@ -1892,7 +1901,9 @@ function App() {
       }
     }
 
-    const fullReportNumber = `${activeIncident.prefix || getJrgPrefix(activeIncident.targetJrg)}${customReportNumber}`;
+    const reportFormat = userProfile?.settings?.reportFormat || 'EWID/{nr}/{rok}';
+    const currentYear = new Date().getFullYear().toString();
+    const fullReportNumber = reportFormat.replace('{nr}', customReportNumber).replace('{rok}', currentYear);
     
     const updatedTimes = {
       alarm: alarmTime || activeIncident.times?.alarm || '',
@@ -2155,6 +2166,35 @@ function App() {
     } catch (err) {
       console.error("Error performing shift transition:", err);
       alert("Błąd podczas otwierania nowej zmiany.");
+    }
+  };
+
+  const openSettingsModal = () => {
+    setSettingsData({
+      kmkpName: userProfile?.settings?.kmkpName || '',
+      generatorCities: userProfile?.settings?.generatorCities || '',
+      incidentFormat: userProfile?.settings?.incidentFormat || '{prefix}-{nr}',
+      reportFormat: userProfile?.settings?.reportFormat || 'EWID/{nr}/{rok}'
+    });
+    setIsSettingsModalOpen(true);
+  };
+
+  const handleSaveSettings = async () => {
+    try {
+      if (!userProfile) return;
+      await updateDoc(doc(db, 'users', userProfile.uid), {
+        settings: settingsData
+      });
+      logAction(`[Ustawienia] Zapisano nową konfigurację użytkownika.`);
+      setIsSettingsModalOpen(false);
+      
+      // Update local tenantName immediately if it was changed
+      if (settingsData.kmkpName) {
+        setTenantName(settingsData.kmkpName);
+      }
+    } catch (err) {
+      console.error("Błąd zapisywania ustawień:", err);
+      alert("Błąd zapisu ustawień: " + err.message);
     }
   };
 
@@ -2744,7 +2784,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
       }
       
       const prefix = getJrgPrefix(targetJrg, userProfile?.tenantId || 'Katowice');
-      const customId = `${prefix}-${sequenceNumber}`;
+      const incidentFormat = userProfile?.settings?.incidentFormat || '{prefix}-{nr}';
+      const customId = incidentFormat.replace('{prefix}', prefix).replace('{nr}', sequenceNumber).replace('{rok}', currentYear.toString());
 
       const isErrorOrFalseAlarm = call.type === 'bl' || call.type === 'af';
       const nowTimeStr = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
@@ -5269,6 +5310,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         <div className={`menu-item ${activeMenuTab === 'katalog_sis' ? 'active' : ''}`} onClick={() => setActiveMenuTab('katalog_sis')}>Siły i środki</div>
         <div className={`menu-item ${activeMenuTab === 'konta' || activeMenuTab === 'monitor' ? 'active' : ''}`} onClick={() => { if(userProfile?.role === 'admin') setActiveMenuTab('konta'); else setActiveMenuTab('monitor'); }}>Urządzenia</div>
         <div className="menu-item">Okna</div>
+        <div className="menu-item" onClick={openSettingsModal}>Ustawienia</div>
         <div 
           className="menu-item"
           onClick={() => {
@@ -5811,6 +5853,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             return (
                               <tr 
                                 key={i} 
+                                className={`swd-row ${isSelected ? 'selected' : ''}`}
                                 style={{ background: statusBg, cursor: 'default' }}
                                 onClick={() => setSelectedSisVehicle(vStr)}
                                 onContextMenu={(e) => { setSelectedSisVehicle(vStr); openVehicleContextMenu(e, vStr); }}
@@ -6296,6 +6339,73 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 <button className="btn-win" onClick={() => setIsShiftTransitionModalOpen(false)}>❌ Anuluj</button>
                 <button className="btn-win" style={{ backgroundColor: '#2b8a3e', color: 'white', fontWeight: 'bold' }} onClick={handlePerformShiftTransition}>
                   📂 Rozpocznij Nową Zmianę
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* -------------------------------------------------------------
+          DIALOG MODAL: USTAWIENIA UŻYTKOWNIKA
+          ------------------------------------------------------------- */}
+      {isSettingsModalOpen && (
+        <div className="win-dialog-overlay" style={{ zIndex: 99990 }}>
+          <div className="win-dialog border-double-outset" style={{ width: '450px' }}>
+            <div className="win-dialog-header">
+              <span>Ustawienia Użytkownika</span>
+              <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsSettingsModalOpen(false)}>X</button>
+            </div>
+            <div className="win-dialog-content border-inset" style={{ padding: '12px', background: '#fff', fontSize: '11px' }}>
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Nazwa jednostki nadrzędnej (np. KM PSP Będzin)</label>
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  value={settingsData.kmkpName} 
+                  onChange={e => setSettingsData({...settingsData, kmkpName: e.target.value})}
+                  placeholder="Domyślna nazwa zostanie użyta, jeśli puste"
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Miasta/gminy w rejonie (oddzielone przecinkiem)</label>
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  value={settingsData.generatorCities} 
+                  onChange={e => setSettingsData({...settingsData, generatorCities: e.target.value})}
+                  placeholder="Będzin, Czeladź, Wojkowice..."
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Wzór numeru zdarzenia (zmienne: {`{prefix}, {nr}, {rok}`})</label>
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  value={settingsData.incidentFormat} 
+                  onChange={e => setSettingsData({...settingsData, incidentFormat: e.target.value})}
+                  placeholder="{prefix}-{nr}"
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Wzór numeru meldunku (zmienne: {`{nr}, {rok}`})</label>
+                <input 
+                  type="text" 
+                  className="input-field" 
+                  value={settingsData.reportFormat} 
+                  onChange={e => setSettingsData({...settingsData, reportFormat: e.target.value})}
+                  placeholder="EWID/{nr}/{rok}"
+                  style={{ width: '100%' }}
+                />
+              </div>
+              
+              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', borderTop: '1px solid var(--win-shadow)', paddingTop: '8px' }}>
+                <button className="btn-win" onClick={() => setIsSettingsModalOpen(false)}>❌ Anuluj</button>
+                <button className="btn-win" style={{ backgroundColor: '#2b8a3e', color: 'white', fontWeight: 'bold' }} onClick={handleSaveSettings}>
+                  💾 Zapisz
                 </button>
               </div>
             </div>
@@ -7367,11 +7477,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
               {/* Registry report number form */}
               <div className="input-group" style={{ margin: 0 }}>
-                <label className="input-label">Numer Rejestru Meldunków EWID-ST (Końcówka):</label>
+                <label className="input-label">Numer Rejestru Meldunków EWID-ST (zmienna {`{nr}`} do wzoru: {userProfile?.settings?.reportFormat || 'EWID/{nr}/{rok}'}):</label>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <span style={{ background: '#f3f3f3', border: '1.5px solid #d1d1d1', borderRight: 'none', padding: '4px 10px', fontFamily: 'monospace', fontWeight: 'bold', color: '#000000' }}>
-                    {activeIncident.prefix || getJrgPrefix(activeIncident.targetJrg)}
-                  </span>
                   <input 
                     type="text" 
                     className="input-field" 
