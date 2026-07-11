@@ -1264,12 +1264,11 @@ function App() {
 
         const callerName = `${randomElement(firstNames)} ${randomElement(lastNames)}`;
         const phone = `${Math.floor(500 + Math.random() * 200)}-${Math.floor(100 + Math.random() * 800)}-${Math.floor(100 + Math.random() * 800)}`;
-        const street = randomElement(activeStreets);
-        const houseNum = Math.floor(Math.random() * 150) + 1;
-        const location = `${city}, ul. ${street} ${houseNum}`;
+        
+        let location = "";
         
         const generateAndAddIncident = async () => {
-          const type = randomElement(["pozar", "mz", "pozar", "mz", "mz"]);
+          const type = randomElement(["pozar", "mz", "pozar", "mz", "mz", "af"]);
           let text = "";
           let expectedKdrMsg = "";
           let needsZRM = false;
@@ -1279,13 +1278,14 @@ function App() {
             try {
               const ai = new GoogleGenAI({ apiKey: settingsData.geminiApiKey });
               const prompt = `Jesteś dzwoniącym na numer alarmowy 112 w Polsce. 
-              Miejscowość zdarzenia: ${city}, ulica: ${street} ${houseNum}.
-              Wymyśl krótkie zgłoszenie (2-3 zdania). Zdarzenie musi być typu: ${type === 'pozar' ? 'Pożar' : 'Miejscowe Zagrożenie (np. wypadek, plama oleju, powalone drzewo)'}.
+              Miejscowość zdarzenia to: ${city}. Wymyśl i zwróć całkowicie realistyczny adres w tym mieście (istniejąca ulica, np. "ul. Kościuszki 4").
+              Wymyśl krótkie, realistyczne zgłoszenie na stanowisko dyspozytora Straży Pożarnej (2-3 zdania). Zdarzenie musi być typu: ${type === 'pozar' ? 'Pożar (np. budynku, trawy, śmietnika)' : type === 'mz' ? 'Miejscowe Zagrożenie (np. wypadek drogowy, plama oleju, powalone drzewo, owady)' : 'Alarm Fałszywy (w dobrej wierze lub złośliwy)'}.
               Zwróć odpowiedź WYŁĄCZNIE jako prawidłowy format JSON z polami: 
+              "adres": (wygenerowany adres, w formacie "${city}, ul. [Nazwa] [Nr]"),
               "t": (tekst zgłoszenia jako dzwoniący),
-              "k": (krótki hipotetyczny meldunek KDR po dojeździe na miejsce zdarzenia, np "Na miejscu pożar śmietnika, podano jeden prąd wody, brak osób poszkodowanych"),
-              "zrm": (boolean - czy potrzebna karetka pogotowia ZRM),
-              "pol": (boolean - czy potrzebna policja)`;
+              "k": (profesjonalny meldunek KDR z miejsca zdarzenia, używający poprawnej terminologii SWD-ST, np. "Zgłaszam przybycie na miejsce. Rozpoznanie: rozwinięty pożar poddasza, podano dwa prądy wody w natarciu, brak osób poszkodowanych."),
+              "zrm": (boolean - czy potrzebne Pogotowie Ratunkowe),
+              "pol": (boolean - czy potrzebna Policja)`;
               
               const response = await ai.models.generateContent({
                 model: 'gemini-2.5-flash',
@@ -1293,6 +1293,7 @@ function App() {
               });
               let textResp = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
               const parsed = JSON.parse(textResp);
+              location = parsed.adres;
               text = parsed.t;
               expectedKdrMsg = parsed.k;
               needsZRM = !!parsed.zrm;
@@ -1303,6 +1304,10 @@ function App() {
           }
 
           if (!text) {
+            const street = randomElement(activeStreets);
+            const houseNum = Math.floor(Math.random() * 150) + 1;
+            location = `${city}, ul. ${street} ${houseNum}`;
+
             let scenarioObj = {};
             if (type === "pozar") {
               scenarioObj = randomElement(pozScenarios);
