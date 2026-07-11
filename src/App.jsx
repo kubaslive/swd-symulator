@@ -30,6 +30,7 @@ import {
 } from 'firebase/firestore';
 import { pozScenarios, mzScenarios, afScenarios } from './scenarioData';
 import { polandData } from './polandData';
+import { GoogleGenAI } from '@google/genai';
 
 const APP_VERSION = "0.1.1 beta";
 
@@ -393,7 +394,8 @@ function App() {
     kmkpName: '',
     generatorCities: '',
     incidentFormat: '{prefix}-{nr}',
-    reportFormat: 'EWID/{nr}/{rok}'
+    reportFormat: 'EWID/{nr}/{rok}',
+    geminiApiKey: ''
   });
   const [isSystemMenuOpen, setIsSystemMenuOpen] = useState(false);
     const [absentUrlop, setAbsentUrlop] = useState(1);
@@ -1266,41 +1268,58 @@ function App() {
         const houseNum = Math.floor(Math.random() * 150) + 1;
         const location = `${city}, ul. ${street} ${houseNum}`;
         
-        const types = ["pozar", "mz", "pozar", "mz", "mz"]; // Weighted towards MZ and Pozar
-        const type = randomElement(types);
-        
-        let scenarioObj = {};
-        if (type === "pozar") {
-          scenarioObj = randomElement(pozScenarios);
-        } else if (type === "mz") {
-          scenarioObj = randomElement(mzScenarios);
-        } else {
-          scenarioObj = randomElement(afScenarios);
-        }
+        const generateAndAddIncident = async () => {
+          const type = randomElement(["pozar", "mz", "pozar", "mz", "mz"]);
+          let text = "";
+          let expectedKdrMsg = "";
+          let needsZRM = false;
+          let needsPolice = false;
+          
+          if (settingsData?.geminiApiKey) {
+            try {
+              const ai = new GoogleGenAI({ apiKey: settingsData.geminiApiKey });
+              const prompt = `Jesteś dzwoniącym na numer alarmowy 112 w Polsce. 
+              Miejscowość zdarzenia: ${city}, ulica: ${street} ${houseNum}.
+              Wymyśl krótkie zgłoszenie (2-3 zdania). Zdarzenie musi być typu: ${type === 'pozar' ? 'Pożar' : 'Miejscowe Zagrożenie (np. wypadek, plama oleju, powalone drzewo)'}.
+              Zwróć odpowiedź WYŁĄCZNIE jako prawidłowy format JSON z polami: 
+              "t": (tekst zgłoszenia jako dzwoniący),
+              "k": (krótki hipotetyczny meldunek KDR po dojeździe na miejsce zdarzenia, np "Na miejscu pożar śmietnika, podano jeden prąd wody, brak osób poszkodowanych"),
+              "zrm": (boolean - czy potrzebna karetka pogotowia ZRM),
+              "pol": (boolean - czy potrzebna policja)`;
+              
+              const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+              });
+              let textResp = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
+              const parsed = JSON.parse(textResp);
+              text = parsed.t;
+              expectedKdrMsg = parsed.k;
+              needsZRM = !!parsed.zrm;
+              needsPolice = !!parsed.pol;
+            } catch (err) {
+              console.error("Błąd AI, powrót do generatora offline:", err);
+            }
+          }
 
-        const text = scenarioObj.t;
-        const expectedKdrMsg = scenarioObj.k;
-        const needsZRM = !!scenarioObj.zrm;
-        const needsPolice = !!scenarioObj.pol;
+          if (!text) {
+            let scenarioObj = {};
+            if (type === "pozar") {
+              scenarioObj = randomElement(pozScenarios);
+            } else if (type === "mz") {
+              scenarioObj = randomElement(mzScenarios);
+            } else {
+              scenarioObj = randomElement(afScenarios);
+            }
+            text = scenarioObj.t;
+            expectedKdrMsg = scenarioObj.k;
+            needsZRM = !!scenarioObj.zrm;
+            needsPolice = !!scenarioObj.pol;
+          }
 
-        // Generate WCPR / PLI-CBD style full transcript
-        const transcript = text;
-        
-        // Create Incident Directly
-        const addIncidentDirectly = async () => {
           try {
-            const currentYear = new Date().getFullYear();
-            const sequenceNumber = String((incidents?.length || 0) + 4801).padStart(4, '0');
-            
-            // Random JRG for generator
-            const jrgs = ['JRG nr 1', 'JRG nr 2', 'JRG nr 3'];
-            const randomJrg = jrgs[Math.floor(Math.random() * jrgs.length)];
-            const prefix = getJrgPrefix(randomJrg, city);
-
-            const customId = `${prefix}-${sequenceNumber}`;
-
             await addDoc(collection(db, 'calls'), {
-              tenantId: userProfile?.tenantId || 'Katowice',
+              tenantId: userProfile?.tenantId || 'brak',
               type: type,
               category: type,
               status: 'pending',
@@ -1308,7 +1327,7 @@ function App() {
               address: location,
               gminaStr: `Gmina m. ${city}`,
               miejscowoscStr: city,
-              description: transcript,
+              description: text,
               callerName: callerName,
               phone: `+48 ${phone}`,
               expectedKdrMsg: expectedKdrMsg,
@@ -1318,10 +1337,11 @@ function App() {
             });
             logAction(`🚨 Gra: Nowe połączenie 112 trafiło do bufora!`);
           } catch(e) {
-            console.error("Game generator error:", e);
+            console.error("Error creating AI/Offline incident:", e);
           }
         };
-        addIncidentDirectly();
+
+        generateAndAddIncident();
       }
     }
 
@@ -6230,7 +6250,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                       <th style={{ width: '110px' }}>Data i godzina</th>
                       <th style={{ width: '120px' }}>Komenda</th>
                       <th style={{ width: '120px' }}>JRG Odbiorca</th>
-                      <th>Miejsce zdarzenia (Katowice)</th>
+                      <th>Miejsce zdarzenia</th>
                       <th style={{ width: '55px' }}>Zastępy</th>
                       <th style={{ width: '55px' }}>Rodzaj</th>
                       <th>Opis zdarzenia</th>
@@ -7130,6 +7150,20 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   value={settingsData.reportFormat} 
                   onChange={e => setSettingsData({...settingsData, reportFormat: e.target.value})}
                   placeholder="EWID/{nr}/{rok}"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '15px', padding: '10px', background: '#e8f4fd', border: '1px solid #b8d4f2', borderRadius: '4px' }}>
+                <strong style={{ display: 'block', marginBottom: '8px', color: '#005fb8' }}>🤖 AI Generator (Google Gemini)</strong>
+                <p style={{ margin: '0 0 8px 0', color: '#555' }}>Wygeneruj i wprowadź klucz API Google Gemini (AI Studio), aby zdarzenia z Trybu Gry były wymyślane przez Sztuczną Inteligencję na żywo!</p>
+                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Klucz API Gemini (zostaje tylko na Twoim PC)</label>
+                <input 
+                  type="password" 
+                  className="input-field" 
+                  value={settingsData.geminiApiKey || ''} 
+                  onChange={e => setSettingsData({...settingsData, geminiApiKey: e.target.value})}
+                  placeholder="AIzaSy..."
                   style={{ width: '100%' }}
                 />
               </div>
