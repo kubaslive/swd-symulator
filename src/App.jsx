@@ -395,7 +395,8 @@ function App() {
     generatorCities: '',
     incidentFormat: '{prefix}-{nr}',
     reportFormat: 'EWID/{nr}/{rok}',
-    geminiApiKey: ''
+    geminiApiKey: '',
+    discordWebhookUrl: ''
   });
   const [isSystemMenuOpen, setIsSystemMenuOpen] = useState(false);
     const [absentUrlop, setAbsentUrlop] = useState(1);
@@ -2557,6 +2558,50 @@ function App() {
     }
   };
 
+  // Discord Webhook Helper
+  const sendDiscordNotification = async (vehicleName, statusNum, incidentObj) => {
+    const webhookUrl = userProfile?.settings?.discordWebhookUrl || settingsData.discordWebhookUrl;
+    if (!webhookUrl) return;
+
+    let statusText = "";
+    let color = 0x555555;
+    
+    if (statusNum === 1) {
+      statusText = "Wyjazd do akcji";
+      color = 0xff0000; // Red
+    } else if (statusNum === 4) {
+      statusText = "Powrót do koszar";
+      color = 0x2b8a3e; // Green
+    } else {
+      return; // Tylko status 1 i 4
+    }
+
+    const payload = {
+      content: \`🚨 **Aktualizacja statusu SiS:** Zastęp **\${vehicleName}** zgłasza: *\${statusText}*\`,
+      embeds: [{
+        title: \`Zdarzenie: \${incidentObj.type === 'pozar' ? 'Pożar' : incidentObj.type === 'mz' ? 'Miejscowe Zagrożenie' : 'Alarm'}\`,
+        description: \`**Miejsce:** \${incidentObj.location}\\n**Opis:** \${incidentObj.description}\`,
+        color: color,
+        footer: {
+          text: \`SWD-ST 2.5 Symulator | Jednostka: \${userProfile?.tenantId || 'Brak'}\`
+        },
+        timestamp: new Date().toISOString()
+      }]
+    };
+
+    try {
+      fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+    } catch (e) {
+      console.error("Błąd wysyłania Discord Webhook", e);
+    }
+  };
+
   // Digital vehicle status radios (ST 1-5) auto-fill times logic
   const handleSetVehicleStatus = async (vStr, statusNum) => {
     if (!activeIncident) return;
@@ -2588,6 +2633,14 @@ function App() {
 
     // OSP Delay Logic
     const isOSP = vStr.toLowerCase().includes('osp');
+    if (statusNum === 1 && !isOSP && currentStatus !== 1) {
+      sendDiscordNotification(vStr.split(' | ')[1] || vStr, 1, activeIncident);
+    }
+    
+    if (statusNum === 4 && currentStatus !== 4) {
+      sendDiscordNotification(vStr.split(' | ')[1] || vStr, 4, activeIncident);
+    }
+
     if (statusNum === 1 && isOSP && currentStatus === 0) {
       const updatedStatuses = { ...currentStatuses, [vStr]: 0.5 };
       const updatedStatusTimes = { ...activeIncident.vehicleStatusTimes, [vStr]: new Date().toISOString() };
@@ -2619,11 +2672,11 @@ function App() {
            const freshStatuses = freshInc.vehicleStatuses || {};
            if (freshStatuses[vStr] === 0.5) {
              const nowStr = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
-             const freshTimes = { ...freshInc.times };
-             if (!freshTimes.departure) freshTimes.departure = nowStr;
-             
+             const finalStatuses = { ...freshStatuses, [vStr]: 1 };
+             const currentTimes = freshInc.times || {};
+             const finalTimes = { ...currentTimes };
+             if (!finalTimes.departure) finalTimes.departure = nowStr;
              const freshStatusTimes = { ...freshInc.vehicleStatusTimes, [vStr]: new Date().toISOString() };
-             freshStatuses[vStr] = 1;
              
              const newLog = {
                time: nowStr + ':' + new Date().getSeconds().toString().padStart(2, '0'),
@@ -2635,12 +2688,14 @@ function App() {
              };
              
              await updateDoc(doc(db, 'incidents', activeIncident.id), {
-               vehicleStatuses: freshStatuses,
+               vehicleStatuses: finalStatuses,
                vehicleStatusTimes: freshStatusTimes,
-               times: freshTimes,
+               times: finalTimes,
                radioLogs: [...(freshInc.radioLogs || []), newLog],
                updatedAt: serverTimestamp()
              });
+             
+             sendDiscordNotification(vStr.split(' | ')[1] || vStr, 1, freshInc);
              
              addDoc(collection(db, 'radio_messages'), {
                 text: `[AUTOMAT] Zastęp ${vStr.split(' | ')[1] || vStr} zgłasza WYJAZD (ST 1) do zdarzenia.`,
@@ -7187,6 +7242,20 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   value={settingsData.geminiApiKey || ''} 
                   onChange={e => setSettingsData({...settingsData, geminiApiKey: e.target.value})}
                   placeholder="AIzaSy..."
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '15px', padding: '10px', background: '#f5f5f5', border: '1px solid #d1d1d1', borderRadius: '4px' }}>
+                <strong style={{ display: 'block', marginBottom: '8px', color: '#5865F2' }}>🎮 Integracja Discord (Webhook)</strong>
+                <p style={{ margin: '0 0 8px 0', color: '#555' }}>Wklej URL Webhooka z Twojego serwera Discord, aby powiadamiać znajomych o wysłanych zastępach i powrotach.</p>
+                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Adres URL Webhooka</label>
+                <input 
+                  type="password" 
+                  className="input-field" 
+                  value={settingsData.discordWebhookUrl || ''} 
+                  onChange={e => setSettingsData({...settingsData, discordWebhookUrl: e.target.value})}
+                  placeholder="https://discord.com/api/webhooks/..."
                   style={{ width: '100%' }}
                 />
               </div>
