@@ -6799,40 +6799,58 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           
           {isRadioLogOpen && (
             <div style={{ pointerEvents: 'auto', height: '200px', background: '#fff', border: '1px solid #a0a0a0', borderTop: 'none', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ flex: 1, overflowY: 'auto', padding: '4px', fontSize: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {radioMessages.map(msg => (
-                  <div key={msg.id} style={{ background: msg.senderTenant === userProfile?.tenantId ? '#e3f2fd' : '#f5f5f5', padding: '4px', borderRadius: '3px', border: '1px solid #ddd' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', color: '#555', fontSize: '9px' }}>
-                      <strong>{msg.senderName}</strong>
-                      <span>{new Date(msg.createdAt).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-                    </div>
-                    <div style={{ color: '#000' }}>{msg.text}</div>
+              {activeIncident ? (
+                <>
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '4px', fontSize: '10px', display: 'flex', flexDirection: 'column-reverse', gap: '4px' }}>
+                    {(activeIncident.radioLogs || []).slice().reverse().map((msg, idx) => (
+                      <div key={msg.id || idx} style={{ background: msg.senderTenant === userProfile?.tenantId ? '#e3f2fd' : (msg.from !== 'Dyspozytor' && msg.from !== (userProfile?.displayName || userProfile?.email) ? '#f5f5f5' : '#e3f2fd'), padding: '4px', borderRadius: '3px', border: '1px solid #ddd' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', color: '#555', fontSize: '9px' }}>
+                          <strong>{msg.from || msg.senderName}</strong>
+                          <span>{msg.time || (msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString('pl-PL') : '')}</span>
+                        </div>
+                        <div style={{ color: '#000' }}>{msg.text}</div>
+                      </div>
+                    ))}
+                    {(!activeIncident.radioLogs || activeIncident.radioLogs.length === 0) && (
+                      <div style={{ color: '#888', textAlign: 'center', marginTop: '10px' }}>Brak korespondencji dla tego zdarzenia.</div>
+                    )}
                   </div>
-                ))}
-              </div>
-              <div style={{ borderTop: '1px solid #ccc', padding: '2px', display: 'flex' }}>
-                <input 
-                  type="text" 
-                  value={radioInputText}
-                  onChange={e => setRadioInputText(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && radioInputText.trim()) {
-                      import('firebase/firestore').then(({ addDoc, collection }) => {
-                        addDoc(collection(db, 'radio_messages'), {
-                          text: radioInputText.trim(),
-                          senderName: userProfile?.tenantId === '120000' ? 'KW PSP' : (userProfile?.displayName || userProfile?.email),
-                          senderTenant: userProfile?.tenantId,
-                          createdAt: new Date().toISOString()
-                        });
-                        setRadioInputText('');
-                      });
-                    }
-                  }}
-                  className="win-input" 
-                  style={{ flex: 1, fontSize: '10px', padding: '3px' }} 
-                  placeholder="Napisz meldunek..." 
-                />
-              </div>
+                  <div style={{ borderTop: '1px solid #ccc', padding: '2px', display: 'flex' }}>
+                    <input 
+                      type="text" 
+                      value={radioInputText}
+                      onChange={e => setRadioInputText(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && radioInputText.trim() && selectedIncidentId) {
+                          import('firebase/firestore').then(({ updateDoc, doc }) => {
+                            const newLog = {
+                              id: Date.now().toString(),
+                              time: new Date().toLocaleTimeString('pl-PL'),
+                              from: userProfile?.displayName || userProfile?.email || 'Dyspozytor',
+                              to: 'Wszyscy',
+                              text: radioInputText.trim(),
+                              channel: 'K01',
+                              createdAt: new Date().toISOString(),
+                              senderTenant: userProfile?.tenantId
+                            };
+                            updateDoc(doc(db, 'calls', selectedIncidentId), {
+                              radioLogs: [...(activeIncident.radioLogs || []), newLog]
+                            });
+                            setRadioInputText('');
+                          });
+                        }
+                      }}
+                      className="win-input" 
+                      style={{ flex: 1, fontSize: '10px', padding: '3px' }} 
+                      placeholder="Napisz do dziennika radiowego..." 
+                    />
+                  </div>
+                </>
+              ) : (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px', color: '#888', textAlign: 'center', fontSize: '10px' }}>
+                  Wybierz zdarzenie z listy, aby otworzyć jego dziennik radiowy.
+                </div>
+              )}
             </div>
           )}
         </div>
