@@ -4250,13 +4250,40 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
     );
   };
 
+  const handleRestoreDefaultTenants = async () => {
+    if (!window.confirm("Przywrócić 5 starych komend (Katowice, Będzin, Zabrze, Mysłowice)?")) return;
+    try {
+      const batch = writeBatch(db);
+      const defaults = [
+        { id: '120000', name: 'KW PSP Katowice', wojewodztwo: 'Śląskie', powiat: 'm. Katowice' },
+        { id: '120100', name: 'KM PSP Katowice', wojewodztwo: 'Śląskie', powiat: 'm. Katowice' },
+        { id: '120200', name: 'KP PSP Będzin', wojewodztwo: 'Śląskie', powiat: 'będziński' },
+        { id: '120300', name: 'KM PSP Zabrze', wojewodztwo: 'Śląskie', powiat: 'm. Zabrze' },
+        { id: '120400', name: 'KM PSP Mysłowice', wojewodztwo: 'Śląskie', powiat: 'm. Mysłowice' }
+      ];
+      defaults.forEach(t => {
+        batch.set(doc(db, 'tenants', t.id), { ...t, createdAt: serverTimestamp() }, { merge: true });
+      });
+      await batch.commit();
+      alert("Przywrócono!");
+    } catch(e) {
+      console.error(e);
+      alert("Błąd: " + e.message);
+    }
+  };
+
   // Render detailed users list for Admin view
   const renderUsersManagement = () => {
     return (
       <div style={{ padding: '16px', overflowY: 'auto', height: '100%', backgroundColor: 'var(--win-face)' }} className="border-inset fade-in">
-        <h3 style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '12px', borderBottom: '1px solid var(--win-shadow)', paddingBottom: '4px' }}>
-          Zarządzanie Użytkownikami / Uprawnienia Konsoli
-        </h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: '1px solid var(--win-shadow)', paddingBottom: '4px' }}>
+          <h3 style={{ fontSize: '12px', fontWeight: 'bold', margin: 0 }}>
+            Zarządzanie Użytkownikami / Uprawnienia Konsoli
+          </h3>
+          <button onClick={handleRestoreDefaultTenants} className="btn-win" style={{ padding: '2px 8px', fontSize: '10px' }}>
+            Przywróć Stare Komendy
+          </button>
+        </div>
         <table className="swd-table">
           <thead>
             <tr>
@@ -4318,7 +4345,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   >
                     <option value="">(Brak przypisania)</option>
                     <option value="999999">System (Admin)</option>
-                    {allTenants.map(t => <option key={t.id} value={t.id}>{t.name} ({t.wojewodztwo})</option>)}
+                    {allTenants.filter(t => t.name).map(t => <option key={t.id} value={t.id}>{t.name} ({t.wojewodztwo})</option>)}
                   </select>
                 </td>
                 <td>
