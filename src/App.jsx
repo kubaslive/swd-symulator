@@ -31,6 +31,7 @@ import {
 import { pozScenarios, mzScenarios, afScenarios } from './scenarioData';
 import { polandData } from './polandData';
 import { GoogleGenAI } from '@google/genai';
+import MobileTerminal from './components/MobileTerminal';
 
 const APP_VERSION = "0.1.1 beta";
 
@@ -371,6 +372,7 @@ function App() {
   const [gameScore, setGameScore] = useState(() => parseInt(localStorage.getItem('swd_game_score') || '0', 10));
   const [gameModeCities, setGameModeCities] = useState(() => localStorage.getItem('swd_game_cities') || '');
   const [lastGameIncidentTime, setLastGameIncidentTime] = useState(0);
+  const [isTerminalMode, setIsTerminalMode] = useState(false);
 
   // Simulated caller form states (Pozorant screen)
   const [callerName, setCallerName] = useState('Świadek Kowalski');
@@ -5906,6 +5908,17 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
     );
   };
 
+  if (isTerminalMode) {
+    return (
+      <MobileTerminal 
+        userProfile={userProfile} 
+        incidents={incidents} 
+        onClose={() => setIsTerminalMode(false)}
+        sendDiscordNotification={sendDiscordNotification}
+      />
+    );
+  }
+
   if (!user) {
     return (
       <div className="app-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'transparent' }}>
@@ -6031,6 +6044,13 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         <div className={`menu-item ${activeMenuTab === 'konta' || activeMenuTab === 'monitor' ? 'active' : ''}`} onClick={() => { if(userProfile?.role === 'admin') setActiveMenuTab('konta'); else setActiveMenuTab('monitor'); }}>Urządzenia</div>
         <div className="menu-item">Okna</div>
         <div className="menu-item" onClick={openSettingsModal}>Ustawienia</div>
+        <div 
+          className="menu-item"
+          onClick={() => setIsTerminalMode(true)}
+          style={{ background: '#fbc02d', color: '#000', fontWeight: 'bold', marginLeft: 'auto' }}
+        >
+          📱 Terminal RP
+        </div>
         <div 
           className="menu-item"
           onClick={() => {
