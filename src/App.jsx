@@ -6,7 +6,9 @@ import {
   createUserWithEmailAndPassword, 
   signOut, 
   onAuthStateChanged,
-  updateProfile
+  updateProfile,
+  sendEmailVerification,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import { 
   doc, 
@@ -26,6 +28,8 @@ import {
   arrayUnion,
   limit
 } from 'firebase/firestore';
+import { pozScenarios, mzScenarios, afScenarios } from './scenarioData';
+import { polandData } from './polandData';
 
 
 // Web Speech API Polish Voice Announcement (WCPR)
@@ -309,6 +313,10 @@ function App() {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [cityName, setCityName] = useState('');
+  const [selectedWojewodztwo, setSelectedWojewodztwo] = useState('');
+  const [selectedPowiat, setSelectedPowiat] = useState('');
+  const [customKomendaName, setCustomKomendaName] = useState('');
+  const [allTenants, setAllTenants] = useState([]);
   const [regRole, setRegRole] = useState('kdr_osp'); // 'kdr_osp' | 'pa_jrg' | 'admin'
   const [selectedOsp, setSelectedOsp] = useState(OSP_UNITS[0]);
   const [selectedJrg, setSelectedJrg] = useState(JRG_UNITS[0]);
@@ -934,6 +942,22 @@ function App() {
     return unsubscribe;
   }, [userProfile]);
 
+  // Listen to Tenants
+  useEffect(() => {
+    if (!userProfile) return;
+    const tenantsRef = collection(db, 'tenants');
+    const unsubscribe = onSnapshot(tenantsRef, (snapshot) => {
+      const items = [];
+      snapshot.forEach((doc) => {
+        items.push({ id: doc.id, ...doc.data() });
+      });
+      setAllTenants(items);
+    }, (err) => {
+      console.error("Error fetching tenants:", err);
+    });
+    return unsubscribe;
+  }, [userProfile]);
+
   // Listen to KSiS requests
   useEffect(() => {
     if (!userProfile) return;
@@ -1106,6 +1130,35 @@ function App() {
         }
       }
       
+      // --- Dynamic Incident Mutation Logic ---
+      if (vehicles.length === 0 && incident.createdAt) {
+        const createdTime = incident.createdAt.seconds ? incident.createdAt.seconds * 1000 : new Date(incident.createdAt).getTime();
+        const elapsedSinceCreated = Math.floor((new Date().getTime() - createdTime) / 1000);
+        
+        // Mutate after ~3 minutes (180 seconds)
+        if (elapsedSinceCreated > 180 && !incident.hasMutated) {
+          const kdrMsg = incident.expectedKdrMsg || "Zgłaszam nietypowy rozwój sytuacji.";
+          const newDescription = (incident.description || '') + "\n\n[ALARM] OSOBA ZGŁASZAJĄCA DZWONI PONOWNIE! Sytuacja uległa pogorszeniu. Oczekiwany scenariusz: " + kdrMsg;
+          
+          try {
+            updateDoc(doc(db, 'incidents', incident.id), {
+              description: newDescription,
+              hasMutated: true,
+              updatedAt: serverTimestamp()
+            });
+            
+            import('firebase/firestore').then(({ addDoc, collection }) => {
+                 addDoc(collection(db, 'radio_messages'), {
+                   text: `[ALARM] Zgłoszenie ${incident.customId} - brak zadysponowanych sił, sytuacja pogarsza się!`,
+                   senderName: "System",
+                   senderTenant: incident.tenantId,
+                   timestamp: serverTimestamp()
+                 });
+            });
+          } catch(e) { console.error(e); }
+        }
+      }
+
       // --- KDR Request Logic (Meldunek z miejsca zdarzenia) ---
       if (!incident.kdrRequestSent && vehicles.length > 0) {
         const vehiclesOnScene = vehicles.filter(v => currentStatuses[v] === 2);
@@ -1120,26 +1173,7 @@ function App() {
           // Wait random time between 25 and 45 seconds after arrival
           if (elapsedArrival >= 30) {
             
-            const randomElement = (arr) => arr[Math.floor(Math.random() * arr.length)];
-            let kdrMsg = "";
-            if (incident.type === 'pozar') {
-              kdrMsg = randomElement([
-                "KDR zgłasza pożar w fazie rozwiniętej, dachy zawalone. Pilnie prosimy o zadysponowanie dodatkowych SiS, w tym sprzętu wysokościowego!",
-                "Sytuacja nieopanowana. Silne zadymienie, potrzebujemy wsparcia aparatów ODO. Proszę o pluton gaśniczy.",
-                "Ogień przenosi się na sąsiednie budynki. Proszę o zadysponowanie cysterny z wodą i 2 zastępy ratownicze.",
-                "Zlokalizowaliśmy poszkodowanych wewnątrz strefy pożarowej. Potrzebujemy dodatkowych ZRM i ratowników."
-              ]);
-            } else if (incident.type === 'mz') {
-              kdrMsg = randomElement([
-                "Na miejscu zlokalizowano osoby poszkodowane. Rozpoznanie w toku. Proszę o natychmiastowe zadysponowanie ZRM oraz dodatkowych zastępów.",
-                "Potwierdzam wypadek masowy! Proszę o natychmiastowe wysłanie na miejsce oficera operacyjnego oraz dodatkowych sił.",
-                "Zdarzenie wymaga specjalistycznego sprzętu burzącego. Proszę zadysponować kontener ratownictwa technicznego.",
-                "Wyciek substancji niebezpiecznej. Proszę o SGRChem i poinformowanie WIOŚ.",
-                "Zagrożenie zawalenia konstrukcji. Proszę ściągnąć SGRW (Wysokościowa/Poszukiwawcza) z psami."
-              ]);
-            } else {
-              kdrMsg = "Zgłaszam nietypowy rozwój sytuacji. Proszę o zadysponowanie dodatkowego zastępu ratowniczego na miejsce.";
-            }
+            const kdrMsg = incident.expectedKdrMsg || "Zgłaszam nietypowy rozwój sytuacji. Proszę o zadysponowanie dodatkowego zastępu ratowniczego na miejsce.";
             
             const vStr = vehiclesOnScene[0];
             
@@ -1233,89 +1267,19 @@ function App() {
         const types = ["pozar", "mz", "pozar", "mz", "mz"]; // Weighted towards MZ and Pozar
         const type = randomElement(types);
         
-        let text = "";
+        let scenarioObj = {};
         if (type === "pozar") {
-          const pozScenarios = [
-            "Pali się altanka na ogródkach działkowych, ogień przenosi się na drzewa.",
-            "Widzę silny ogień i czarny dym z okna na 3. piętrze bloku mieszkalnego. Ktoś wzywa pomoc z balkonu!",
-            "Pali się auto osobowe na poboczu drogi, ogień objął całą komorę silnika.",
-            "Sadza pali się w przewodzie kominowym domu jednorodzinnego, lecą iskry i słychać huk.",
-            "Pożar trawy na nieużytkach. Ogień niebezpiecznie zbliża się do pobliskiego lasu i zabudowań.",
-            "Zgłoszenie z monitoringu ppoż. Pożar w hali magazynowej, pracownicy ewakuują się.",
-            "Dym wydobywa się ze śmietnika podziemnego na osiedlu.",
-            "Wybuch gazu w kamienicy, pożar na piętrze, zawalona część ściany nośnej.",
-            "Pali się dach opuszczonego budynku gospodarczego.",
-            "Zwarcie w rozdzielni elektrycznej w piwnicy wielkiej płyty, cała klatka schodowa w gęstym, gryzącym dymie.",
-            "Pali się opona w ciężarówce na autostradzie A4. Kierowca zjechał na pas awaryjny.",
-            "Pożar mieszkania na parterze. Starsza osoba najprawdopodobniej została w środku.",
-            "Ogień na dachu stacji benzynowej w rejonie dystrybutorów!",
-            "Pożar śmieci na balkonie na 6. piętrze. Spada płonący plastik na niższe piętra.",
-            "Płonie stolarnia, ogień wychodzi na zewnątrz przez świetliki w dachu. Brak osób wewnątrz.",
-            "Pożar lasu w okolicy leśniczówki. Płonie poszycie na powierzchni około 50 arów.",
-            "Zapalił się stóg siana na polu. Silny wiatr rozprzestrzenia ogień.",
-            "Dym i płomienie w warsztacie samochodowym. Wewnątrz znajdują się butle z gazem technicznym i acetonem.",
-            "Kłęby dymu nad halą recyklingu tworzyw sztucznych. Pożar wewnątrz hali sortowni.",
-            "Zgłoszono pożar transformatora na osiedlu. Słychać było głośny huk, a teraz iskrzy się i płonie olej.",
-            "Płonie drewniana konstrukcja dachu budowanego kościoła. Ogień jest bardzo duży, widoczny z kilku kilometrów.",
-            "Podczas jazdy zapalił się autobus miejski. Pasażerowie zostali ewakuowani, autobus jest cały w ogniu.",
-            "Pali się garaż blaszany. Wewnątrz stoi motocykl i kanistry z paliwem.",
-            "Pożar pustostanu, widoczny ogień w oknach na pierwszym piętrze. Często przebywają tam osoby bezdomne.",
-            "Pożar hali magazynowej z materiałami chemicznymi. Ogień szybko się rozprzestrzenia, słychać wybuchy beczek.",
-            "Zgłoszenie o pożarze w szpitalu na oddziale ratunkowym. Gęsty dym na korytarzach, trwa gorączkowa ewakuacja.",
-            "Pożar w centrum handlowym. Ogień na food courcie. Setki ludzi ucieka do wyjść ewakuacyjnych.",
-            "Pali się podziemny parking pod apartamentowcem. Słychać strzały opon, dym wchodzi na klatki schodowe.",
-            "Wybuch pyłu w zakładzie drzewnym (tartaku). Płonie główna hala, zniszczony dach, prawdopodobnie są poszkodowani.",
-            "Pożar składowiska opon i gabarytów na wysypisku śmieci. Czarny słup dymu widoczny z 10 kilometrów."
-          ];
-          text = randomElement(pozScenarios);
+          scenarioObj = randomElement(pozScenarios);
         } else if (type === "mz") {
-          const mzScenarios = [
-            "Zderzenie dwóch samochodów osobowych, jedna osoba zakleszczona w pojeździe, płyny na jezdni.",
-            "Wiatr powalił duże drzewo na jezdnię, droga jest całkowicie zablokowana. Drzewo zerwało też linię energetyczną.",
-            "W mieszkaniu starsza pani zasłabła i nie otwiera drzwi, słychać wołanie o pomoc.",
-            "Czuć silną woń gazu na klatce schodowej w bloku czteropiętrowym.",
-            "Duża plama oleju na jezdni na skrzyżowaniu, auta wpadają w poślizg. Plama ciągnie się przez kilkaset metrów.",
-            "Zatrzaśnięte roczne dziecko w nagrzanym samochodzie na parkingu pod galerią.",
-            "Osoba uwięziona w zaciętej windzie od 40 minut. Zaczyna brakować jej powietrza (atak paniki).",
-            "Dachówka zwisa z krawędzi dachu kamienicy i zagraża przechodniom na chodniku.",
-            "Samochód zjechał z drogi i uderzył w przepust. Kierowca jest nieprzytomny.",
-            "Rozlano nieznaną substancję chemiczną w laboratorium szkolnym. Dwie osoby uskarżają się na ból głowy.",
-            "Kot utknął na czubku bardzo wysokiej brzozy i głośno miauczy od dwóch dni.",
-            "Zalana piwnica w budynku mieszkalnym po gwałtownej ulewie. Woda sięga pół metra.",
-            "Zderzenie motocykla z samochodem dostawczym. Motocyklista leży na jezdni, brak funkcji życiowych - CPR rozpoczęte.",
-            "Czujnik tlenku węgla (czadu) załączył się w łazience z piecykiem gazowym. Mieszkańcy skarżą się na zawroty głowy.",
-            "Gniazdo szerszeni bezpośrednio nad oknem przedszkola.",
-            "Osoba poślizgnęła się na nasypie przy rzece i nie może samodzielnie wyjść po stromym zboczu ze złamaną nogą.",
-            "Podejrzana walizka na przystanku autobusowym, brak właściciela od 2 godzin. Ewakuowano najbliższy teren.",
-            "Rozszczelnienie rurociągu z amoniakiem w zakładzie produkcyjnym. Gęsta mgła chemiczna wokół hali. Wewnątrz zostały 3 osoby.",
-            "Kolejka górska zacięła się na wysokości 20 metrów. W wagonikach znajdują się uwięzione osoby, jedna ma atak paniki.",
-            "Mężczyzna grozi skokiem z mostu do rzeki. Na miejscu obecna jest już policja, która prosi o zabezpieczenie skoku (skokochron/łódź).",
-            "Zawalenie się ściany podczas prac rozbiórkowych. Pod gruzami znajduje się jeden z robotników. Brak z nim kontaktu.",
-            "Rój pszczół osiadł na przejściu dla pieszych przy ruchliwej ulicy, zagraża przechodniom.",
-            "Zalane tory tramwajowe po oberwaniu chmury, woda dostaje się do okolicznych sklepów. Podtopionych kilkanaście piwnic.",
-            "Wypadek autokaru turystycznego na zjeździe z autostrady. Autokar leży na boku, wewnątrz ok. 40 osób. Zdarzenie Masowe!",
-            "Woda podmyła wał przeciwpowodziowy, istnieje ryzyko przerwania i zalania kilku posesji. Potrzebne worki z piaskiem.",
-            "Samochód osobowy wpadł do stawu hodowlanego, powoli tonie. Kierowca wewnątrz walczy z drzwiami, auto zanurza się.",
-            "Rozszczelniona cysterna kolejowa z kwasem siarkowym na bocznicy. Wyciek jest intensywny, chmura gazu idzie na pobliskie osiedle.",
-            "Wypadek awionetki podczas podchodzenia do lądowania. Samolot spadł na las obok lotniska aeroklubu. Brak kontaktu z pilotem.",
-            "Awaria zasilania w szpitalu. Agregat prądotwórczy nie odpalił. Respirator na OIOM działa na baterii, która zaraz się rozładuje."
-          ];
-          text = randomElement(mzScenarios);
+          scenarioObj = randomElement(mzScenarios);
         } else {
-          const afScenarios = [
-            "Czujka pożarowa SAP wyje w budynku biurowym, brak widocznych oznak pożaru z zewnątrz.",
-            "Zgłoszenie o dymie w lesie, ale to chyba ognisko lub grill u sąsiada na ogródku.",
-            "Ktoś dzwoni i mówi, że szkoła się pali, po czym po prostu się rozłącza (dziecięcy głos).",
-            "Zgłoszenie pożaru w fabryce, ale ochrona obiektu niczego nie potwierdza.",
-            "Pani zgłasza nieprzyjemny zapach gazu, jednak po przyjeździe okazuje się to zapachem gotowanej kapusty.",
-            "Wciśnięty Ręczny Ostrzegacz Pożarowy (ROP) w galerii handlowej bez powodu przez nieznanego sprawcę.",
-            "Sygnał uaktywnionej czujki tlenku węgla. Przyczyną okazuje się niski stan baterii (sygnał rozładowania).",
-            "Sąsiad zgłasza dziwne błyski w sąsiednim mieszkaniu. To nowa instalacja LED choinki świątecznej.",
-            "Przechodzień melduje o parze ulatniającej się ze studzienki ciepłowniczej, myśląc że to dym pożarowy.",
-            "Fałszywe powiadomienie systemu eCall z samochodu. Pojazd był tylko mocniej uderzony drzwiami na parkingu."
-          ];
-          text = randomElement(afScenarios);
+          scenarioObj = randomElement(afScenarios);
         }
+
+        const text = scenarioObj.t;
+        const expectedKdrMsg = scenarioObj.k;
+        const needsZRM = !!scenarioObj.zrm;
+        const needsPolice = !!scenarioObj.pol;
 
         // Generate WCPR / PLI-CBD style full transcript
         const transcript = text;
@@ -1345,6 +1309,9 @@ function App() {
               description: transcript,
               callerName: callerName,
               phone: `+48 ${phone}`,
+              expectedKdrMsg: expectedKdrMsg,
+              needsZRM: needsZRM,
+              needsPolice: needsPolice,
               createdAt: serverTimestamp()
             });
             logAction(`🚨 Gra: Nowe połączenie 112 trafiło do bufora!`);
@@ -1759,14 +1726,63 @@ function App() {
   // Auth Handlers
   const handleLogin = async (e) => {
     e.preventDefault();
+    
+    // Brute force check
+    const lockKey = `lock_${email}`;
+    const attemptsKey = `attempts_${email}`;
+    const lockedUntil = localStorage.getItem(lockKey);
+    if (lockedUntil && new Date().getTime() < parseInt(lockedUntil)) {
+      const minLeft = Math.ceil((parseInt(lockedUntil) - new Date().getTime()) / 60000);
+      return setError(`Konto zablokowane. Spróbuj ponownie za ${minLeft} min.`);
+    }
+
     setError('');
     setFormLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      // Email Verification Check for NEW accounts (after 2026-07-11)
+      const creationDate = new Date(user.metadata.creationTime);
+      const cutoffDate = new Date('2026-07-11T00:00:00Z');
+      if (!user.emailVerified && creationDate > cutoffDate) {
+        await signOut(auth);
+        setError('Musisz zweryfikować adres e-mail przed zalogowaniem. Sprawdź skrzynkę.');
+        setFormLoading(false);
+        return;
+      }
+
+      // Reset attempts on success
+      localStorage.removeItem(attemptsKey);
+      localStorage.removeItem(lockKey);
+
+      // Audit Log
+      try {
+        await addDoc(collection(db, 'audit_logs'), {
+          uid: user.uid,
+          email: user.email,
+          action: 'login_success',
+          timestamp: serverTimestamp(),
+          userAgent: navigator.userAgent
+        });
+      } catch (logErr) {
+        console.error("Audit log error:", logErr);
+      }
+
       logAction(`Zalogowano użytkownika: ${email}`);
     } catch (err) {
       console.error(err);
-      setError(getFriendlyErrorMessage(err.code));
+      
+      // Increment failed attempts
+      let attempts = parseInt(localStorage.getItem(attemptsKey) || '0') + 1;
+      if (attempts >= 5) {
+        localStorage.setItem(lockKey, (new Date().getTime() + 5 * 60000).toString()); // 5 min lock
+        localStorage.setItem(attemptsKey, '0');
+        setError('Zbyt wiele nieudanych prób. Konto zablokowane na 5 minut.');
+      } else {
+        localStorage.setItem(attemptsKey, attempts.toString());
+        setError(getFriendlyErrorMessage(err.code));
+      }
     } finally {
       setFormLoading(false);
     }
@@ -1774,8 +1790,15 @@ function App() {
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    if (!cityName) {
-      setError('Wybierz komendę z listy.');
+    if (!selectedWojewodztwo || !selectedPowiat || !customKomendaName) {
+      setError('Wybierz województwo, powiat i podaj nazwę komendy.');
+      return;
+    }
+    const slugify = str => str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    const generatedTenantId = `${slugify(selectedWojewodztwo)}_${slugify(selectedPowiat)}_${slugify(customKomendaName)}`;
+    const pwdRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!pwdRegex.test(password)) {
+      setError('Hasło musi mieć min. 8 znaków, wielką i małą literę, cyfrę oraz znak specjalny.');
       return;
     }
     setError('');
@@ -1783,6 +1806,12 @@ function App() {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const uid = userCredential.user.uid;
+      
+      try {
+        await sendEmailVerification(userCredential.user);
+      } catch (e) {
+        console.error("Verification email failed:", e);
+      }
 
       await updateProfile(userCredential.user, {
         displayName: displayName || email.split('@')[0]
@@ -1790,18 +1819,26 @@ function App() {
 
       const batch = writeBatch(db);
       
+      batch.set(doc(db, 'tenants', generatedTenantId), {
+        id: generatedTenantId,
+        name: customKomendaName,
+        wojewodztwo: selectedWojewodztwo,
+        powiat: selectedPowiat,
+        createdAt: serverTimestamp()
+      }, { merge: true });
+
       batch.set(doc(db, 'users', uid), {
         uid,
         email,
         displayName: displayName || email.split('@')[0],
         role: 'dyspozytor',
-        tenantId: cityName,
+        tenantId: generatedTenantId,
         createdAt: serverTimestamp()
       });
 
       await batch.commit();
       
-      logAction(`Zarejestrowano nowe konto: ${email} i przypisano do komendy: ${cityName}`);
+      logAction(`Zarejestrowano nowe konto: ${email} i utworzono komendę: ${customKomendaName}`);
       setFormLoading(false);
     } catch (err) {
       setError(getFriendlyErrorMessage(err.code));
@@ -1939,6 +1976,18 @@ function App() {
           tenantId: userProfile?.tenantId || '',
           ...incidentData,
           customId,
+          vehicleStatuses: {},
+          vehicleStatusTimes: {},
+          radioLogs: [],
+          eventHistory: [],
+          kdrRequestSent: false,
+          kdrRequestPending: false,
+          expectedKdrMsg: '',
+          externalServices: {
+            zrm: 'Brak',
+            policja: 'Brak',
+            pogotowie: 'Brak'
+          },
           createdAt: serverTimestamp()
         });
         docId = docRef.id;
@@ -1968,34 +2017,34 @@ function App() {
     }
   };
 
-  const loadIncidentForEditing = () => {
-    if (!activeIncident) return;
-    if (activeIncident.status === 'processed' && !isAdminUnlockBypass) return;
-    setEditingIncidentId(activeIncident.id);
-    setLocation(activeIncident.location || '');
-    setGminaStr(activeIncident.gminaStr || `m. ${tenantName}`);
-    setMiejscowoscStr(activeIncident.miejscowoscStr || tenantName);
-    setObiektStr(activeIncident.obiektStr || '');
-    setCallerNameStr(activeIncident.callerNameStr || '');
-    setCallerPhoneStr(activeIncident.callerPhoneStr || '');
-    setCallerAddressStr(activeIncident.callerAddressStr || '');
-    setNotifiedServices(activeIncident.notifiedServices || ['PRM', 'Policja']);
-    setCoordX(activeIncident.coordX || '19.023');
-    setCoordY(activeIncident.coordY || '50.264');
+  const loadIncidentForEditing = (incidentToLoad = activeIncident) => {
+    if (!incidentToLoad) return;
+    if (incidentToLoad.status === 'processed' && !isAdminUnlockBypass) return;
+    setEditingIncidentId(incidentToLoad.id);
+    setLocation(incidentToLoad.location || '');
+    setGminaStr(incidentToLoad.gminaStr || `m. ${tenantName}`);
+    setMiejscowoscStr(incidentToLoad.miejscowoscStr || tenantName);
+    setObiektStr(incidentToLoad.obiektStr || '');
+    setCallerNameStr(incidentToLoad.callerNameStr || '');
+    setCallerPhoneStr(incidentToLoad.callerPhoneStr || '');
+    setCallerAddressStr(incidentToLoad.callerAddressStr || '');
+    setNotifiedServices(incidentToLoad.notifiedServices || ['PRM', 'Policja']);
+    setCoordX(incidentToLoad.coordX || '19.023');
+    setCoordY(incidentToLoad.coordY || '50.264');
 
-    setIncidentType(activeIncident.type);
-    setTargetUnitDocelowa(activeIncident.targetUnitDocelowa || JRG_UNITS[1]);
-    setActionType(activeIncident.actionType || 'ratownicze');
-    setIncidentDateStr(activeIncident.eventDate || new Date().toISOString().split('T')[0]);
-    setDescription(activeIncident.description);
-    setTargetJrg(activeIncident.targetJrg || JRG_UNITS[0]);
-    setFirefightersCount(activeIncident.firefightersCount || 6);
-    setEquipmentUsed(activeIncident.equipmentUsed || '');
-    setSelectedVehicles(activeIncident.vehicles || []);
-    setIsLongDuration(activeIncident.isLongDuration || false);
-    setSopSteps(activeIncident.sopSteps || []);
+    setIncidentType(incidentToLoad.type);
+    setTargetUnitDocelowa(incidentToLoad.targetUnitDocelowa || JRG_UNITS[1]);
+    setActionType(incidentToLoad.actionType || 'ratownicze');
+    setIncidentDateStr(incidentToLoad.eventDate || new Date().toISOString().split('T')[0]);
+    setDescription(incidentToLoad.description);
+    setTargetJrg(incidentToLoad.targetJrg || JRG_UNITS[0]);
+    setFirefightersCount(incidentToLoad.firefightersCount || 6);
+    setEquipmentUsed(incidentToLoad.equipmentUsed || '');
+    setSelectedVehicles(incidentToLoad.vehicles || []);
+    setIsLongDuration(incidentToLoad.isLongDuration || false);
+    setSopSteps(incidentToLoad.sopSteps || []);
     
-    const times = activeIncident.times || {};
+    const times = incidentToLoad.times || {};
     setAlarmTime(times.alarm || '');
     setDepartureTime(times.departure || '');
     setArrivalTime(times.arrival || '');
@@ -2007,6 +2056,33 @@ function App() {
     setInjuriesDescription(times.injuriesDescription || '');
     
     setIsNewIncidentModalOpen(true);
+  };
+
+  const dispatchExternalService = async (serviceName) => {
+    if (!editingIncidentId) return;
+    const inc = incidents.find(i => i.id === editingIncidentId);
+    if (!inc) return;
+
+    try {
+      await updateDoc(doc(db, 'incidents', editingIncidentId), {
+        [`externalServices.${serviceName}`]: 'Zadysponowane'
+      });
+      logIncidentHistory(editingIncidentId, `Powiadomiono służbę: ${serviceName.toUpperCase()}`);
+      
+      // Simulate bot arrival
+      setTimeout(async () => {
+        try {
+          await updateDoc(doc(db, 'incidents', editingIncidentId), {
+            [`externalServices.${serviceName}`]: 'Na miejscu'
+          });
+          logIncidentHistory(editingIncidentId, `Służba ${serviceName.toUpperCase()} na miejscu.`);
+        } catch (e) { console.error(e); }
+      }, Math.floor(Math.random() * 40000) + 20000); // 20 - 60 seconds
+
+    } catch (err) {
+      console.error(err);
+      alert('Błąd dysponowania służb zewnętrznych');
+    }
   };
 
   const resetForm = () => {
@@ -4188,6 +4264,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               <th>E-mail</th>
               <th>Poziom dostępu (Rola)</th>
               <th>Jednostka operacyjna</th>
+              <th>Komenda (tenant)</th>
+              <th>Akcje</th>
             </tr>
           </thead>
           <tbody>
@@ -4231,6 +4309,32 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     </select>
                   )}
                   {usr.role === 'admin' && <span style={{ color: '#d1d1d1' }}>Wszystkie (Brak ograniczeń)</span>}
+                </td>
+                <td>
+                  <select 
+                    value={usr.tenantId || ''}
+                    onChange={(e) => handleAdminUpdateUser(usr.uid, { tenantId: e.target.value })}
+                    style={{ background: '#ffffff', color: '#000000', fontSize: '11px', outline: 'none', maxWidth: '200px' }}
+                  >
+                    <option value="">(Brak przypisania)</option>
+                    <option value="999999">System (Admin)</option>
+                    {allTenants.map(t => <option key={t.id} value={t.id}>{t.name} ({t.wojewodztwo})</option>)}
+                  </select>
+                </td>
+                <td>
+                  <button onClick={async () => {
+                    if(window.confirm('Wysłać link resetujący hasło?')) {
+                      try {
+                        const { sendPasswordResetEmail } = await import('firebase/auth');
+                        await sendPasswordResetEmail(auth, usr.email);
+                        alert('Wysłano link do resetu hasła.');
+                      } catch (err) {
+                        alert('Błąd: ' + err.message);
+                      }
+                    }
+                  }} style={{ fontSize: '10px' }} className="btn-win">
+                    Zresetuj hasło
+                  </button>
                 </td>
               </tr>
             ))}
@@ -5733,15 +5837,22 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   <input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="input-field" style={{ width: '100%', padding: '3px' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#005fb8' }}>Wybierz Komendę (Miejsce pełnienia służby):</label>
-                  <select value={cityName} onChange={e => setCityName(e.target.value)} required className="input-field" style={{ width: '100%', padding: '3px' }}>
-                    <option value="">-- Wybierz komendę --</option>
-                    <option value="120000">KW PSP Katowice</option>
-                    <option value="120100">KM PSP Katowice</option>
-                    <option value="120200">KP PSP Będzin</option>
-                    <option value="120300">KM PSP Zabrze</option>
-                    <option value="120400">KM PSP Mysłowice</option>
+                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#005fb8' }}>Województwo:</label>
+                  <select value={selectedWojewodztwo} onChange={e => { setSelectedWojewodztwo(e.target.value); setSelectedPowiat(''); }} required className="input-field" style={{ width: '100%', padding: '3px' }}>
+                    <option value="">-- Wybierz województwo --</option>
+                    {Object.keys(polandData).map(woj => <option key={woj} value={woj}>{woj}</option>)}
                   </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#005fb8' }}>Powiat:</label>
+                  <select value={selectedPowiat} onChange={e => setSelectedPowiat(e.target.value)} required disabled={!selectedWojewodztwo} className="input-field" style={{ width: '100%', padding: '3px' }}>
+                    <option value="">-- Wybierz powiat --</option>
+                    {selectedWojewodztwo && polandData[selectedWojewodztwo].map(pow => <option key={pow} value={pow}>{pow}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#005fb8' }}>Nazwa Komendy (np. KM PSP Wrocław):</label>
+                  <input type="text" value={customKomendaName} onChange={e => setCustomKomendaName(e.target.value)} required className="input-field" style={{ width: '100%', padding: '3px' }} placeholder="Wpisz nazwę własnej komendy" />
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px' }}>
                   <button type="submit" disabled={formLoading} className="btn-win" style={{ padding: '4px 20px', fontWeight: 'bold' }}>
@@ -6177,8 +6288,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                           onClick={() => setSelectedIncidentId(incident.id)}
                           onDoubleClick={() => {
                             setSelectedIncidentId(incident.id);
-                            // Open edit modal (as per SWD-ST 8.4 - double-click = modify)
-                            setIsNewIncidentModalOpen(true);
+                            loadIncidentForEditing(incident);
                           }}
                           onContextMenu={(e) => {
                             e.preventDefault();
@@ -7706,20 +7816,37 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     </fieldset>
                     
                     <fieldset style={{ padding: '4px', margin: 0, flex: 1 }}>
-                      <legend style={{ fontSize: '9px' }}>Zawiadomione służby</legend>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                          <button className={`btn-win ${notifiedServices.includes('PRM') ? 'active' : ''}`} style={{ fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', padding: '2px' }} onClick={() => handleServiceToggle('PRM')}><span style={{ fontSize: '14px' }}>⚕️</span> PRM</button>
-                          <button className={`btn-win ${notifiedServices.includes('Policja') ? 'active' : ''}`} style={{ fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', padding: '2px' }} onClick={() => handleServiceToggle('Policja')}><span style={{ fontSize: '14px' }}>🚓</span> Policja</button>
+                      <legend style={{ fontSize: '9px' }}>Służby Współdziałające</legend>
+                      {editingIncidentId && activeIncident ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {['zrm', 'policja', 'pogotowie'].map(svc => (
+                            <div key={svc} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '9px', padding: '2px', borderBottom: '1px solid #ccc' }}>
+                              <span style={{ fontWeight: 'bold', textTransform: 'uppercase' }}>{svc === 'zrm' ? 'ZRM' : svc}:</span>
+                              <span>{activeIncident?.externalServices?.[svc] || 'Brak'}</span>
+                              <button 
+                                className="btn-win" 
+                                style={{ padding: '1px 4px', fontSize: '9px' }}
+                                disabled={['Zadysponowane', 'Na miejscu'].includes(activeIncident?.externalServices?.[svc])}
+                                onClick={(e) => { e.preventDefault(); dispatchExternalService(svc); }}
+                              >
+                                Powiadom
+                              </button>
+                            </div>
+                          ))}
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '9px' }}>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><input type="checkbox" checked={notifiedServices.includes('Pogotowie Gazowe')} onChange={() => handleServiceToggle('Pogotowie Gazowe')} /> Pogotowie Gazowe</label>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><input type="checkbox" checked={notifiedServices.includes('Pogotowie Energetyczne')} onChange={() => handleServiceToggle('Pogotowie Energetyczne')} /> Pogotowie Energ.</label>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><input type="checkbox" checked={notifiedServices.includes('Pogotowie Wodociągowe')} onChange={() => handleServiceToggle('Pogotowie Wodociągowe')} /> Pogotowie Wodoc.</label>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><input type="checkbox" checked={notifiedServices.includes('Inna służba')} onChange={() => handleServiceToggle('Inna służba')} /> Inna służba</label>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><input type="checkbox" checked={notifiedServices.includes('SI WCPR')} onChange={() => handleServiceToggle('SI WCPR')} /> SI WCPR</label>
+                      ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <button className={`btn-win ${notifiedServices.includes('PRM') ? 'active' : ''}`} style={{ fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', padding: '2px' }} onClick={(e) => { e.preventDefault(); handleServiceToggle('PRM'); }}><span style={{ fontSize: '14px' }}>⚕️</span> PRM</button>
+                            <button className={`btn-win ${notifiedServices.includes('Policja') ? 'active' : ''}`} style={{ fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', padding: '2px' }} onClick={(e) => { e.preventDefault(); handleServiceToggle('Policja'); }}><span style={{ fontSize: '14px' }}>🚓</span> Policja</button>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '9px' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><input type="checkbox" checked={notifiedServices.includes('Pogotowie Gazowe')} onChange={() => handleServiceToggle('Pogotowie Gazowe')} /> Pogotowie Gazowe</label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><input type="checkbox" checked={notifiedServices.includes('Pogotowie Energetyczne')} onChange={() => handleServiceToggle('Pogotowie Energetyczne')} /> Pogotowie Energ.</label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><input type="checkbox" checked={notifiedServices.includes('Pogotowie Wodociągowe')} onChange={() => handleServiceToggle('Pogotowie Wodociągowe')} /> Pogotowie Wodoc.</label>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </fieldset>
                   </div>
                 </div>
@@ -8485,7 +8612,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           <div 
             className="menu-item" 
             style={{ padding: '4px 20px 4px 5px', cursor: 'pointer' }}
-            onClick={() => { setIsNewIncidentModalOpen(true); setContextMenu(null); }}
+            onClick={() => { 
+              const inc = incidents.find(i => i.id === contextMenu.incidentId);
+              if (inc) loadIncidentForEditing(inc); 
+              setContextMenu(null); 
+            }}
           >
             📝 Karta Zdarzenia (Modyfikuj)
           </div>
