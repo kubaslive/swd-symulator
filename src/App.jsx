@@ -2577,13 +2577,13 @@ function App() {
     }
 
     const payload = {
-      content: \`🚨 **Aktualizacja statusu SiS:** Zastęp **\${vehicleName}** zgłasza: *\${statusText}*\`,
+      content: `🚨 **Aktualizacja statusu SiS:** Zastęp **${vehicleName}** zgłasza: *${statusText}*`,
       embeds: [{
-        title: \`Zdarzenie: \${incidentObj.type === 'pozar' ? 'Pożar' : incidentObj.type === 'mz' ? 'Miejscowe Zagrożenie' : 'Alarm'}\`,
-        description: \`**Miejsce:** \${incidentObj.location}\\n**Opis:** \${incidentObj.description}\`,
+        title: `Zdarzenie: ${incidentObj.type === 'pozar' ? 'Pożar' : incidentObj.type === 'mz' ? 'Miejscowe Zagrożenie' : 'Alarm'}`,
+        description: `**Miejsce:** ${incidentObj.location}\n**Opis:** ${incidentObj.description}`,
         color: color,
         footer: {
-          text: \`SWD-ST 2.5 Symulator | Jednostka: \${userProfile?.tenantId || 'Brak'}\`
+          text: `SWD-ST 2.5 Symulator | Jednostka: ${userProfile?.tenantId || 'Brak'}`
         },
         timestamp: new Date().toISOString()
       }]
