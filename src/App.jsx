@@ -1350,7 +1350,7 @@ function App() {
           }
 
           if (!text) {
-            let scenarioObj = {};
+            scenarioObj = {};
             const dynamicScenarios = dbScenarios.filter(s => s.type === type);
             if (type === "pozar") {
               scenarioObj = randomElement(pozScenarios);
