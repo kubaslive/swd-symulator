@@ -6570,7 +6570,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         {renderCombatBoard()}
 
         {/* Middle Pane - Registry lists */}
-        {activeMenuTab === 'konta' && userProfile && userProfile?.role === 'admin' ? (
+        {['konta', 'game_master', 'scenariusze'].includes(activeMenuTab) && userProfile && userProfile?.role === 'admin' ? (
           renderAdminDashboard()
         ) : activeMenuTab === 'dziennik' ? (
           renderDutyLogSheet()
