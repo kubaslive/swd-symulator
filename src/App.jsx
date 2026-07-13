@@ -1892,6 +1892,25 @@ function App() {
     return { pct: Math.round(remainingPct), label: "PEŁNA", color: "#40c057" };
   };
 
+  
+  const toggleVehicleStandby = async (unitName, vehicleName) => {
+    try {
+      if (userProfile?.role !== 'admin' && userProfile?.role !== 'pa_jrg' && userProfile?.role !== 'dyspozytor') return;
+      const updatedVehicles = { ...tenantVehicles };
+      if (!updatedVehicles[unitName]) return;
+      const vIndex = updatedVehicles[unitName].findIndex(v => v.name === vehicleName);
+      if (vIndex !== -1) {
+        updatedVehicles[unitName][vIndex].isStandby = !updatedVehicles[unitName][vIndex].isStandby;
+        
+        // This requires import of doc, updateDoc, db, which are already present.
+        await updateDoc(doc(db, 'tenantSettings', 'default'), { vehicles: updatedVehicles });
+        logAction(`[${unitName}] Pojazd ${vehicleName} ${updatedVehicles[unitName][vIndex].isStandby ? 'postawiony w Stan Gotowości (PZR)' : 'wycofany ze Stanu Gotowości'}.`);
+      }
+    } catch (err) {
+      console.error("Błąd zapisywania gotowości pojazdu:", err);
+    }
+  };
+
   const toggleVehicleOutOfService = (unitName, vehicleName) => {
     if (userProfile?.role !== 'admin' && userProfile?.role !== 'pa_jrg' && userProfile?.role !== 'dyspozytor') return;
     const fullName = `${unitName} | ${vehicleName}`;
