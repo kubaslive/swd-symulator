@@ -3940,7 +3940,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
   const renderCombatBoard = () => {
     return (
       <div className="combat-board-pane border-inset" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ flex: 1, overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           {combatTab === 'PSP' && (
             // PSP Mode: Show JRG columns (Rys.38 layout)
             <div className="combat-columns-container">
