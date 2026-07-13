@@ -2515,6 +2515,9 @@ function App() {
       injuriesDescription: hasInjuries ? injuriesDescription.trim() : ''
     };
 
+    // Clean undefined values from updatedTimes to prevent Firestore crash
+    Object.keys(updatedTimes).forEach(key => updatedTimes[key] === undefined && delete updatedTimes[key]);
+
     try {
       await updateDoc(doc(db, 'incidents', activeIncident.id), {
         times: updatedTimes,
@@ -2525,11 +2528,22 @@ function App() {
       });
       logIncidentHistory(activeIncident.id, isPartialReport ? `Zapisano meldunek częściowy nr ${fullReportNumber}.` : `Zatwierdzono meldunek kompletny nr ${fullReportNumber}. Przeniesiono do archiwum.`);
       logAction(`Meldunek EWID nr ${fullReportNumber} zapisany jako: ${isPartialReport ? 'CZĘŚCIOWY' : 'KOMPLETNY (Zarchiwizowany)'}`);
+      
+      // AWARD POINTS IF COMPLETED!
+      if (!isPartialReport && isGameModeActive) {
+        setGameScore(prev => {
+          const updated = prev + 100;
+          localStorage.setItem('swd_game_score', updated.toString());
+          return updated;
+        });
+        alert(`🏆 Gratulacje!\nZdarzenie poprawnie zlikwidowane i zarchiwizowane.\n\nZDOBYWASZ +100 PUNKTÓW!`);
+      }
+
       setIsEwidReportModalOpen(false);
       setSelectedIncidentId(null);
     } catch (err) {
       console.error(err);
-      alert("Błąd zapisu w Firestore.");
+      alert("Błąd zapisu w Firestore: " + err.message);
     }
   };
 
@@ -8595,12 +8609,12 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                       <input type="text" className="win-input" value={gminaStr} onChange={(e) => setGminaStr(e.target.value)} style={{ gridColumn: '2 / span 3' }} />
                       
                       <span style={{ fontSize: '9px', textAlign: 'right' }}>Miejscowość</span>
-                      <input type="text" className="win-input" value={miejscowoscStr} onChange={(e) => setMiejscowoscStr(e.target.value)} />
+                      <input type="text" className="win-input" style={{ color: tenantName !== miejscowoscStr && !gameModeCities.includes(miejscowoscStr) ? 'red' : 'black' }} value={miejscowoscStr} onChange={(e) => setMiejscowoscStr(e.target.value)} />
                       <span style={{ fontSize: '9px', textAlign: 'right' }}>T</span>
                       <input type="text" className="win-input" />
 
                       <span style={{ fontSize: '9px', textAlign: 'right' }}>Adres</span>
-                      <input type="text" className="win-input" value={location} onChange={(e) => handleLocationChange(e.target.value)} style={{ gridColumn: '2 / span 3' }} />
+                      <input type="text" className="win-input" value={location} onChange={(e) => handleLocationChange(e.target.value)} style={{ gridColumn: '2 / span 3', color: tenantStreets.length > 0 && !tenantStreets.some(s => location.includes(s)) ? 'red' : 'black' }} />
 
                       <span style={{ fontSize: '9px', textAlign: 'right' }}>Obiekt</span>
                       <input type="text" className="win-input" value={obiektStr} onChange={(e) => setObiektStr(e.target.value)} style={{ gridColumn: '2 / span 3' }} />
@@ -8617,7 +8631,16 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   {/* Dane osoby + Powiadomione służby */}
                   <div style={{ flex: 0.4, display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <fieldset style={{ padding: '4px', margin: 0 }}>
-                      <legend style={{ fontSize: '9px' }}>Dane osoby zgłaszającej</legend>
+                      <legend style={{ fontSize: '9px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          Dane osoby zgłaszającej
+                          <button className="btn-win" style={{ fontSize: '8px', padding: '1px 3px', background: '#ffe3e3', color: '#c92a2a', fontWeight: 'bold' }} onClick={(e) => {
+                            e.preventDefault();
+                            if(window.confirm('Pobieranie lokalizacji telefonu z bazy UKE. Może być bardzo niedokładne. Kontynuować?')) {
+                               setCallerAddressStr(cityPool?.[0] || 'Warszawa');
+                               document.getElementById('caller_street').value = 'BTS MAszt ' + Math.floor(Math.random()*900);
+                            }
+                          }}>PLI CBD</button>
+                        </legend>
                       <label style={{ fontSize: '9px', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
                         <input type="checkbox" /> Nie zgłaszającego
                       </label>
@@ -8629,9 +8652,15 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                         <span style={{ fontSize: '9px', textAlign: 'right' }}>Nr telefonu</span>
                         <input type="text" className="win-input" value={callerPhoneStr} onChange={(e) => setCallerPhoneStr(e.target.value)} />
                         <span style={{ fontSize: '9px', textAlign: 'right' }}>Miejscowość</span>
-                        <input type="text" className="win-input" value={callerAddressStr} onChange={(e) => setCallerAddressStr(e.target.value)} />
+                        <div style={{ display: 'flex', gap: '2px' }}>
+                          <input type="text" className="win-input" style={{ flex: 1 }} value={callerAddressStr} onChange={(e) => setCallerAddressStr(e.target.value)} />
+                          <button className="btn-win" style={{ fontSize: '10px', padding: '0 4px', color: 'green', fontWeight: 'bold' }} title="Skopiuj do Lokalizacji" onClick={(e) => { e.preventDefault(); setMiejscowoscStr(callerAddressStr); }}>➡️</button>
+                        </div>
                         <span style={{ fontSize: '9px', textAlign: 'right' }}>Ulica</span>
-                        <input type="text" className="win-input" />
+                        <div style={{ display: 'flex', gap: '2px' }}>
+                          <input type="text" className="win-input" style={{ flex: 1 }} id="caller_street" />
+                          <button className="btn-win" style={{ fontSize: '10px', padding: '0 4px', color: 'green', fontWeight: 'bold' }} title="Skopiuj do Lokalizacji" onClick={(e) => { e.preventDefault(); handleLocationChange(document.getElementById('caller_street').value); }}>➡️</button>
+                        </div>
                       </div>
                     </fieldset>
                     
