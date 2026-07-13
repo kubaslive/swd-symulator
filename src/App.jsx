@@ -333,6 +333,7 @@ function App() {
   const [vehicleContextMenu, setVehicleContextMenu] = useState(null);
 
   // App data states
+  const [dbScenarios, setDbScenarios] = useState([]);
   const [incidents, setIncidents] = useState([]);
   const [friendlyIncidents, setFriendlyIncidents] = useState([]);
   const [usersList, setUsersList] = useState([]);
@@ -1412,6 +1413,7 @@ function App() {
               callerName: callerName,
               phone: `+48 ${phone}`,
               expectedKdrMsg: expectedKdrMsg,
+              requiredUnits: scenarioObj.requiredUnits || null,
               needsZRM: needsZRM,
               needsPolice: needsPolice,
               createdAt: serverTimestamp()
@@ -1427,6 +1429,17 @@ function App() {
     }
 
   }, [animationTick, activeRole, incidents, isGameModeActive, incomingCalls, lastGameIncidentTime, gameModeCities]);
+
+  // --- LISTEN TO GLOBAL SCENARIOS ---
+  useEffect(() => {
+    if (!userProfile) return;
+    const unsub = onSnapshot(collection(db, 'scenarios'), snap => {
+      const arr = [];
+      snap.forEach(doc => arr.push({ id: doc.id, ...doc.data() }));
+      setDbScenarios(arr);
+    });
+    return () => unsub();
+  }, [userProfile]);
 
   // --- AUTOMATYCZNY DOJAZD DEMON ---
   useEffect(() => {
@@ -2097,6 +2110,7 @@ function App() {
     const incidentData = {
       ospUnit: userProfile?.role === 'kdr_osp' ? userProfile.ospUnit : OSP_UNITS[0],
       kdrName: userProfile?.displayName || userProfile?.email || 'Dowódca',
+      requiredUnits: activeIncident?.requiredUnits || null,
       location,
       gminaStr,
       miejscowoscStr,
@@ -2401,6 +2415,34 @@ function App() {
       if (validationReport.errors.length > 0) {
         alert("BŁĄD WALIDACJI MELDUNKU:\n\n" + validationReport.errors.join("\n") + "\n\nNie można zatwierdzić kompletnego meldunku z błędami.");
         return;
+      }
+      
+      // Sprawdzanie wymagań sprzętowych
+      if (activeIncident.requiredUnits && Object.keys(activeIncident.requiredUnits).length > 0) {
+        let missing = false;
+        const currentCounts = {};
+        const dispatched = activeIncident.vehicles || [];
+        dispatched.forEach(v => {
+          // GCBA 5/32 - JRG 1 -> wyciągamy pierwsze słowo
+          const type = v.split(' ')[0];
+          if(type) currentCounts[type] = (currentCounts[type] || 0) + 1;
+        });
+        
+        let warningText = "UWAGA! Niespełnione wymogi sprzętowe misji:\n";
+        for (const [reqType, reqCount] of Object.entries(activeIncident.requiredUnits)) {
+          const count = currentCounts[reqType] || 0;
+          if (count < reqCount) {
+            missing = true;
+            warningText += `- Wymagano ${reqCount}x ${reqType}, wysłano ${count}x\n`;
+          }
+        }
+        
+        if (missing) {
+          warningText += "\nZamykasz incydent niezgodnie ze sztuką (Błąd Taktyczny). Czy na pewno chcesz zamknąć meldunek?";
+          if (!window.confirm(warningText)) {
+             return;
+          }
+        }
       }
     } else {
       if (!departureTime || !customReportNumber.trim()) {
@@ -3526,6 +3568,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         tenantId: userProfile?.tenantId || '',
         ospUnit: userProfile?.role === 'kdr_osp' ? userProfile.ospUnit : OSP_UNITS[0],
         kdrName: userProfile?.displayName || userProfile?.email || 'Dowódca',
+        requiredUnits: call.requiredUnits || null,
         location: call.location || '',
         gminaStr: call.gminaStr || '',
         miejscowoscStr: call.miejscowoscStr || '',
@@ -4581,6 +4624,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   callerName: 'GMD',
                   phone: '+48 000 000 000',
                   expectedKdrMsg: gmKdrMsg || 'Rozpoznanie: Zgodnie z formatką.',
+                  requiredUnits: null,
                   needsZRM: false,
                   needsPolice: false,
                   createdAt: serverTimestamp(),
@@ -4595,7 +4639,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
         {activeMenuTab === 'scenariusze' && (
           <div style={{ border: '1px solid #999', padding: '15px', backgroundColor: '#e1e1e1', marginBottom: '20px' }}>
-            <h3 style={{ marginTop: 0 }}>Kreator Scenariuszy (Baza Globalna)</h3>
+            <h3 style={{ marginTop: 0 }}>{editingScenarioId ? 'Edytuj Scenariusz' : 'Kreator Scenariuszy (Baza Globalna)'}</h3>
             <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
               <select value={newScenType} onChange={e => setNewScenType(e.target.value)} className="win-input">
                 <option value="pozar">Pożar</option>
@@ -4613,23 +4657,75 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             </div>
             <textarea placeholder="Treść formatki 112 (Co mówi świadek?)..." className="win-input" style={{ width: '100%', height: '60px', marginBottom: '10px' }} value={newScenT} onChange={e => setNewScenT(e.target.value)} />
             <textarea placeholder="Meldunek KDR po dojeździe..." className="win-input" style={{ width: '100%', height: '60px', marginBottom: '10px' }} value={newScenK} onChange={e => setNewScenK(e.target.value)} />
-            <button className="btn-win" style={{ fontWeight: 'bold' }} onClick={async () => {
-              if (!newScenT || !newScenK) return alert('Wypełnij treści!');
-              try {
-                await addDoc(collection(db, 'scenarios'), {
-                  type: newScenType,
-                  locType: newScenLoc,
-                  t: newScenT,
-                  k: newScenK,
-                  reportedType: newScenType === 'af' ? 'pozar' : newScenType
-                });
-                alert('Scenariusz dodany pomyślnie!');
-                setNewScenT(''); setNewScenK('');
-              } catch(e) { alert('Błąd: ' + e.message); }
-            }}>💾 ZAPISZ SCENARIUSZ DO BAZY</button>
-            <div style={{ marginTop: '20px', maxHeight: '200px', overflowY: 'auto', border: '1px inset #fff', backgroundColor: '#fff', padding: '10px' }}>
+            <input type="text" placeholder='Wymagane zastępy (np. {"GCBA": 2, "SD": 1} lub zostaw puste)' className="win-input" style={{ width: '100%', marginBottom: '10px' }} value={newScenReqUnits} onChange={e => setNewScenReqUnits(e.target.value)} />
+            
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button className="btn-win" style={{ fontWeight: 'bold' }} onClick={async () => {
+                if (!newScenT || !newScenK) return alert('Wypełnij treści!');
+                let reqUnitsParsed = null;
+                if (newScenReqUnits) {
+                  try {
+                    reqUnitsParsed = JSON.parse(newScenReqUnits);
+                  } catch(e) {
+                    return alert('Błąd formatu JSON wymaganych zastępów! Wpisz poprawny format: {"GCBA": 1}');
+                  }
+                }
+                const { doc, updateDoc, addDoc, collection } = await import('firebase/firestore');
+                try {
+                  const data = {
+                    type: newScenType,
+                    locType: newScenLoc,
+                    t: newScenT,
+                    k: newScenK,
+                    reportedType: newScenType === 'af' ? 'pozar' : newScenType,
+                    requiredUnits: reqUnitsParsed
+                  };
+                  if (editingScenarioId) {
+                    await updateDoc(doc(db, 'scenarios', editingScenarioId), data);
+                    alert('Scenariusz zaktualizowany!');
+                  } else {
+                    await addDoc(collection(db, 'scenarios'), data);
+                    alert('Scenariusz dodany pomyślnie!');
+                  }
+                  setNewScenT(''); setNewScenK(''); setNewScenReqUnits(''); setEditingScenarioId(null);
+                } catch(e) { alert('Błąd: ' + e.message); }
+              }}>💾 {editingScenarioId ? 'ZAPISZ ZMIANY' : 'ZAPISZ SCENARIUSZ DO BAZY'}</button>
+              
+              {editingScenarioId && (
+                <button className="btn-win" onClick={() => {
+                  setNewScenT(''); setNewScenK(''); setNewScenReqUnits(''); setEditingScenarioId(null);
+                }}>❌ ANULUJ EDYCJĘ</button>
+              )}
+            </div>
+
+            <div style={{ marginTop: '20px', maxHeight: '400px', overflowY: 'auto', border: '1px inset #fff', backgroundColor: '#fff', padding: '10px' }}>
               <strong>Zapisane w bazie ({dbScenarios.length}):</strong><br/>
-              {dbScenarios.map(s => <div key={s.id} style={{ borderBottom: '1px dashed #ccc', padding: '5px 0' }}>[{s.type.toUpperCase()}] {s.t.substring(0, 50)}...</div>)}
+              {dbScenarios.map(s => (
+                <div key={s.id} style={{ borderBottom: '1px dashed #ccc', padding: '5px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ flex: 1, paddingRight: '10px' }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '11px' }}>[{s.type.toUpperCase()}] {s.locType}</div>
+                    <div style={{ fontSize: '10px' }}>T: {s.t.substring(0, 80)}...</div>
+                    <div style={{ fontSize: '10px', color: '#555' }}>KDR: {s.k.substring(0, 50)}...</div>
+                    {s.requiredUnits && <div style={{ fontSize: '10px', color: '#8b0000', fontWeight: 'bold' }}>Wymogi: {JSON.stringify(s.requiredUnits)}</div>}
+                  </div>
+                  <div style={{ display: 'flex', gap: '5px' }}>
+                    <button className="btn-win" style={{ padding: '2px 5px', fontSize: '10px' }} onClick={() => {
+                      setEditingScenarioId(s.id);
+                      setNewScenType(s.type);
+                      setNewScenLoc(s.locType || 'building');
+                      setNewScenT(s.t);
+                      setNewScenK(s.k);
+                      setNewScenReqUnits(s.requiredUnits ? JSON.stringify(s.requiredUnits) : '');
+                    }}>✏️ Edytuj</button>
+                    <button className="btn-win" style={{ padding: '2px 5px', fontSize: '10px', color: 'red' }} onClick={async () => {
+                      if (window.confirm("Na pewno usunąć?")) {
+                        const { doc, deleteDoc } = await import('firebase/firestore');
+                        await deleteDoc(doc(db, 'scenarios', s.id));
+                      }
+                    }}>🗑️ Usuń</button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -8699,6 +8795,31 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 </div>
               </div>
 
+              {activeIncident.requiredUnits && Object.keys(activeIncident.requiredUnits).length > 0 && (
+                <div style={{ background: '#fff4e6', borderLeft: '4px solid #f59f00', padding: '8px', marginBottom: '8px' }}>
+                  <h5 style={{ margin: '0 0 4px 0', fontSize: '11px', color: '#d9480f' }}>Wymagane Zastępy (Zaliczenie Misji)</h5>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {Object.entries(activeIncident.requiredUnits).map(([reqType, reqCount]) => {
+                      const dispatched = activeIncident.vehicles || [];
+                      const count = dispatched.filter(v => v.split(' ')[0] === reqType).length;
+                      const isMet = count >= reqCount;
+                      return (
+                        <div key={reqType} style={{ 
+                          fontSize: '10px', 
+                          fontWeight: 'bold',
+                          padding: '2px 6px',
+                          borderRadius: '2px',
+                          backgroundColor: isMet ? '#d3f9d8' : '#ffe3e3',
+                          color: isMet ? '#2b8a3e' : '#c92a2a',
+                          border: `1px solid ${isMet ? '#8ce99a' : '#ffc9c9'}`
+                        }}>
+                          {reqType}: {count}/{reqCount}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               {/* Real-time Obieg Meldunku steps timeline bar (Page 74/77 of manual) */}
               <div className="border-inset" style={{ padding: '8px', background: '#eeeeee', marginBottom: '8px' }}>
                 <div style={{ fontSize: '9.5px', fontWeight: 'bold', color: '#444', marginBottom: '4px', textTransform: 'uppercase' }}>Przebieg Akceptacji Wojewódzkiej (Obieg)</div>
