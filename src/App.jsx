@@ -2417,6 +2417,19 @@ function App() {
       return;
     }
 
+    if (vString.includes('OSP')) {
+      const ospName = vString.split(' | ')[0] || vString;
+      const doAlarm = window.confirm(`Czy alarmować:\n- Alarmowanie automatyczne ${ospName}?`);
+      if (!doAlarm) {
+        // Continue anyway or cancel? The manual says "Czy alarmować".
+        // It implies if they click NO, it still dispatches but without the alarm.
+        // We'll log the dispatch but skip the alarm message.
+      } else {
+        logIncidentHistory(activeIncident.id, `[System DSP] Wyzwolono alarmowanie selektywne jednostki ${ospName}.`);
+        logAction(`[System DSP] Wyzwolono alarmowanie selektywne jednostki ${ospName}.`);
+      }
+    }
+
     try {
       const updated = [...currentVehicles, vString];
       await updateDoc(doc(db, 'incidents', activeIncident.id), {
@@ -4042,7 +4055,10 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                           <div 
                             key={v.name} 
                             className={`vehicle-row ${selectedCombatVehicle === `${actualUName} | ${v.name}` ? 'selected-combat' : ''}`}
-                            style={selectedCombatVehicle === `${actualUName} | ${v.name}` ? { background: '#0a246a', color: '#fff' } : {}}
+                            style={{
+                              ...(selectedCombatVehicle === `${actualUName} | ${v.name}` ? { background: '#0a246a', color: '#fff' } : {}),
+                              ...(actualUName.includes('OSP') ? { borderRight: `4px solid ${currentState === 'W koszarach' ? '#2b8a3e' : '#c92a2a'}` } : {})
+                            }}
                             title={`${v.name} (${actualUName})\nKryptonim: ${v.kryptonim || 'Brak'}\nStan: ${currentState}\nObsada min.: ${v.obsada} os.\nKliknij: ${selectedIncidentId && activeIncident ? 'Dopisz do zdarzenia' : 'Zmień status OOS'}`}
                             onClick={() => {
                               setSelectedCombatVehicle(`${actualUName} | ${v.name}`);
@@ -6817,7 +6833,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 Bieżący bufor
               </button>
               <button className={`btn-win ${viewMode === 'zaprzyjaznione' ? 'active' : ''}`} onClick={() => { setViewMode('zaprzyjaznione'); setSelectedIncidentId(null); }}>
-                Zaprzyjaźnione jednostki
+                Zdarzenia jednostek zaprzyjaźnionych
               </button>
               <button className={`btn-win ${viewMode === 'archive' ? 'active' : ''}`} onClick={() => { setViewMode('archive'); setSelectedIncidentId(null); }}>
                 Archiwum meldunków
@@ -8665,30 +8681,87 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     </fieldset>
                     
                     <fieldset style={{ padding: '4px', margin: 0, flex: 1 }}>
-                      <legend style={{ fontSize: '9px' }}>Służby Współdziałające</legend>
+                      <legend style={{ fontSize: '9px' }}>Zawiadomione Służby</legend>
                       {editingIncidentId && activeIncident ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          {['zrm', 'policja', 'pogotowie'].map(svc => (
-                            <div key={svc} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '9px', padding: '2px', borderBottom: '1px solid #ccc' }}>
-                              <span style={{ fontWeight: 'bold', textTransform: 'uppercase' }}>{svc === 'zrm' ? 'ZRM' : svc}:</span>
-                              <span>{activeIncident?.externalServices?.[svc] || 'Brak'}</span>
-                              <button 
-                                className="btn-win" 
-                                style={{ padding: '1px 4px', fontSize: '9px' }}
-                                disabled={['Zadysponowane', 'Na miejscu'].includes(activeIncident?.externalServices?.[svc])}
-                                onClick={(e) => { e.preventDefault(); dispatchExternalService(svc); }}
-                              >
-                                Powiadom
-                              </button>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', height: '100%' }}>
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            <button 
+                              className="btn-win" 
+                              style={{ 
+                                flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', padding: '4px',
+                                boxShadow: ['Zadysponowane', 'Na miejscu'].includes(activeIncident?.externalServices?.zrm) ? 'inset 1px 1px 3px #000' : '',
+                                border: ['Zadysponowane', 'Na miejscu'].includes(activeIncident?.externalServices?.zrm) ? '2px solid #e03131' : '2px outset #fff',
+                                background: ['Zadysponowane', 'Na miejscu'].includes(activeIncident?.externalServices?.zrm) ? '#e9ecef' : '#f3f3f3',
+                                outline: 'none'
+                              }} 
+                              disabled={['Zadysponowane', 'Na miejscu'].includes(activeIncident?.externalServices?.zrm)}
+                              onClick={(e) => { e.preventDefault(); dispatchExternalService('zrm'); }}
+                            >
+                              <div style={{ fontSize: '20px', lineHeight: 1 }}>🚑</div>
+                              <div style={{ fontSize: '9px', fontWeight: 'bold' }}>PRM</div>
+                              <div style={{ fontSize: '8px', color: '#666' }}>{activeIncident?.externalServices?.zrm || 'Brak'}</div>
+                            </button>
+                            
+                            <button 
+                              className="btn-win" 
+                              style={{ 
+                                flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', padding: '4px',
+                                boxShadow: ['Zadysponowane', 'Na miejscu'].includes(activeIncident?.externalServices?.policja) ? 'inset 1px 1px 3px #000' : '',
+                                border: ['Zadysponowane', 'Na miejscu'].includes(activeIncident?.externalServices?.policja) ? '2px solid #e03131' : '2px outset #fff',
+                                background: ['Zadysponowane', 'Na miejscu'].includes(activeIncident?.externalServices?.policja) ? '#e9ecef' : '#f3f3f3',
+                                outline: 'none'
+                              }} 
+                              disabled={['Zadysponowane', 'Na miejscu'].includes(activeIncident?.externalServices?.policja)}
+                              onClick={(e) => { e.preventDefault(); dispatchExternalService('policja'); }}
+                            >
+                              <div style={{ fontSize: '20px', lineHeight: 1 }}>🚓</div>
+                              <div style={{ fontSize: '9px', fontWeight: 'bold' }}>Policja</div>
+                              <div style={{ fontSize: '8px', color: '#666' }}>{activeIncident?.externalServices?.policja || 'Brak'}</div>
+                            </button>
+                          </div>
+                          
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '9px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #ccc', paddingBottom: '2px' }}>
+                               <span>Pogotowie Energ.:</span> 
+                               <span>{activeIncident?.externalServices?.pogotowie || 'Brak'}</span>
+                               <button className="btn-win" style={{ padding: '0 4px', fontSize: '8px' }} disabled={['Zadysponowane', 'Na miejscu'].includes(activeIncident?.externalServices?.pogotowie)} onClick={(e) => { e.preventDefault(); dispatchExternalService('pogotowie'); }}>Powiadom</button>
                             </div>
-                          ))}
+                          </div>
                         </div>
                       ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            <button className={`btn-win ${notifiedServices.includes('PRM') ? 'active' : ''}`} style={{ fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', padding: '2px' }} onClick={(e) => { e.preventDefault(); handleServiceToggle('PRM'); }}><span style={{ fontSize: '14px' }}>⚕️</span> PRM</button>
-                            <button className={`btn-win ${notifiedServices.includes('Policja') ? 'active' : ''}`} style={{ fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', padding: '2px' }} onClick={(e) => { e.preventDefault(); handleServiceToggle('Policja'); }}><span style={{ fontSize: '14px' }}>🚓</span> Policja</button>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', height: '100%' }}>
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            <button 
+                              className="btn-win" 
+                              style={{ 
+                                flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '4px',
+                                boxShadow: notifiedServices.includes('PRM') ? 'inset 1px 1px 3px #000' : '',
+                                border: notifiedServices.includes('PRM') ? '2px solid #e03131' : '2px outset #fff',
+                                background: notifiedServices.includes('PRM') ? '#e9ecef' : '#f3f3f3',
+                                outline: 'none'
+                              }} 
+                              onClick={(e) => { e.preventDefault(); handleServiceToggle('PRM'); }}
+                            >
+                              <div style={{ fontSize: '24px', lineHeight: 1 }}>🚑</div>
+                              <div style={{ fontSize: '9px', fontWeight: 'bold' }}>PRM</div>
+                            </button>
+                            
+                            <button 
+                              className="btn-win" 
+                              style={{ 
+                                flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '4px',
+                                boxShadow: notifiedServices.includes('Policja') ? 'inset 1px 1px 3px #000' : '',
+                                border: notifiedServices.includes('Policja') ? '2px solid #e03131' : '2px outset #fff',
+                                background: notifiedServices.includes('Policja') ? '#e9ecef' : '#f3f3f3',
+                                outline: 'none'
+                              }} 
+                              onClick={(e) => { e.preventDefault(); handleServiceToggle('Policja'); }}
+                            >
+                              <div style={{ fontSize: '24px', lineHeight: 1 }}>🚓</div>
+                              <div style={{ fontSize: '9px', fontWeight: 'bold' }}>Policja</div>
+                            </button>
                           </div>
+
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '9px' }}>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><input type="checkbox" checked={notifiedServices.includes('Pogotowie Gazowe')} onChange={() => handleServiceToggle('Pogotowie Gazowe')} /> Pogotowie Gazowe</label>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><input type="checkbox" checked={notifiedServices.includes('Pogotowie Energetyczne')} onChange={() => handleServiceToggle('Pogotowie Energetyczne')} /> Pogotowie Energ.</label>
