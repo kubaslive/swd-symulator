@@ -629,6 +629,34 @@ function App() {
     }
   };
 
+  const renameUnit = async (oldName, newName, type) => {
+    if (!newName || newName === oldName) return;
+    if (!userProfile || !userProfile.tenantId) {
+      alert('Brak uprawnień!'); return;
+    }
+    
+    if (type === 'JRG' && tenantJrgUnits.includes(newName)) { alert("Ta nazwa JRG już istnieje!"); return; }
+    if (type === 'OSP' && tenantOspUnits.includes(newName)) { alert("Ta nazwa OSP już istnieje!"); return; }
+
+    try {
+      const newJrg = type === 'JRG' ? tenantJrgUnits.map(u => u === oldName ? newName : u) : tenantJrgUnits;
+      const newOsp = type === 'OSP' ? tenantOspUnits.map(u => u === oldName ? newName : u) : tenantOspUnits;
+
+      const newVehicles = { ...tenantVehicles };
+      if (newVehicles[oldName]) {
+        newVehicles[newName] = [...newVehicles[oldName]];
+        delete newVehicles[oldName];
+      }
+
+      const tenantRef = doc(db, 'tenants', userProfile.tenantId);
+      await setDoc(tenantRef, { jrgUnits: newJrg, ospUnits: newOsp, vehicles: newVehicles }, { merge: true });
+      logAction(`Zmieniono nazwę jednostki z ${oldName} na ${newName}`);
+    } catch (err) {
+      console.error(err);
+      alert('Błąd zmiany nazwy: ' + err.message);
+    }
+  };
+
   // Address Generator - Background Overpass API fetcher
   useEffect(() => {
     const settingsCities = userProfile?.settings?.generatorCities || gameModeCities || '';
@@ -4802,10 +4830,19 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     >
                       └ 🚒 {u}
                       {currentUnit === u && (
-                        <span style={{ float: 'right', color: '#ffaaaa', cursor: 'pointer', paddingRight: '4px' }} onClick={(e) => {
-                          e.stopPropagation();
-                          if (window.confirm('Usunąć tę jednostkę JRG?')) updateTenantUnits(tenantJrgUnits.filter(x => x !== u), tenantOspUnits);
-                        }} title="Skasuj jednostkę">✖</span>
+                        <span style={{ float: 'right' }}>
+                          <span style={{ color: '#0a6ece', cursor: 'pointer', paddingRight: '6px', fontWeight: 'bold' }} onClick={(e) => {
+                            e.stopPropagation();
+                            const newName = window.prompt("Nowa nazwa dla JRG:", u);
+                            if (newName && newName !== u) {
+                              renameUnit(u, newName, 'JRG');
+                            }
+                          }} title="Zmień nazwę jednostki">✏️</span>
+                          <span style={{ color: '#ffaaaa', cursor: 'pointer', paddingRight: '4px' }} onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm('Usunąć tę jednostkę JRG?')) updateTenantUnits(tenantJrgUnits.filter(x => x !== u), tenantOspUnits);
+                          }} title="Skasuj jednostkę">✖</span>
+                        </span>
                       )}
                     </div>
                   ))
@@ -4830,10 +4867,19 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             >
                               └ 🏠 {osp.name}
                               {currentUnit === osp.raw && (
-                                <span style={{ float: 'right', color: '#ffaaaa', cursor: 'pointer', paddingRight: '4px' }} onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (window.confirm('Usunąć tę jednostkę OSP?')) updateTenantUnits(tenantJrgUnits, tenantOspUnits.filter(x => x !== osp.raw));
-                                }} title="Skasuj jednostkę">✖</span>
+                                <span style={{ float: 'right' }}>
+                                  <span style={{ color: '#0a6ece', cursor: 'pointer', paddingRight: '6px', fontWeight: 'bold' }} onClick={(e) => {
+                                    e.stopPropagation();
+                                    const newName = window.prompt("Nowa nazwa OSP (Format: Gmina|Nazwa):", osp.raw);
+                                    if (newName && newName !== osp.raw) {
+                                      renameUnit(osp.raw, newName, 'OSP');
+                                    }
+                                  }} title="Zmień nazwę jednostki">✏️</span>
+                                  <span style={{ color: '#ffaaaa', cursor: 'pointer', paddingRight: '4px' }} onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (window.confirm('Usunąć tę jednostkę OSP?')) updateTenantUnits(tenantJrgUnits, tenantOspUnits.filter(x => x !== osp.raw));
+                                  }} title="Skasuj jednostkę">✖</span>
+                                </span>
                               )}
                             </div>
                           ))}
