@@ -3812,11 +3812,13 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                               if (isNewIncidentModalOpen) {
                                 const vStr = `${uName} | ${v.name}`;
                                 handleVehicleCheckbox(vStr);
-                              } else if (selectedIncidentId && activeIncident && activeIncident.status !== 'processed') {
+                              }
+                            }}
+                            onDoubleClick={() => {
+                              setSelectedCombatVehicle(`${uName} | ${v.name}`);
+                              if (selectedIncidentId && activeIncident && activeIncident.status !== 'processed') {
                                 const vStr = `${uName} | ${v.name}`;
                                 addVehicleToActiveIncident(vStr);
-                              } else {
-                                // Default click action if needed
                               }
                             }}
                             onContextMenu={(e) => {
@@ -4015,7 +4017,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             display: 'flex', 
                             alignItems: 'center',
                             fontSize: '11px',
-                            background: isSelected ? '#005fb8' : (state === 'W akcji' ? '#ffe3e3' : 'transparent'),
+                            background: isSelected ? '#005fb8' : ((state !== 'W koszarach' && state !== 'Wycofany') ? '#ffe3e3' : 'transparent'),
                             color: isSelected ? '#ffffff' : '#000000',
                             borderBottom: '1px solid #f3f3f3'
                           }}
