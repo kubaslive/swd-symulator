@@ -1319,83 +1319,94 @@ function App() {
           let expectedKdrMsg = "";
           let needsZRM = false;
           let needsPolice = false;
+          let scenarioObj = {};
           
-          if (settingsData?.geminiApiKey) {
-            try {
-              const ai = new GoogleGenAI({ apiKey: settingsData.geminiApiKey });
-              const prompt = `Jesteś dzwoniącym na numer alarmowy 112 w Polsce. 
-              Miejscowość zdarzenia to: ${city}. Wymyśl i zwróć całkowicie realistyczny adres w tym mieście (istniejąca ulica, np. "ul. Kościuszki 4").
-              Wymyśl krótkie, realistyczne zgłoszenie na stanowisko dyspozytora Straży Pożarnej (2-3 zdania). Zdarzenie musi być typu: ${type === 'pozar' ? 'Pożar (np. budynku, trawy, śmietnika)' : type === 'mz' ? 'Miejscowe Zagrożenie (np. wypadek drogowy, plama oleju, powalone drzewo, owady)' : 'Alarm Fałszywy (w dobrej wierze lub złośliwy)'}.
-              Zwróć odpowiedź WYŁĄCZNIE jako prawidłowy format JSON z polami: 
-              "adres": (wygenerowany adres, w formacie "${city}, ul. [Nazwa] [Nr]"),
-              "t": (tekst zgłoszenia jako dzwoniący),
-              "k": (profesjonalny meldunek KDR z miejsca zdarzenia, używający poprawnej terminologii SWD-ST, np. "Zgłaszam przybycie na miejsce. Rozpoznanie: rozwinięty pożar poddasza, podano dwa prądy wody w natarciu, brak osób poszkodowanych."),
-              "zrm": (boolean - czy potrzebne Pogotowie Ratunkowe),
-              "pol": (boolean - czy potrzebna Policja)`;
-              
-              const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-              });
-              let textResp = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
-              const parsed = JSON.parse(textResp);
-              location = parsed.adres;
-              text = parsed.t;
-              expectedKdrMsg = parsed.k;
-              needsZRM = !!parsed.zrm;
-              needsPolice = !!parsed.pol;
-            } catch (err) {
-              console.error("Błąd AI, powrót do generatora offline:", err);
-            }
+          const dynamicScenarios = dbScenarios.filter(s => s.type === type);
+          let usingDynamic = false;
+          // Zwiększamy szansę na niestandardowy scenariusz, by użytkownik mógł go przetestować (80% szans)
+          if (dynamicScenarios.length > 0 && Math.random() > 0.2) {
+            scenarioObj = randomElement(dynamicScenarios);
+            usingDynamic = true;
           }
 
-          if (!text) {
-            scenarioObj = {};
-            const dynamicScenarios = dbScenarios.filter(s => s.type === type);
-            if (type === "pozar") {
-              scenarioObj = randomElement(pozScenarios);
-            } else if (type === "mz") {
-              scenarioObj = randomElement(mzScenarios);
-            } else {
-              scenarioObj = randomElement(afScenarios);
-            }
-            if (dynamicScenarios.length > 0 && Math.random() > 0.5) {
-              scenarioObj = randomElement(dynamicScenarios);
-            }
-            
-            const street = randomElement(activeStreets);
-            const houseNum = Math.floor(Math.random() * 150) + 1;
-            const locType = scenarioObj.locType || "building";
-            
-            if (locType === "apartment") {
+          const street = randomElement(activeStreets);
+          const houseNum = Math.floor(Math.random() * 150) + 1;
+          
+          if (usingDynamic) {
+             const locType = scenarioObj.locType || "building";
+             if (locType === "apartment") {
                const m = Math.floor(Math.random() * 60) + 1;
                location = `${city}, ul. ${street} ${houseNum} m. ${m}`;
-            } else if (locType === "intersection") {
+             } else if (locType === "intersection") {
                let street2 = randomElement(activeStreets);
                while (street2 === street && activeStreets.length > 1) {
                  street2 = randomElement(activeStreets);
                }
                location = `${city}, Skrzyżowanie ul. ${street} z ul. ${street2}`;
-            } else if (locType === "plot") {
+             } else if (locType === "plot") {
                location = `${city}, Ogródki Działkowe (ROD) przy ul. ${street}`;
-            } else if (locType === "forest") {
+             } else if (locType === "forest") {
                location = `${city}, Kompleks leśny, dojazd od ul. ${street}`;
-            } else if (locType === "road") {
+             } else if (locType === "road") {
                location = `${city}, odcinek drogi ul. ${street}`;
-            } else if (locType === "industrial") {
+             } else if (locType === "industrial") {
                location = `${city}, Tereny przemysłowe, ul. ${street} ${houseNum}`;
-            } else if (locType === "commercial") {
+             } else if (locType === "commercial") {
                location = `${city}, Obiekt handlowo-usługowy, ul. ${street} ${houseNum}`;
-            } else if (locType === "public") {
+             } else if (locType === "public") {
                location = `${city}, Obiekt użyteczności publicznej, ul. ${street} ${houseNum}`;
-            } else {
+             } else {
                location = `${city}, ul. ${street} ${houseNum}`;
+             }
+             text = scenarioObj.t;
+             expectedKdrMsg = scenarioObj.k;
+             needsZRM = !!scenarioObj.zrm;
+             needsPolice = !!scenarioObj.pol;
+          } else {
+            if (settingsData?.geminiApiKey) {
+              try {
+                const ai = new GoogleGenAI({ apiKey: settingsData.geminiApiKey });
+                const prompt = `Jesteś dzwoniącym na numer alarmowy 112 w Polsce. 
+                Miejscowość zdarzenia to: ${city}. Wymyśl i zwróć całkowicie realistyczny adres w tym mieście (istniejąca ulica, np. "ul. Kościuszki 4").
+                Wymyśl krótkie, realistyczne zgłoszenie na stanowisko dyspozytora Straży Pożarnej (2-3 zdania). Zdarzenie musi być typu: ${type === 'pozar' ? 'Pożar (np. budynku, trawy, śmietnika)' : type === 'mz' ? 'Miejscowe Zagrożenie (np. wypadek drogowy, plama oleju, powalone drzewo, owady)' : 'Alarm Fałszywy (w dobrej wierze lub złośliwy)'}.
+                Zwróć odpowiedź WYŁĄCZNIE jako prawidłowy format JSON z polami: 
+                "adres": (wygenerowany adres, w formacie "${city}, ul. [Nazwa] [Nr]"),
+                "t": (tekst zgłoszenia jako dzwoniący),
+                "k": (profesjonalny meldunek KDR z miejsca zdarzenia, używający poprawnej terminologii SWD-ST, np. "Zgłaszam przybycie na miejsce. Rozpoznanie: rozwinięty pożar poddasza, podano dwa prądy wody w natarciu, brak osób poszkodowanych."),
+                "zrm": (boolean - czy potrzebne Pogotowie Ratunkowe),
+                "pol": (boolean - czy potrzebna Policja)`;
+                
+                const response = await ai.models.generateContent({
+                  model: 'gemini-2.5-flash',
+                  contents: prompt,
+                });
+                let textResp = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
+                const parsed = JSON.parse(textResp);
+                location = parsed.adres;
+                text = parsed.t;
+                expectedKdrMsg = parsed.k;
+                needsZRM = !!parsed.zrm;
+                needsPolice = !!parsed.pol;
+              } catch (err) {
+                console.error("Błąd AI, powrót do generatora offline:", err);
+              }
             }
 
-            text = scenarioObj.t;
-            expectedKdrMsg = scenarioObj.k;
-            needsZRM = !!scenarioObj.zrm;
-            needsPolice = !!scenarioObj.pol;
+            if (!text) {
+              if (type === "pozar") {
+                scenarioObj = randomElement(pozScenarios);
+              } else if (type === "mz") {
+                scenarioObj = randomElement(mzScenarios);
+              } else {
+                scenarioObj = randomElement(afScenarios);
+              }
+              const locType = scenarioObj.locType || "building";
+              location = `${city}, ul. ${street} ${houseNum}`;
+              text = scenarioObj.t;
+              expectedKdrMsg = scenarioObj.k;
+              needsZRM = !!scenarioObj.zrm;
+              needsPolice = !!scenarioObj.pol;
+            }
           }
 
           try {
@@ -1428,7 +1439,7 @@ function App() {
       }
     }
 
-  }, [animationTick, activeRole, incidents, isGameModeActive, incomingCalls, lastGameIncidentTime, gameModeCities]);
+  }, [animationTick, activeRole, incidents, isGameModeActive, incomingCalls, lastGameIncidentTime, gameModeCities, dbScenarios]);
 
   // --- LISTEN TO GLOBAL SCENARIOS ---
   useEffect(() => {
