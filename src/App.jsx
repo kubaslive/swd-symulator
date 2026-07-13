@@ -1377,9 +1377,10 @@ function App() {
              needsZRM = !!scenarioObj.zrm;
              needsPolice = !!scenarioObj.pol;
           } else {
-            if (settingsData?.geminiApiKey) {
+            const localGeminiKey = localStorage.getItem('geminiApiKey');
+            if (localGeminiKey) {
               try {
-                const ai = new GoogleGenAI({ apiKey: settingsData.geminiApiKey });
+                const ai = new GoogleGenAI({ apiKey: localGeminiKey });
                 const prompt = `Jesteś dzwoniącym na numer alarmowy 112 w Polsce. 
                 Miejscowość zdarzenia to: ${city}. Wymyśl i zwróć całkowicie realistyczny adres w tym mieście (istniejąca ulica, np. "ul. Kościuszki 4").
                 Wymyśl krótkie, realistyczne zgłoszenie na stanowisko dyspozytora Straży Pożarnej (2-3 zdania). Zdarzenie musi być typu: ${type === 'pozar' ? 'Pożar (np. budynku, trawy, śmietnika)' : type === 'mz' ? 'Miejscowe Zagrożenie (np. wypadek drogowy, plama oleju, powalone drzewo, owady)' : 'Alarm Fałszywy (w dobrej wierze lub złośliwy)'}.
@@ -2759,9 +2760,18 @@ function App() {
 
   const handleSaveSettings = async () => {
     try {
+      if (settingsData.geminiApiKey) {
+        localStorage.setItem('geminiApiKey', settingsData.geminiApiKey);
+      } else {
+        localStorage.removeItem('geminiApiKey');
+      }
+
       if (!userProfile) return;
+      const safeSettings = { ...settingsData };
+      delete safeSettings.geminiApiKey; // Nie wysyłamy klucza do bazy danych
+
       await updateDoc(doc(db, 'users', userProfile.uid), {
-        settings: settingsData
+        settings: safeSettings
       });
       logAction(`[Ustawienia] Zapisano nową konfigurację użytkownika.`);
       setIsSettingsModalOpen(false);
@@ -7510,6 +7520,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 <li><strong>Dysponowanie Sił:</strong> Kliknij zdarzenie na liście, by zobaczyć szczegóły. Używaj przycisków w dolnej części panelu (Zadysponuj, Dojazd, Na miejscu, Powrót), by sterować zastępami.</li>
                 <li><strong>Meldunki i KSiS:</strong> W prawej kolumnie możesz wpisywać meldunki do Dziennika Radiowego. Moduł KSiS służy do komunikacji tekstowej i wymiany sił z innymi dyspozytorami.</li>
                 <li><strong>Tryb Gry:</strong> Możesz go włączyć w pasku na górze. Wpisz nazwy miast z Twojego powiatu (po przecinku), aby system generował zgłoszenia i wezwania z tych miejscowości.</li>
+                <li><strong style={{color:'#005fb8'}}>Generator AI (Gemini):</strong> Zdarzenia mogą być wymyślane przez Sztuczną Inteligencję! W tym celu wejdź w Ustawienia &gt; Wklej klucz API. Jak go zdobyć? Wejdź na <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{color: 'blue', textDecoration: 'underline'}}>Google AI Studio</a>, zaloguj się kontem Google, kliknij "Create API key" i wklej go do gry. Klucz jest zapisywany w 100% bezpiecznie TYLKO na Twoim dysku (localStorage).</li>
               </ul>
 
               <h4 style={{ marginTop: '20px', color: '#005fb8' }}>Changelog (Ostatnie Zmiany):</h4>
