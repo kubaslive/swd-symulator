@@ -6731,6 +6731,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             else if (vStatus === 3) customState = "Powrót";
                             else if (vStatus === 4) customState = "W koszarach";
                             
+                            const displayUnit = unit.includes('|') ? unit.split('|')[1].trim() : unit;
+
                             return (
                               <tr 
                                 key={i} 
@@ -6746,7 +6748,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                                 </td>
                                 <td style={{ padding: '1px 4px', fontSize: '9.5px', color: statusColor, fontWeight: 'bold' }}>{vName}</td>
                                 <td style={{ padding: '1px 4px', fontSize: '9.5px', color: statusColor }}>{kryptonim}</td>
-                                <td style={{ padding: '1px 4px', fontSize: '9.5px', color: statusColor }}>{unit}</td>
+                                <td style={{ padding: '1px 4px', fontSize: '9.5px', color: statusColor }}>{displayUnit}</td>
                               </tr>
                             );
                           })}
@@ -7756,7 +7758,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   {usersList.map(u => {
                     if (u.tenantId === userProfile.tenantId && userProfile.role !== 'admin') return null; // don't send to self
                     const name = u.displayName || u.email;
-                    const tenantPrefix = u.tenantId === '120000' ? 'KW PSP KATOWICE' : `KM/KP PSP ${u.tenantId || ''}`;
+                    const tenantObj = allTenants.find(t => t.id === u.tenantId);
+                    const tenantPrefix = tenantObj ? tenantObj.name : (u.tenantId === '120000' ? 'KW PSP KATOWICE' : `System (${u.tenantId || 'Brak'})`);
                     return <option key={u.id} value={u.tenantId}>{tenantPrefix} ({name})</option>;
                   })}
                   {userProfile.role !== 'admin' && !usersList.some(u => u.tenantId === '120000') && <option value="120000">KW PSP KATOWICE (KW PSP KATOWICE)</option>}
@@ -8858,7 +8861,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                       return (
                         <tr key={idx}>
                           <td style={{ border: '1px solid black', padding: '5px', fontWeight: 'bold' }}>{vStr.split(' | ')[1]}</td>
-                          <td style={{ border: '1px solid black', padding: '5px' }}>{vStr.split(' | ')[0]}</td>
+                          <td style={{ border: '1px solid black', padding: '5px' }}>{vStr.split(' | ')[0].includes('|') ? vStr.split(' | ')[0].split('|')[1].trim() : vStr.split(' | ')[0]}</td>
                           <td style={{ border: '1px solid black', padding: '5px' }}>
                             <div><strong>DOWÓDCA (D):</strong> {crew.dowodca || '---'}</div>
                             <div><strong>KIEROWCA-RATOWNIK (K):</strong> {crew.kierowca || '---'}</div>
