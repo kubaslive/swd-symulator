@@ -820,7 +820,7 @@ function App() {
       if (localStorage.getItem(cacheKey)) return;
 
       try {
-        const query = `[out:json]; area["name"="${city}"]->.searchArea; way(area.searchArea)["highway"]["name"]; out tags;`;
+        const query = `[out:json]; area["name"="${city}"]->.searchArea; way(area.searchArea)["highway"~"^(residential|primary|secondary|tertiary|unclassified|living_street|pedestrian)$"]["name"]; out tags;`;
         const res = await fetch('https://overpass-api.de/api/interpreter', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -1393,10 +1393,11 @@ function App() {
           }
 
           try {
+            const finalType = scenarioObj.reportedType || type;
             await addDoc(collection(db, 'calls'), {
               tenantId: userProfile?.tenantId || 'brak',
-              type: type,
-              category: type,
+              type: finalType,
+              category: finalType,
               status: 'pending',
               location: location,
               address: location,
