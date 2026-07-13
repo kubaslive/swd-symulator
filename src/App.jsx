@@ -1428,6 +1428,79 @@ function App() {
 
   }, [animationTick, activeRole, incidents, isGameModeActive, incomingCalls, lastGameIncidentTime, gameModeCities]);
 
+  // --- AUTOMATYCZNY DOJAZD DEMON ---
+  useEffect(() => {
+    if (!userProfile?.uid) return;
+    const interval = setInterval(async () => {
+      const now = Date.now();
+      const myIncidents = incidents.filter(i => i.ownerId === userProfile.uid && !i.isArchived && i.status !== 'processed');
+      
+      for (const inc of myIncidents) {
+        let changed = false;
+        const currentStatuses = { ...(inc.vehicleStatuses || {}) };
+        const currentTimes = inc.times || {};
+        const radioLogs = [...(inc.radioLogs || [])];
+        const statusTimes = { ...(inc.vehicleStatusTimes || {}) };
+        const eventHistory = [...(inc.eventHistory || [])];
+        
+        for (const [vStr, status] of Object.entries(currentStatuses)) {
+          if (status === 1) { // Wyjazd
+            const stTime = statusTimes[vStr];
+            if (stTime) {
+              const diffMs = now - new Date(stTime).getTime();
+              // 2 minutes = 120000 ms (Let's use 120s)
+              if (diffMs > 120000) {
+                // Auto arrive!
+                currentStatuses[vStr] = 2; // Na miejscu
+                statusTimes[vStr] = new Date().toISOString();
+                
+                const nowStr = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+                if (!currentTimes.arrival) currentTimes.arrival = nowStr;
+                
+                radioLogs.push({
+                  time: nowStr + ':' + new Date().getSeconds().toString().padStart(2, '0'),
+                  from: vStr.split(' | ')[1] || vStr,
+                  to: "Dyspozytornia",
+                  text: `Zgłaszam status radiowy: NA MIEJSCU (ST 2)`,
+                  channel: "K01 - Kanał Powiatowy",
+                  createdAt: new Date().toISOString()
+                });
+                
+                eventHistory.push({
+                  time: nowStr,
+                  user: "SYSTEM AUTO",
+                  action: `Zastęp ${vStr.split(' | ')[1] || vStr} dojechał na miejsce.`,
+                  createdAt: new Date().toISOString()
+                });
+                
+                changed = true;
+              }
+            }
+          }
+        }
+        
+        if (changed) {
+          const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+          try {
+            await updateDoc(doc(db, 'incidents', inc.id), {
+              vehicleStatuses: currentStatuses,
+              vehicleStatusTimes: statusTimes,
+              times: currentTimes,
+              radioLogs,
+              eventHistory,
+              updatedAt: serverTimestamp()
+            });
+            console.log("AutoDojazd executed for", inc.customId);
+          } catch(e) {
+            console.error("AutoDojazd Error", e);
+          }
+        }
+      }
+    }, 15000); // Check every 15 seconds
+    
+    return () => clearInterval(interval);
+  }, [incidents, userProfile]);
+
   // Listen to messenger live chat collection with popup notifications (Chapter 10)
   useEffect(() => {
     if (!userProfile) return;
@@ -2693,6 +2766,12 @@ function App() {
     const currentStatus = currentStatuses[vStr] || 0;
 
     // Ograniczenie KSiS: Tylko komenda dowodząca może sterować statusami 2, 3, 4. Odbiorca może tylko nadać status 1 (Wyjazd) lub 0.
+    // LOCKING: Prevent other users from trolling your incident
+    if (activeIncident.ownerId && activeIncident.ownerId !== userProfile?.uid && userProfile?.role !== 'admin') {
+      alert('🔒 To zdarzenie jest zablokowane, ponieważ zostało podjęte przez innego dyspozytora. Nie możesz zmieniać statusów pojazdów!');
+      return;
+    }
+    
     if (statusNum > 1 && activeIncident.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') {
       alert('Tylko komenda dowodząca (wysyłająca żądanie) może sterować tym statusem!');
       return;
@@ -4556,6 +4635,34 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         )}
         
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+          
+          {/* BEZPIECZEŃSTWO I PIELĘGNACJA BAZY */}
+          <div style={{ background: '#fff', border: '1px solid #ccc', padding: '12px', boxShadow: '2px 2px 5px rgba(0,0,0,0.1)' }}>
+             <h3 style={{ fontSize: '14px', borderBottom: '1px solid #eee', paddingBottom: '4px' }}>🛡️ Pielęgnacja Bazy Danych</h3>
+             <p style={{ fontSize: '11px', marginTop: '5px' }}>Narzędzia administratorskie do usuwania martwych dusz i starych zgłoszeń, zapobiegające zapychaniu bazy.</p>
+             <button className="btn-win" style={{ padding: '6px 12px', color: 'red', fontWeight: 'bold', marginTop: '10px' }} onClick={async () => {
+              if (window.confirm("Czy na pewno chcesz trwale usunąć wszystkie zdarzenia starsze niż 48 godzin? To zwolni miejsce w buforze Firebase!")) {
+                 try {
+                   const { collection, getDocs, deleteDoc, doc } = await import('firebase/firestore');
+                   const snap = await getDocs(collection(db, 'incidents'));
+                   let count = 0;
+                   const now = Date.now();
+                   snap.forEach(docSnap => {
+                     const data = docSnap.data();
+                     const cAt = data.createdAt ? (data.createdAt.toMillis ? data.createdAt.toMillis() : new Date(data.createdAt).getTime()) : 0;
+                     if (cAt && (now - cAt > 48 * 60 * 60 * 1000)) {
+                       deleteDoc(doc(db, 'incidents', docSnap.id));
+                       count++;
+                     }
+                   });
+                   alert(`Wyczyszczono ${count} przestarzałych zdarzeń z bazy.`);
+                 } catch(e) {
+                   alert("Błąd: " + e.message);
+                 }
+              }
+            }}>🧹 Usuń zdarzenia starsze niż 48h (Purge)</button>
+          </div>
+
           
           {/* GRACZE */}
           <div style={{ background: '#fff', border: '1px solid #ccc', padding: '12px', boxShadow: '2px 2px 5px rgba(0,0,0,0.1)' }}>
@@ -6816,6 +6923,18 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 {rightPanelTab === 'sis' ? (
                   <>
                     {/* Dyspozycje Toolbar */}
+                    {activeIncident?.ownerId && activeIncident.ownerId !== userProfile?.uid && (
+                      <div style={{ padding: '4px', background: '#ffe3e3', borderBottom: '1px solid #ff8787', fontSize: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>🔒 <b>Zdarzenie Zablokowane</b> (prowadzi: inny dyspozytor)</span>
+                        <button className="btn-win" style={{ padding: '2px 5px', color: 'red', fontWeight: 'bold' }} onClick={async () => {
+                           if(window.confirm('Czy na pewno chcesz siłowo przejąć to zdarzenie? Zrób to tylko, jeśli poprzedni dyspozytor jest AFK.')) {
+                             const { updateDoc, doc } = await import('firebase/firestore');
+                             await updateDoc(doc(db, 'incidents', activeIncident.id), { ownerId: userProfile.uid });
+                             alert('Przejąłeś dowodzenie nad zdarzeniem.');
+                           }
+                        }}>Przejmij Zdarzenie</button>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', gap: '2px', padding: '2px 4px', background: '#f3f3f3', borderBottom: '1px solid #d1d1d1' }}>
                       <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Wyjazd do akcji (ST 1)" onClick={() => { if(selectedSisVehicle) handleSetVehicleStatus(selectedSisVehicle, 1); else alert('Zaznacz zastęp na liście poniżej!'); }}>▶️</button>
                       <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px', opacity: (activeIncident?.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') ? 0.5 : 1 }} title="Na miejscu (ST 2)" onClick={() => { if (activeIncident?.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') { alert('Tylko komenda dowodząca (wysyłająca żądanie) może sterować tym statusem!'); return; } if(selectedSisVehicle) handleSetVehicleStatus(selectedSisVehicle, 2); else alert('Zaznacz zastęp na liście poniżej!'); }}>📍</button>
@@ -8233,7 +8352,22 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsNewIncidentModalOpen(false)}>X</button>
             </div>
             
-            <div className="win-dialog-body" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '6px', background: 'var(--win-face)' }}>
+            <div className="win-dialog-body" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '6px', background: 'var(--win-face)', height: '600px' }}>
+              
+              {/* ZAKŁADKI KARTY ZDARZENIA */}
+              <div style={{ display: 'flex', borderBottom: '1px solid #999', marginBottom: '5px' }}>
+                <button 
+                  onClick={() => setIncidentModalTab('formatka')}
+                  style={{ padding: '5px 15px', fontWeight: incidentModalTab === 'formatka' ? 'bold' : 'normal', background: incidentModalTab === 'formatka' ? '#fff' : '#f0f0f0', border: '1px solid #999', borderBottom: incidentModalTab === 'formatka' ? '1px solid #fff' : '1px solid #999', marginBottom: '-1px', zIndex: incidentModalTab === 'formatka' ? 1 : 0, borderRadius: '3px 3px 0 0' }}
+                >Formatka WCPR</button>
+                <button 
+                  onClick={() => setIncidentModalTab('dziennik')}
+                  style={{ padding: '5px 15px', fontWeight: incidentModalTab === 'dziennik' ? 'bold' : 'normal', background: incidentModalTab === 'dziennik' ? '#fff' : '#f0f0f0', border: '1px solid #999', borderBottom: incidentModalTab === 'dziennik' ? '1px solid #fff' : '1px solid #999', marginBottom: '-1px', zIndex: incidentModalTab === 'dziennik' ? 1 : 0, marginLeft: '2px', borderRadius: '3px 3px 0 0' }}
+                >Dziennik Działań (Log)</button>
+              </div>
+
+              <div style={{ flex: 1, overflowY: 'auto', display: incidentModalTab === 'formatka' ? 'block' : 'none' }}>
+
               
               {/* TOP SECTION: ZGŁOSZENIE */}
               <fieldset style={{ border: '2px inset #d1d1d1', padding: '6px', margin: 0, position: 'relative' }}>
@@ -8488,6 +8622,23 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     </div>
                   </div>
 
+                </div>
+              </div>
+
+              </div>
+              
+              {/* ZAKŁADKA: DZIENNIK */}
+              <div style={{ flex: 1, overflowY: 'auto', display: incidentModalTab === 'dziennik' ? 'block' : 'none', background: '#fff', border: '1px solid #999', padding: '5px' }}>
+                <h4 style={{ margin: '0 0 10px 0', fontSize: '12px' }}>Dziennik Działań Zdarzenia</h4>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '10px' }}>
+                  {(activeIncident?.eventHistory || []).map((ev, i) => (
+                    <div key={i} style={{ padding: '3px', borderBottom: '1px dashed #ccc' }}>
+                      <strong>[{ev.time}]</strong> {ev.user}: {ev.action}
+                    </div>
+                  ))}
+                  {(!activeIncident?.eventHistory || activeIncident.eventHistory.length === 0) && (
+                    <div style={{ color: '#888' }}>Brak wpisów w dzienniku.</div>
+                  )}
                 </div>
               </div>
 
