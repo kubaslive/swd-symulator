@@ -1264,3 +1264,8 @@ input, textarea, select {
   min-width: 14px;
   text-align: center;
 }
+
+.led-indicator.standby {
+  background: linear-gradient(135deg, #00c800 50%, #ffff00 50%);
+  box-shadow: none !important;
+}

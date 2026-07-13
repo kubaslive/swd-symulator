@@ -3945,7 +3945,20 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             // PSP Mode: Show JRG columns (Rys.38 layout)
             <div className="combat-columns-container">
               {["KM/KP PSP", ...JRG_UNITS].map(uName => {
-                const vehicles = UNIT_VEHICLES[uName] || [];
+                let vehicles = UNIT_VEHICLES[uName] || [];
+
+                // STAN GOTOWOSCI (PZR): If this is KM/KP PSP, inject all OSP standby vehicles!
+                if (uName.includes('KM/KP')) {
+                  Object.keys(UNIT_VEHICLES).forEach(ospUnit => {
+                    if (!ospUnit.includes('JRG') && !ospUnit.includes('KM/KP')) {
+                      const standbyVehs = (UNIT_VEHICLES[ospUnit] || []).filter(v => v.isStandby).map(v => ({...v, originalUnit: ospUnit}));
+                      vehicles = [...vehicles, ...standbyVehs];
+                    }
+                  });
+                } else if (!uName.includes('JRG') && !uName.includes('KM/KP')) {
+                  // For normal OSP columns, filter out the ones that are on standby
+                  vehicles = vehicles.filter(v => !v.isStandby);
+                }
                 
                 // Read active PZR (Zabezpieczenie Rejonu) temporary transferred vehicles! (Page 47)
                 const guestVehicles = [];
@@ -3988,45 +4001,50 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
                     <div style={{ flex: 1, overflowY: 'auto' }}>
                       {vehicles.map(v => {
-                        const isCrossedOut = getVehicleState(uName, v.name) === "Wycofany" || v.outOfService;
-                        const currentState = getVehicleState(uName, v.name);
+                        const actualUName = v.originalUnit || uName;
+                        const isCrossedOut = getVehicleState(actualUName, v.name) === "Wycofany" || v.outOfService;
+                        const currentState = getVehicleState(actualUName, v.name);
 
                         return (
                           <div 
                             key={v.name} 
-                            className={`vehicle-row ${selectedCombatVehicle === `${uName} | ${v.name}` ? 'selected-combat' : ''}`}
-                            style={selectedCombatVehicle === `${uName} | ${v.name}` ? { background: '#0a246a', color: '#fff' } : {}}
-                            title={`${v.name} (${uName})\nKryptonim: ${v.kryptonim || 'Brak'}\nStan: ${currentState}\nObsada min.: ${v.obsada} os.\nKliknij: ${selectedIncidentId && activeIncident ? 'Dopisz do zdarzenia' : 'Zmień status OOS'}`}
+                            className={`vehicle-row ${selectedCombatVehicle === `${actualUName} | ${v.name}` ? 'selected-combat' : ''}`}
+                            style={selectedCombatVehicle === `${actualUName} | ${v.name}` ? { background: '#0a246a', color: '#fff' } : {}}
+                            title={`${v.name} (${actualUName})\nKryptonim: ${v.kryptonim || 'Brak'}\nStan: ${currentState}\nObsada min.: ${v.obsada} os.\nKliknij: ${selectedIncidentId && activeIncident ? 'Dopisz do zdarzenia' : 'Zmień status OOS'}`}
                             onClick={() => {
-                              setSelectedCombatVehicle(`${uName} | ${v.name}`);
+                              setSelectedCombatVehicle(`${actualUName} | ${v.name}`);
                               if (isNewIncidentModalOpen) {
-                                const vStr = `${uName} | ${v.name}`;
+                                const vStr = `${actualUName} | ${v.name}`;
                                 handleVehicleCheckbox(vStr);
                               }
                             }}
                             onDoubleClick={() => {
-                              setSelectedCombatVehicle(`${uName} | ${v.name}`);
+                              setSelectedCombatVehicle(`${actualUName} | ${v.name}`);
                               if (selectedIncidentId && activeIncident && activeIncident.status !== 'processed') {
-                                const vStr = `${uName} | ${v.name}`;
+                                const vStr = `${actualUName} | ${v.name}`;
                                 addVehicleToActiveIncident(vStr);
                               }
                             }}
                             onContextMenu={(e) => {
                               e.preventDefault();
-                              setSelectedCombatVehicle(`${uName} | ${v.name}`);
-                              const activeInc = incidents.find(inc => inc.status !== 'processed' && !inc.isArchived && inc.vehicles?.includes(`${uName} | ${v.name}`));
+                              setSelectedCombatVehicle(`${actualUName} | ${v.name}`);
+                              const activeInc = incidents.find(inc => inc.status !== 'processed' && !inc.isArchived && inc.vehicles?.includes(`${actualUName} | ${v.name}`));
                               setVehicleContextMenu({
+
                                 x: e.clientX,
                                 y: e.clientY,
-                                uName,
+                                uName: actualUName,
                                 vName: v.name,
                                 isOos: v.outOfService,
+
+                                isStandby: v.isStandby,
+
                                 activeIncId: activeInc?.id
                               });
                             }}
                           >
                             <div className="vehicle-info">
-                              {renderTable4StatusIcon(uName, v.name)}
+                              {renderTable4StatusIcon(actualUName, v.name)}
                               <span className={`vehicle-name ${isCrossedOut ? 'crossed-out' : ''}`} style={{ fontSize: '10px' }}>
                                 {v.kryptonim ? `${v.kryptonim} (${v.name})` : v.name}
                               </span>
@@ -4225,11 +4243,15 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             setSelectedCombatVehicle(`${osp} | ${v.name}`);
                             const activeInc = incidents.find(inc => inc.status !== 'processed' && !inc.isArchived && inc.vehicles?.includes(`${osp} | ${v.name}`));
                             setVehicleContextMenu({
+
                               x: e.clientX,
                               y: e.clientY,
                               uName: osp,
                               vName: v.name,
                               isOos: v.outOfService,
+
+                              isStandby: v.isStandby,
+
                               activeIncId: activeInc?.id
                             });
                           }}
@@ -4566,6 +4588,14 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   }}>
                     {vehicleContextMenu.isOos ? '✅ Przywróć do podziału' : '⛔ Wycofaj z podziału (OOS)'}
                   </button>
+                  {(!vehicleContextMenu.uName.includes('JRG') && !vehicleContextMenu.uName.includes('KM/KP')) && (
+                    <button className="menu-item" style={{ textAlign: 'left', fontSize: '11px', border: 'none', background: 'transparent', cursor: 'pointer' }} onClick={() => {
+                      toggleVehicleStandby(vehicleContextMenu.uName, vehicleContextMenu.vName);
+                      setVehicleContextMenu(null);
+                    }}>
+                      {vehicleContextMenu.isStandby ? '🟩 Anuluj gotowość bojową' : '🟨 Postaw w stan gotowości'}
+                    </button>
+                  )}
                   <div style={{ padding: '4px', fontSize: '9px', color: '#666', fontStyle: 'italic', borderTop: '1px solid #aaa', marginTop: '2px' }}>
                     Pojazd znajduje się w koszarach.
                   </div>
