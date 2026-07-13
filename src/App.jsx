@@ -36,7 +36,7 @@ import MobileTerminal from './components/MobileTerminal';
 import SisEditor from './SisEditor';
 import { getRankByXp, PSP_RANKS } from './ranks';
 
-const APP_VERSION = "0.1.1 beta";
+const APP_VERSION = "0.2.0 beta";
 
 // Web Speech API Polish Voice Announcement (WCPR)
 const speakAnnouncement = (text, isAudioEnabled) => {
@@ -7525,7 +7525,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
               <h4 style={{ marginTop: '20px', color: '#005fb8' }}>Changelog (Ostatnie Zmiany):</h4>
               <div style={{ background: '#f5f5f5', padding: '10px', border: '1px solid #d1d1d1' }}>
-                <p><strong>v0.1.1 beta (Aktualizacja zabezpieczeń i dynamicznych komend)</strong></p>
+                <p><strong>v0.2.0 beta (Nowy wygląd Tablicy SiS i zabezpieczenie klucza AI)</strong></p><ul><li>Upodobnienie Tablicy SiS (kolumn jednostek) bezpośrednio do rzutu z oryginalnego SWD-ST (kwadratowe ikony, układ tekstu, zmniejszone marginesy).</li><li>Przeniesienie zapisu klucza Gemini API do bezpiecznego localStorage, omijając bazę danych w chmurze.</li></ul><p style={{ marginTop: "10px" }}><strong>v0.1.1 beta (Aktualizacja zabezpieczeń i dynamicznych komend)</strong></p>
                 <ul style={{ paddingLeft: '20px' }}>
                   <li>Zabezpieczenia kont: Auto-wylogowanie po 30 min bezczynności, weryfikacja emaili, zwalczanie brute-force.</li>
                   <li>Dynamiczny wybór komendy (Województwo {`->`} Powiat {`->`} Nazwa) podczas zakładania konta.</li>
