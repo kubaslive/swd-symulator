@@ -479,7 +479,7 @@ function App() {
 
   // Live simulation states
   const [systemTime, setSystemTime] = useState(new Date());
-  const [animationTick, setAnimationTick] = useState(0); // clock ticks to redraw animated map vehicles
+  const [setAnimationTick] = useState(0); // clock ticks to redraw animated map vehicles
   const [outOfServiceVehicles, setOutOfServiceVehicles] = useState(() => {
     try {
       const saved = localStorage.getItem('swd_out_of_service_kat');
@@ -1436,10 +1436,11 @@ function App() {
         };
 
         generateAndAddIncident();
+        window.triggerGen = generateAndAddIncident;
       }
     }
 
-  }, [animationTick, activeRole, incidents, isGameModeActive, incomingCalls, lastGameIncidentTime, gameModeCities, dbScenarios]);
+  }, [activeRole, incidents, isGameModeActive, incomingCalls, lastGameIncidentTime, gameModeCities, dbScenarios]);
 
   // --- LISTEN TO GLOBAL SCENARIOS ---
   useEffect(() => {
