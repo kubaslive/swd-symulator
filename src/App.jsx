@@ -739,6 +739,13 @@ function App() {
     const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const uProf = { ...docSnap.data() };
+        
+        if (uProf.isBanned) {
+          alert('Twoje konto zostało zablokowane przez administratora.');
+          signOut(auth);
+          return;
+        }
+
         if (uProf.role === 'admin' && !uProf.tenantId) { uProf.tenantId = user.uid; }
         
         // Dynamically compute rank based on XP (default 0) and optional manual override
@@ -4401,118 +4408,172 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
     }
   };
 
-  // Render detailed users list for Admin view
-  const renderUsersManagement = () => {
+  // Master Control Panel
+  const renderAdminDashboard = () => {
     return (
-      <div style={{ padding: '16px', overflowY: 'auto', height: '100%', backgroundColor: 'var(--win-face)' }} className="border-inset fade-in">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: '1px solid var(--win-shadow)', paddingBottom: '4px' }}>
-          <h3 style={{ fontSize: '12px', fontWeight: 'bold', margin: 0 }}>
-            Zarządzanie Użytkownikami / Uprawnienia Konsoli
-          </h3>
-          <button onClick={handleRestoreDefaultTenants} className="btn-win" style={{ padding: '2px 8px', fontSize: '10px' }}>
-            Przywróć Stare Komendy
-          </button>
-        </div>
-        <table className="swd-table">
-          <thead>
-            <tr>
-              <th>Użytkownik</th>
-              <th>E-mail</th>
-              <th>Stopień (Kadry)</th>
-              <th>Doświadczenie</th>
-              <th>Poziom dostępu (Rola)</th>
-              <th>Jednostka operacyjna</th>
-              <th>Komenda (tenant)</th>
-              <th>Akcje</th>
-            </tr>
-          </thead>
-          <tbody>
-            {usersList.map((usr) => {
-              const currentRank = getRankByXp(usr.xp || 0, usr.customRankId);
-              return (
-              <tr key={usr.id} className="swd-row" style={{ cursor: 'default' }}>
-                <td style={{ fontWeight: 'bold', color: 'black' }}>{currentRank ? `[${currentRank.short}] ` : ''}{usr.displayName}</td>
-                <td>{usr.email}</td>
-                <td>
-                  <select
-                    value={usr.customRankId || ''}
-                    onChange={(e) => handleAdminUpdateUser(usr.uid, { customRankId: e.target.value })}
-                    style={{ background: '#ffffff', color: '#000000', fontSize: '11px', outline: 'none' }}
-                  >
-                    <option value="">(Auto: {getRankByXp(usr.xp || 0).short})</option>
-                    {PSP_RANKS.map(rank => (
-                      <option key={rank.id} value={rank.id}>{rank.name} ({rank.korpus})</option>
+      <div style={{ padding: '16px', overflowY: 'auto', height: '100%', backgroundColor: '#f0f0f0' }} className="border-inset fade-in">
+        <h2 style={{ color: '#005fb8', borderBottom: '2px solid #ccc', paddingBottom: '8px', marginBottom: '16px' }}>Master Control Panel (Admin)</h2>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+          
+          {/* GRACZE */}
+          <div style={{ background: '#fff', border: '1px solid #ccc', padding: '12px', boxShadow: '2px 2px 5px rgba(0,0,0,0.1)' }}>
+            <h3 style={{ fontSize: '14px', borderBottom: '1px solid #eee', paddingBottom: '4px' }}>👥 Zarządzanie Użytkownikami</h3>
+            <table className="swd-table" style={{ marginTop: '10px' }}>
+              <thead>
+                <tr>
+                  <th>Gracz</th>
+                  <th>Rola</th>
+                  <th>Komenda</th>
+                  <th>Stopień</th>
+                  <th>Status</th>
+                  <th>Akcje</th>
+                </tr>
+              </thead>
+              <tbody>
+                {usersList.map(usr => {
+                  const currentRank = getRankByXp(usr.xp || 0, usr.customRankId);
+                  return (
+                    <tr key={usr.id} className="swd-row" style={{ background: usr.isBanned ? '#ffdddd' : 'transparent', cursor: 'default' }}>
+                      <td style={{ fontWeight: 'bold' }}>{usr.displayName}</td>
+                      <td>
+                        <select
+                          value={usr.role}
+                          onChange={(e) => handleAdminUpdateUser(usr.uid, { role: e.target.value })}
+                          disabled={usr.uid === user?.uid}
+                          style={{ fontSize: '10px' }}
+                        >
+                          <option value="admin">Admin</option>
+                          <option value="kdr_osp">KDR OSP</option>
+                          <option value="dyspozytor">Dyspozytor</option>
+                        </select>
+                      </td>
+                      <td>
+                        <select
+                          value={usr.tenantId || ''}
+                          onChange={(e) => handleAdminUpdateUser(usr.uid, { tenantId: e.target.value })}
+                          style={{ fontSize: '10px', maxWidth: '120px' }}
+                        >
+                          <option value="">(Brak)</option>
+                          <option value="999999">System</option>
+                          {allTenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                      </td>
+                      <td>
+                        <select
+                          value={usr.customRankId || ''}
+                          onChange={(e) => handleAdminUpdateUser(usr.uid, { customRankId: e.target.value })}
+                          style={{ fontSize: '10px' }}
+                        >
+                          <option value="">(Auto: {getRankByXp(usr.xp || 0).short})</option>
+                          {PSP_RANKS.map(rank => <option key={rank.id} value={rank.id}>{rank.short}</option>)}
+                        </select>
+                      </td>
+                      <td style={{ color: usr.isBanned ? 'red' : 'green', fontWeight: 'bold' }}>
+                        {usr.isBanned ? 'ZBANOWANY' : 'AKTYWNY'}
+                      </td>
+                      <td style={{ display: 'flex', gap: '4px' }}>
+                        <button className="btn-win" style={{ fontSize: '9px', padding: '2px 4px' }} onClick={() => {
+                          handleAdminUpdateUser(usr.uid, { isBanned: !usr.isBanned });
+                        }}>
+                          {usr.isBanned ? 'Odbanuj' : 'Zbanuj'}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* KOMENDY I SERWER */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            
+            <div style={{ background: '#fff', border: '1px solid #ccc', padding: '12px', boxShadow: '2px 2px 5px rgba(0,0,0,0.1)' }}>
+              <h3 style={{ fontSize: '14px', borderBottom: '1px solid #eee', paddingBottom: '4px' }}>🏢 Zarządzanie Komendami (Tenants)</h3>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
+                <div style={{ display: 'flex', gap: '5px' }}>
+                  <input type="text" id="newTenantName" placeholder="Nazwa Komendy" style={{ flex: 1, fontSize: '11px', padding: '4px' }} />
+                  <input type="text" id="newTenantWoj" placeholder="Województwo" style={{ width: '100px', fontSize: '11px', padding: '4px' }} />
+                  <button className="btn-win" onClick={async () => {
+                    const name = document.getElementById('newTenantName').value;
+                    const woj = document.getElementById('newTenantWoj').value;
+                    if(!name) return;
+                    const id = Date.now().toString();
+                    await setDoc(doc(db, 'tenants', id), { name, wojewodztwo: woj, jrgUnits: [], ospUnits: [], vehicles: {}, createdAt: serverTimestamp() });
+                    document.getElementById('newTenantName').value = '';
+                    document.getElementById('newTenantWoj').value = '';
+                  }}>➕ Utwórz</button>
+                </div>
+
+                <table className="swd-table">
+                  <thead><tr><th>ID</th><th>Nazwa</th><th>Woj.</th><th>Akcje</th></tr></thead>
+                  <tbody>
+                    {allTenants.map(t => (
+                      <tr key={t.id}>
+                        <td>{t.id}</td>
+                        <td>{t.name}</td>
+                        <td>{t.wojewodztwo}</td>
+                        <td>
+                          <button className="btn-win" style={{ padding: '2px', fontSize: '10px', marginRight: '4px' }} onClick={async () => {
+                            const newName = prompt('Nowa nazwa komendy:', t.name);
+                            if(newName) { await setDoc(doc(db, 'tenants', t.id), { name: newName }, { merge: true }); }
+                          }}>✏️</button>
+                          <button className="btn-win" style={{ padding: '2px', fontSize: '10px' }} onClick={async () => {
+                            if(window.confirm(`Trwale usunąć komendę ${t.name}?`)) {
+                              const { deleteDoc } = await import('firebase/firestore');
+                              await deleteDoc(doc(db, 'tenants', t.id));
+                            }
+                          }}>✖</button>
+                        </td>
+                      </tr>
                     ))}
-                  </select>
-                </td>
-                <td>XP: {usr.xp || 0} / Akcje: {usr.completedIncidents || 0}</td>
-                <td>
-                  <select 
-                    value={usr.role}
-                    onChange={(e) => handleAdminUpdateUser(usr.uid, { 
-                      role: e.target.value,
-                      ...(e.target.value === 'kdr_osp' ? { ospUnit: OSP_UNITS[0] } : {}),
-                      ...(e.target.value === 'pa_jrg' ? { jrgUnit: JRG_UNITS[0] } : {})
-                    })}
-                    disabled={usr.uid === user?.uid}
-                    style={{ background: '#ffffff', color: '#000000', fontSize: '11px', outline: 'none' }}
-                  >
-                    <option value="admin">System Admin</option>
-                    <option value="kdr_osp">KDR OSP</option>
-                    <option value="dyspozytor">Dyspozytor SKKM</option>
-                  </select>
-                </td>
-                <td>
-                  {usr.role === 'kdr_osp' && (
-                    <select 
-                      value={usr.ospUnit || OSP_UNITS[0]}
-                      onChange={(e) => handleAdminUpdateUser(usr.uid, { ospUnit: e.target.value })}
-                      style={{ background: '#ffffff', color: '#000000', fontSize: '11px', outline: 'none' }}
-                    >
-                      {OSP_UNITS.map(osp => <option key={osp} value={osp}>{osp}</option>)}
-                    </select>
-                  )}
-                  {usr.role === 'pa_jrg' && (
-                    <select 
-                      value={usr.jrgUnit || JRG_UNITS[0]}
-                      onChange={(e) => handleAdminUpdateUser(usr.uid, { jrgUnit: e.target.value })}
-                      style={{ background: '#ffffff', color: '#000000', fontSize: '11px', outline: 'none' }}
-                    >
-                      {JRG_UNITS.map(jrg => <option key={jrg} value={jrg}>{jrg}</option>)}
-                    </select>
-                  )}
-                  {usr.role === 'admin' && <span style={{ color: '#d1d1d1' }}>Wszystkie (Brak ograniczeń)</span>}
-                </td>
-                <td>
-                  <select 
-                    value={usr.tenantId || ''}
-                    onChange={(e) => handleAdminUpdateUser(usr.uid, { tenantId: e.target.value })}
-                    style={{ background: '#ffffff', color: '#000000', fontSize: '11px', outline: 'none', maxWidth: '200px' }}
-                  >
-                    <option value="">(Brak przypisania)</option>
-                    <option value="999999">System (Admin)</option>
-                    {allTenants.filter(t => t.name).map(t => <option key={t.id} value={t.id}>{t.name} ({t.wojewodztwo})</option>)}
-                  </select>
-                </td>
-                <td>
-                  <button onClick={async () => {
-                    if(window.confirm('Wysłać link resetujący hasło?')) {
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div style={{ background: '#fff', border: '1px solid #ccc', padding: '12px', boxShadow: '2px 2px 5px rgba(0,0,0,0.1)' }}>
+              <h3 style={{ fontSize: '14px', borderBottom: '1px solid #eee', paddingBottom: '4px' }}>🚨 Narzędzia Systemowe</h3>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                <button className="btn-win" style={{ color: '#d13438', fontWeight: 'bold' }} onClick={async () => {
+                  if(window.confirm('UWAGA! To usunie wszystkie archiwalne zdarzenia (Status: processed / isArchived) ze wszystkich komend! Kontynuować?')) {
+                    if(window.confirm('Na pewno? Operacja jest nieodwracalna.')) {
                       try {
-                        const { sendPasswordResetEmail } = await import('firebase/auth');
-                        await sendPasswordResetEmail(auth, usr.email);
-                        alert('Wysłano link do resetu hasła.');
-                      } catch (err) {
-                        alert('Błąd: ' + err.message);
-                      }
+                        const { writeBatch } = await import('firebase/firestore');
+                        const batch = writeBatch(db);
+                        incidents.filter(i => i.isArchived || i.status === 'processed').forEach(i => {
+                          batch.delete(doc(db, 'incidents', i.id));
+                        });
+                        await batch.commit();
+                        alert('Baza danych oczyszczona ze starych zdarzeń.');
+                        logAction('Administrator wykonał PURGE starych zdarzeń.');
+                      } catch(e) { alert('Błąd: ' + e.message); }
                     }
-                  }} style={{ fontSize: '10px' }} className="btn-win">
-                    Zresetuj hasło
-                  </button>
-                </td>
-              </tr>
-            )})}
-          </tbody>
-        </table>
+                  }
+                }}>🗑️ Purge Archive</button>
+
+                <button className="btn-win" style={{ color: '#005fb8', fontWeight: 'bold' }} onClick={async () => {
+                  const msg = window.prompt("Wpisz globalny komunikat systemowy (Broadcast):");
+                  if (msg) {
+                    await addDoc(collection(db, 'messages'), {
+                      tenantId: '999999', // system
+                      sender: 'SYSTEM (Admin)',
+                      senderRole: 'admin',
+                      senderUnit: 'Wszystkie',
+                      text: msg,
+                      priority: 5,
+                      createdAt: serverTimestamp()
+                    });
+                    alert('Wysłano!');
+                  }
+                }}>📢 System Broadcast</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
       </div>
     );
   };
@@ -6121,7 +6182,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         
         <div className={`menu-item ${activeMenuTab === 'rejestr' ? 'active' : ''}`} onClick={() => setActiveMenuTab('rejestr')}>Zdarzenia</div>
         <div className={`menu-item ${activeMenuTab === 'katalog_sis' ? 'active' : ''}`} onClick={() => setActiveMenuTab('katalog_sis')}>Siły i środki</div>
-        <div className={`menu-item ${activeMenuTab === 'konta' || activeMenuTab === 'monitor' ? 'active' : ''}`} onClick={() => { if(userProfile?.role === 'admin') setActiveMenuTab('konta'); else setActiveMenuTab('monitor'); }}>Urządzenia</div>
+        <div className={`menu-item ${activeMenuTab === 'konta' || activeMenuTab === 'monitor' ? 'active' : ''}`} onClick={() => { if(userProfile?.role === 'admin') setActiveMenuTab('konta'); else setActiveMenuTab('monitor'); }}>Admin / Konta</div>
         <div className="menu-item">Okna</div>
         <div className="menu-item" onClick={openSettingsModal}>Ustawienia</div>
         <div 
@@ -6369,7 +6430,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
         {/* Middle Pane - Registry lists */}
         {activeMenuTab === 'konta' && userProfile && userProfile?.role === 'admin' ? (
-          renderUsersManagement()
+          renderAdminDashboard()
         ) : activeMenuTab === 'dziennik' ? (
           renderDutyLogSheet()
         ) : activeMenuTab === 'bufor' ? (
