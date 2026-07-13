@@ -7,25 +7,31 @@ export default function MobileTerminal({ userProfile, incidents, onClose, sendDi
   const [vehicles, setVehicles] = useState([]);
 
   useEffect(() => {
-    // Generate vehicle list based on user's tenant
-    const tenant = userProfile?.tenantId;
-    if (!tenant) return;
+    // Dynamically list all vehicles currently dispatched to active incidents
+    const allDispatchedVehicles = new Set();
     
-    let vList = [];
-    if (tenant.toLowerCase().includes('katowice')) {
-      vList = ['301[S]21 | GBA 2,5/16 - Renault', '301[S]22 | GBA 2,5/24 - Renault', '301[S]25 | GCBA 5/32 - Scania', '301[S]51 | SD 37 - Iveco'];
-    } else if (tenant.toLowerCase().includes('będzin')) {
-      vList = ['401[S]21 | GBA 2/24 - Renault', '401[S]25 | GCBA 5/32 - Scania', '401[S]51 | SD 37 - Iveco', '401[S]43 | SRt - Scania'];
-    } else {
-      vList = ['GBA 2,5/16', 'GCBA 5/32', 'SD 37', 'SLRt']; // Default generic
+    incidents.forEach(inc => {
+      if (!inc.isArchived && inc.status !== 'processed' && inc.vehicleStatuses) {
+        Object.keys(inc.vehicleStatuses).forEach(v => {
+          if (inc.vehicleStatuses[v] < 4) { // Only show vehicles not yet at base
+            allDispatchedVehicles.add(v);
+          }
+        });
+      }
+    });
+    
+    const vList = Array.from(allDispatchedVehicles);
+    
+    if (vList.length === 0) {
+      vList.push('Brak zadysponowanych wozów w systemie');
     }
     
-    // Add some generic OSP units for any tenant
-    vList.push('OSP KSRG (GBA)', 'OSP (GLBM)');
-    
     setVehicles(vList);
-    if (vList.length > 0) setSelectedVehicle(vList[0]);
-  }, [userProfile]);
+    
+    if (!vList.includes(selectedVehicle) && vList.length > 0) {
+      setSelectedVehicle(vList[0]);
+    }
+  }, [incidents, selectedVehicle]);
 
   // Znajdź zdarzenie, w którym bierze udział wybrany pojazd i nie ma jeszcze statusu 4 (Powrót do bazy)
   const activeIncident = incidents.find(inc => 
