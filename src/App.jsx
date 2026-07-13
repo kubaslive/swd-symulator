@@ -422,6 +422,20 @@ function App() {
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
 
+
+  const [isSisEditorOpen, setIsSisEditorOpen] = useState(false);
+  const [gmTenantId, setGmTenantId] = useState('');
+  const [gmType, setGmType] = useState('pozar');
+  const [gmLocation, setGmLocation] = useState('');
+  const [gmDescription, setGmDescription] = useState('');
+  const [gmKdrMsg, setGmKdrMsg] = useState('');
+  const [newScenType, setNewScenType] = useState('pozar');
+  const [newScenLoc, setNewScenLoc] = useState('building');
+  const [newScenT, setNewScenT] = useState('');
+  const [newScenK, setNewScenK] = useState('');
+  const [newScenReqUnits, setNewScenReqUnits] = useState('');
+  const [editingScenarioId, setEditingScenarioId] = useState(null);
+
   // KSiS Requests State
   const [ksisRequests, setKsisRequests] = useState([]);
   const [activeKsisPopups, setActiveKsisPopups] = useState([]);
@@ -9463,9 +9477,25 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
 
 
+
+      {isSisEditorOpen && (
+        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="modal-content" style={{ width: '90%', height: '90vh', overflow: 'auto', background: '#e0e0e0', padding: 0 }}>
+            <SisEditor
+              db={db}
+              userProfile={userProfile}
+              onClose={() => setIsSisEditorOpen(false)}
+              tenantJrgUnits={tenantJrgUnits}
+              tenantOspUnits={tenantOspUnits}
+              tenantVehicles={tenantVehicles}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 
 
 export default App;
