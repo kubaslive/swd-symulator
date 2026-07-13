@@ -70,11 +70,13 @@ export default function MobileTerminal({ userProfile, incidents, onClose, sendDi
       if (sendDiscordNotification) sendDiscordNotification(selectedVehicle.split(' | ')[1] || selectedVehicle, 4, activeIncident);
     }
 
+    const rankPrefix = userProfile?.rankObj ? `[${userProfile.rankObj.short}] ` : '';
+
     const newLog = {
       time: nowStr + ':' + new Date().getSeconds().toString().padStart(2, '0'),
       from: selectedVehicle.split(' | ')[1] || selectedVehicle,
       to: "Dyspozytornia",
-      text: `[TERMINAL] Zgłaszam status radiowy: ${statusText}`,
+      text: `[TERMINAL] ${rankPrefix}Zgłaszam status radiowy: ${statusText}`,
       channel: "K01 - Kanał Powiatowy",
       createdAt: new Date().toISOString()
     };
@@ -89,7 +91,7 @@ export default function MobileTerminal({ userProfile, incidents, onClose, sendDi
       });
       
       await addDoc(collection(db, 'radio_messages'), {
-        text: `[TERMINAL] Zastęp ${selectedVehicle.split(' | ')[1] || selectedVehicle} zgłasza: ${statusText}`,
+        text: `[TERMINAL] ${rankPrefix}Zastęp ${selectedVehicle.split(' | ')[1] || selectedVehicle} zgłasza: ${statusText}`,
         senderName: selectedVehicle.split(' | ')[1] || selectedVehicle,
         senderTenant: activeIncident.tenantId,
         createdAt: new Date().toISOString()

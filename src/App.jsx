@@ -26,12 +26,14 @@ import {
   updateDoc,
   setDoc,
   arrayUnion,
-  limit
+  limit,
+  increment
 } from 'firebase/firestore';
 import { pozScenarios, mzScenarios, afScenarios } from './scenarioData';
 import { polandData } from './polandData';
 import { GoogleGenAI } from '@google/genai';
 import MobileTerminal from './components/MobileTerminal';
+import { getRankByXp, PSP_RANKS } from './ranks';
 
 const APP_VERSION = "0.1.1 beta";
 
@@ -710,6 +712,10 @@ function App() {
       if (docSnap.exists()) {
         const uProf = { ...docSnap.data() };
         if (uProf.role === 'admin' && !uProf.tenantId) { uProf.tenantId = user.uid; }
+        
+        // Dynamically compute rank based on XP (default 0) and optional manual override
+        uProf.rankObj = getRankByXp(uProf.xp || 0, uProf.customRankId);
+        
         setUserProfile(uProf);
         // Default role mapping
         setActiveRole('dyspozytor');
@@ -1863,7 +1869,9 @@ function App() {
         displayName: displayName || email.split('@')[0],
         role: 'dyspozytor',
         tenantId: generatedTenantId,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        xp: 0,
+        completedIncidents: 0
       });
 
       await batch.commit();
@@ -2995,7 +3003,16 @@ function App() {
           isArchived: true,
           updatedAt: serverTimestamp()
         });
-        logAction(`Zakończono zdarzenie ${inc.formattedId || incidentId}. Sytuacja opanowana.`);
+
+        // Grant XP to the user
+        if (user) {
+          await updateDoc(doc(db, 'users', user.uid), {
+            xp: increment(10),
+            completedIncidents: increment(1)
+          });
+        }
+
+        logAction(`Zakończono zdarzenie ${inc.formattedId || incidentId}. Sytuacja opanowana. Przyznano 10 XP.`);
         setActiveIncident(null);
       } catch(e) {
         console.error(e);
@@ -4373,6 +4390,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             <tr>
               <th>Użytkownik</th>
               <th>E-mail</th>
+              <th>Stopień (Kadry)</th>
+              <th>Doświadczenie</th>
               <th>Poziom dostępu (Rola)</th>
               <th>Jednostka operacyjna</th>
               <th>Komenda (tenant)</th>
@@ -4380,10 +4399,25 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             </tr>
           </thead>
           <tbody>
-            {usersList.map((usr) => (
+            {usersList.map((usr) => {
+              const currentRank = getRankByXp(usr.xp || 0, usr.customRankId);
+              return (
               <tr key={usr.id} className="swd-row" style={{ cursor: 'default' }}>
-                <td style={{ fontWeight: 'bold', color: 'black' }}>{usr.displayName}</td>
+                <td style={{ fontWeight: 'bold', color: 'black' }}>{currentRank ? `[${currentRank.short}] ` : ''}{usr.displayName}</td>
                 <td>{usr.email}</td>
+                <td>
+                  <select
+                    value={usr.customRankId || ''}
+                    onChange={(e) => handleAdminUpdateUser(usr.uid, { customRankId: e.target.value })}
+                    style={{ background: '#ffffff', color: '#000000', fontSize: '11px', outline: 'none' }}
+                  >
+                    <option value="">(Auto: {getRankByXp(usr.xp || 0).short})</option>
+                    {PSP_RANKS.map(rank => (
+                      <option key={rank.id} value={rank.id}>{rank.name} ({rank.korpus})</option>
+                    ))}
+                  </select>
+                </td>
+                <td>XP: {usr.xp || 0} / Akcje: {usr.completedIncidents || 0}</td>
                 <td>
                   <select 
                     value={usr.role}
@@ -4448,7 +4482,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   </button>
                 </td>
               </tr>
-            ))}
+            )})}
           </tbody>
         </table>
       </div>
@@ -5999,7 +6033,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         <div className="title-text" style={{ flex: 1, display: 'flex', justifyContent: 'space-between', paddingRight: '10px' }}>
           <div>
             <span style={{ fontSize: '13px' }}>🚒</span>
-            <span>SWD ST — {tenantName} ({userProfile?.displayName || userProfile?.email || '---'}) — [Rejestr wyjazdów]</span>
+            <span>SWD ST — {tenantName} ({userProfile?.rankObj ? `[${userProfile.rankObj.short}] ` : ''}{userProfile?.displayName || userProfile?.email || '---'}) — [Rejestr wyjazdów]</span>
             <span style={{ marginLeft: '10px', fontSize: '9px', opacity: 0.6, fontWeight: 'normal' }}>v{APP_VERSION}</span>
           </div>
           <div style={{ fontWeight: 'bold' }}>
