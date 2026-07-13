@@ -1348,10 +1348,6 @@ function App() {
           }
 
           if (!text) {
-            const street = randomElement(activeStreets);
-            const houseNum = Math.floor(Math.random() * 150) + 1;
-            location = `${city}, ul. ${street} ${houseNum}`;
-
             let scenarioObj = {};
             if (type === "pozar") {
               scenarioObj = randomElement(pozScenarios);
@@ -1360,6 +1356,36 @@ function App() {
             } else {
               scenarioObj = randomElement(afScenarios);
             }
+            
+            const street = randomElement(activeStreets);
+            const houseNum = Math.floor(Math.random() * 150) + 1;
+            const locType = scenarioObj.locType || "building";
+            
+            if (locType === "apartment") {
+               const m = Math.floor(Math.random() * 60) + 1;
+               location = `${city}, ul. ${street} ${houseNum} m. ${m}`;
+            } else if (locType === "intersection") {
+               let street2 = randomElement(activeStreets);
+               while (street2 === street && activeStreets.length > 1) {
+                 street2 = randomElement(activeStreets);
+               }
+               location = `${city}, Skrzyżowanie ul. ${street} z ul. ${street2}`;
+            } else if (locType === "plot") {
+               location = `${city}, Ogródki Działkowe (ROD) przy ul. ${street}`;
+            } else if (locType === "forest") {
+               location = `${city}, Kompleks leśny, dojazd od ul. ${street}`;
+            } else if (locType === "road") {
+               location = `${city}, odcinek drogi ul. ${street}`;
+            } else if (locType === "industrial") {
+               location = `${city}, Tereny przemysłowe, ul. ${street} ${houseNum}`;
+            } else if (locType === "commercial") {
+               location = `${city}, Obiekt handlowo-usługowy, ul. ${street} ${houseNum}`;
+            } else if (locType === "public") {
+               location = `${city}, Obiekt użyteczności publicznej, ul. ${street} ${houseNum}`;
+            } else {
+               location = `${city}, ul. ${street} ${houseNum}`;
+            }
+
             text = scenarioObj.t;
             expectedKdrMsg = scenarioObj.k;
             needsZRM = !!scenarioObj.zrm;
