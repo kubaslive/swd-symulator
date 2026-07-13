@@ -33,6 +33,7 @@ import { pozScenarios, mzScenarios, afScenarios } from './scenarioData';
 import { polandData } from './polandData';
 import { GoogleGenAI } from '@google/genai';
 import MobileTerminal from './components/MobileTerminal';
+import SisEditor from './SisEditor';
 import { getRankByXp, PSP_RANKS } from './ranks';
 
 const APP_VERSION = "0.1.1 beta";
@@ -1349,12 +1350,16 @@ function App() {
 
           if (!text) {
             let scenarioObj = {};
+            const dynamicScenarios = dbScenarios.filter(s => s.type === type);
             if (type === "pozar") {
               scenarioObj = randomElement(pozScenarios);
             } else if (type === "mz") {
               scenarioObj = randomElement(mzScenarios);
             } else {
               scenarioObj = randomElement(afScenarios);
+            }
+            if (dynamicScenarios.length > 0 && Math.random() > 0.5) {
+              scenarioObj = randomElement(dynamicScenarios);
             }
             
             const street = randomElement(activeStreets);
