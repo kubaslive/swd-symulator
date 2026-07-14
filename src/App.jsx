@@ -7521,8 +7521,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
     <div style={{ padding: '2px 6px', background: '#b0b0b0', fontWeight: 'bold', fontSize: '10px' }}>Transmisja</div>
     <div style={{ flex: 1, padding: '4px', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '10px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-        <div style={{ width: '8px', height: '8px', background: isConnected ? '#00cc00' : '#cc0000', border: '1px solid #000' }}></div>
-        <span>Stan SIWCPR: {isConnected ? 'OK' : 'BŁĄD'}</span>
+        <div style={{ width: '8px', height: '8px', background: true ? '#00cc00' : '#cc0000', border: '1px solid #000' }}></div>
+        <span>Stan SIWCPR: {true ? 'OK' : 'BŁĄD'}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
         <div style={{ width: '8px', height: '8px', background: '#cc0000', border: '1px solid #000' }}></div>
