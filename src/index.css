@@ -1297,3 +1297,34 @@ input, textarea, select {
   word-wrap: break-word;
   padding: 4px !important;
 }
+
+.classic-tabs {
+  display: flex;
+  background: #d4d0c8;
+  padding-top: 4px;
+  padding-left: 2px;
+  border-bottom: 1px solid #a0a0a0;
+}
+.classic-tab {
+  background: #d4d0c8;
+  border: 1px solid #fff;
+  border-right-color: #a0a0a0;
+  border-bottom-color: #a0a0a0;
+  padding: 2px 8px;
+  margin-right: 2px;
+  font-size: 11px;
+  cursor: pointer;
+  border-top-left-radius: 3px;
+  border-top-right-radius: 3px;
+  color: #000;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.classic-tab.active {
+  background: #d4d0c8;
+  border-bottom: 1px solid #d4d0c8; /* merge with below */
+  position: relative;
+  top: 1px;
+  font-weight: bold;
+}

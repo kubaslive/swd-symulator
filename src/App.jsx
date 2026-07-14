@@ -4080,7 +4080,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 const activeCount = vehicles.filter(v => getVehicleState(uName, v.name) === 'W koszarach').length;
 
                 return (
-                  <div key={uName} className="combat-column" style={{ background: '#e0dfde' }}>
+                  <div key={uName} className="combat-column" style={{ background: '#ffffff' }}>
                     {/* Column Header with unit name and free-squad counter */}
                     <div className="combat-column-title" style={{ background: '#d4d0c8', borderBottom: '1px solid #d1d1d1', padding: '2px 4px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#000' }}>
                       <button style={{ width: '12px', height: '12px', padding: 0, margin: 0, fontSize: '9px', lineHeight: '9px', background: '#fff', border: '1px solid #888', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</button>
@@ -4620,14 +4620,14 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           <span style={{ marginLeft: 'auto', color: '#d1d1d1', fontStyle: 'italic', fontSize: '8.5px' }}>Kliknij pojazd: dopisz do zdarzenia</span>
         </div>
 
-        <div className="tab-header">
-          <button className={`tab-btn ${combatTab === 'PSP' ? 'active' : ''}`} onClick={() => setCombatTab('PSP')}>PSP</button>
-          <button className={`tab-btn ${combatTab === 'OSP' ? 'active' : ''}`} onClick={() => setCombatTab('OSP')}>OSP</button>
-          <button className={`tab-btn ${combatTab === 'SPECIALIST' ? 'active' : ''}`} onClick={() => setCombatTab('SPECIALIST')}>Specjaliści</button>
-          <button className={`tab-btn ${combatTab === 'AGENTS' ? 'active' : ''}`} onClick={() => setCombatTab('AGENTS')}>Inne</button>
-          <button className={`tab-btn ${combatTab === 'WCPR' ? 'active' : ''}`} style={{ borderLeft: '1px solid #f3f3f3', marginLeft: '4px', color: incomingCalls.length > 0 ? '#d13438' : '#000000', fontWeight: incomingCalls.length > 0 ? 'bold' : 'normal' }} onClick={() => setCombatTab('WCPR')}>Bufor zdarzeń {incomingCalls.length > 0 ? `(${incomingCalls.length})` : ''}</button>
-          <button className="tab-btn" style={{ color: '#d1d1d1' }} disabled>Szukaj</button>
-          <button className="tab-btn" style={{ color: '#d1d1d1' }} disabled>Zdarzenia planowane (0)</button>
+        <div className="classic-tabs">
+          <button className={`classic-tab ${combatTab === 'PSP' ? 'active' : ''}`} onClick={() => setCombatTab('PSP')}><img src="https://img.icons8.com/color/48/000000/fire-station.png" style={{width: 12, height: 12}} alt="" /> PSP</button>
+          <button className={`classic-tab ${combatTab === 'OSP' ? 'active' : ''}`} onClick={() => setCombatTab('OSP')}><img src="https://img.icons8.com/color/48/000000/fire-truck.png" style={{width: 12, height: 12}} alt="" /> OSP</button>
+          <button className={`classic-tab ${combatTab === 'SPECIALIST' ? 'active' : ''}`} onClick={() => setCombatTab('SPECIALIST')}><img src="https://img.icons8.com/color/48/000000/worker-male.png" style={{width: 12, height: 12}} alt="" /> Specjaliści</button>
+          <button className={`classic-tab ${combatTab === 'AGENTS' ? 'active' : ''}`} onClick={() => setCombatTab('AGENTS')}><img src="https://img.icons8.com/color/48/000000/police-badge.png" style={{width: 12, height: 12}} alt="" /> Inne</button>
+          <button className={`classic-tab ${combatTab === 'WCPR' ? 'active' : ''}`} style={{ borderLeft: '1px solid #f3f3f3', marginLeft: '4px', color: incomingCalls.length > 0 ? '#d13438' : '#000000', fontWeight: incomingCalls.length > 0 ? 'bold' : 'normal' }} onClick={() => setCombatTab('WCPR')}>Bufor zdarzeń {incomingCalls.length > 0 ? `(${incomingCalls.length})` : ''}</button>
+          
+          
         </div>
         {/* Global overlay for context menu */}
         {vehicleContextMenu && (
@@ -7514,27 +7514,39 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         )}
 
         
+
 <footer className="bottom-console border-outset" style={{ display: 'flex', gap: '8px', padding: '4px', height: '120px', background: '#d4d0c8' }}>
   {/* Left: Transmisja */}
   <div className="transmission-panel border-inset" style={{ flex: '0 0 250px', display: 'flex', flexDirection: 'column', background: '#e1e1e1' }}>
     <div style={{ padding: '2px 6px', background: '#b0b0b0', fontWeight: 'bold', fontSize: '10px' }}>Transmisja</div>
     <div style={{ flex: 1, padding: '4px', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '10px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-        <span className="led-indicator green" style={{ width: 8, height: 8 }} /> Stan SIWCPR: OK
+        <div style={{ width: '8px', height: '8px', background: isConnected ? '#00cc00' : '#cc0000', border: '1px solid #000' }}></div>
+        <span>Stan SIWCPR: {isConnected ? 'OK' : 'BŁĄD'}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-        <span className="led-indicator red" style={{ width: 8, height: 8 }} /> Błędy (0)
+        <div style={{ width: '8px', height: '8px', background: '#cc0000', border: '1px solid #000' }}></div>
+        <span>Błędy (0)</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-        <span className="led-indicator yellow" style={{ width: 8, height: 8 }} /> Aktualizacje zdarzeń
+        <div style={{ width: '8px', height: '8px', background: '#ffcc00', border: '1px solid #000' }}></div>
+        <span>Aktualizacje zdarzeń</span>
       </div>
-      <div style={{ marginTop: 'auto' }}>
-        <button className="btn-win" style={{ width: '100%', textAlign: 'left', background: '#fff' }}>Rejestr wyjazdów</button>
-      </div>
+      <input type="text" value="Rejestr wyjazdów" readOnly style={{ marginTop: 'auto', background: '#fff', border: '1px inset #a0a0a0', padding: '2px', fontSize: '10px' }} />
     </div>
   </div>
 
-  {/* Middle: Terminale statusów (Dziennik Radiowy) */}
+  {/* Middle-Left: Clock */}
+  <div className="border-inset" style={{ flex: '0 0 150px', display: 'flex', flexDirection: 'column', background: '#d4d0c8', border: '1px solid #a0a0a0' }}>
+    <div style={{ padding: '2px 6px', background: '#b0b0b0', fontWeight: 'bold', fontSize: '10px', textAlign: 'center' }}>
+      {systemTime.toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' })}
+    </div>
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontFamily: 'var(--font-mono)', letterSpacing: '1px', background: '#e8e8e8', border: '1px inset #a0a0a0', margin: '2px' }}>
+      {systemTime.toLocaleTimeString('pl-PL')}
+    </div>
+  </div>
+
+  {/* Middle-Right: Terminale statusów (Dziennik Radiowy) */}
   <div className="border-inset" style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#e0dfde', minWidth: '300px' }}>
     <div style={{ padding: '2px 6px', background: '#b0b0b0', fontWeight: 'bold', fontSize: '10px' }}>Terminale statusów</div>
     <div style={{ flex: 1, overflowY: 'auto', padding: '2px 4px', fontSize: '10px', display: 'flex', flexDirection: 'column-reverse', background: '#e8e8e8' }}>
@@ -7545,17 +7557,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
       ))}
     </div>
   </div>
-
-  {/* Right: Duży Zegar */}
-  <div className="border-inset" style={{ flex: '0 0 250px', display: 'flex', flexDirection: 'column', background: '#e1e1e1' }}>
-    <div style={{ padding: '2px 6px', background: '#b0b0b0', fontWeight: 'bold', fontSize: '10px', textAlign: 'center' }}>
-      {systemTime.toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' })}
-    </div>
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', fontFamily: 'var(--font-mono)', letterSpacing: '2px' }}>
-      {systemTime.toLocaleTimeString('pl-PL')}
-    </div>
-  </div>
 </footer>
+
 {/* --- OLD DZIENNIK RADIOWY REMOVED --- */}
 {/* --- DZIENNIK RADIOWY WIDGET --- */}
         <div style={{ position: 'fixed', bottom: '26px', right: '5px', width: '320px', zIndex: 9999, display: 'flex', flexDirection: 'column', pointerEvents: 'none' }}>
