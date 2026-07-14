@@ -164,7 +164,7 @@ input, textarea, select {
 
 .menu-item-dropdown:hover {
   background-color: #0a6ece;
-  color: #ffffff !important;
+  color: #ffffff ;
 }
 
 .menu-item.active {
@@ -245,7 +245,7 @@ input, textarea, select {
 /* ===== MAIN DASHBOARD GRID ===== */
 .dashboard-grid {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: 50% 1fr;
   flex: 1;
   overflow: hidden;
 }
@@ -347,7 +347,7 @@ input, textarea, select {
 
 .vehicle-row:hover {
   background-color: rgba(0, 0, 0, 0.04);
-  color: var(--win-text) !important;
+  color: var(--win-text) ;
 }
 
 .vehicle-row:hover .vehicle-name {
@@ -557,18 +557,18 @@ input, textarea, select {
 }
 
 .swd-row:hover {
-  background-color: #d0ebff !important;
+  background-color: #d0ebff ;
   outline: none;
 }
 
 .swd-row.selected, .swd-row.selected:hover {
-  background-color: #005fb8 !important;
-  color: #ffffff !important;
+  background-color: #005fb8 ;
+  color: #ffffff ;
 }
 
 .swd-row.selected td {
-  color: #ffffff !important;
-  background-color: #005fb8 !important;
+  color: #ffffff ;
+  background-color: #005fb8 ;
 }
 
 .swd-row.selected .led-indicator {
@@ -753,7 +753,7 @@ input, textarea, select {
 /* ===== MAP CONTAINER ===== */
 .map-container {
   height: 100%;
-  background-color: #07080b !important;
+  background-color: #07080b ;
   position: relative;
   overflow: hidden;
   border-top: 1.5px solid var(--win-shadow);
@@ -784,7 +784,7 @@ input, textarea, select {
   font-family: var(--font-mono);
   font-size: 9px;
   color: #00ff00;
-  background-color: #000000 !important;
+  background-color: #000000 ;
   border-top: 1.5px solid var(--win-shadow);
   border-left: 1.5px solid var(--win-shadow);
   border-bottom: 1.5px solid var(--win-hilight);
@@ -1026,25 +1026,25 @@ input, textarea, select {
 /* ===== PRINT ===== */
 @media print {
   body {
-    background: #ffffff !important;
-    color: #000000 !important;
+    background: #ffffff ;
+    color: #000000 ;
   }
   .app-container, .win-dialog-overlay:not(.print-container) {
-    display: none !important;
+    display: none ;
   }
   .print-container {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
-    background: #ffffff !important;
-    color: #000000 !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    box-shadow: none !important;
+    position: absolute ;
+    left: 0 ;
+    top: 0 ;
+    width: 100% ;
+    background: #ffffff ;
+    color: #000000 ;
+    padding: 0 ;
+    margin: 0 ;
+    box-shadow: none ;
   }
   .no-print {
-    display: none !important;
+    display: none ;
   }
 }
 
@@ -1240,7 +1240,7 @@ input, textarea, select {
   display: inline-block;
   border: 1px solid rgba(0,0,0,0.3);
   flex-shrink: 0;
-  box-shadow: none !important;
+  box-shadow: none ;
 }
 
 .vehicle-name {
@@ -1267,5 +1267,27 @@ input, textarea, select {
 
 .led-indicator.standby {
   background: linear-gradient(135deg, #00c800 50%, #ffff00 50%);
-  box-shadow: none !important;
+  box-shadow: none ;
+}
+
+/* Black Incident Table */
+.black-table {
+  background-color: #000 ;
+  color: #00ff00 ;
+}
+.black-table th {
+  background-color: #d4d0c8 ;
+  color: #000 ;
+  border-right: 1px solid #808080 ;
+  border-bottom: 1px solid #808080 ;
+}
+.black-table td {
+  border-right: 1px solid #333 ;
+  border-bottom: 1px solid #333 ;
+  background-color: #000 ;
+  color: #00ff00 ;
+}
+.black-table tr.selected td {
+  background-color: #ff0000 ;
+  color: #ffffff ;
 }

@@ -4082,14 +4082,13 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 return (
                   <div key={uName} className="combat-column" style={{ background: '#ffffff' }}>
                     {/* Column Header with unit name and free-squad counter */}
-                    <div className="combat-column-title" style={{ background: '#f3f3f3' }}>
-                      <span title={uName}>
-                        {uName.includes('JRG nr 1') ? 'JRG 1' :
-                         uName.includes('JRG nr 2') ? 'JRG 2' :
-                         uName.includes('JRG nr 3') ? 'JRG 3' :
-                         uName.includes('KM PSP') ? 'KM/KP PSP' : uName}
+                    <div className="combat-column-title" style={{ background: '#f0f0f0', borderBottom: '1px solid #d1d1d1', padding: '2px 4px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#000' }}>
+                      <button style={{ width: '12px', height: '12px', padding: 0, margin: 0, fontSize: '9px', lineHeight: '9px', background: '#fff', border: '1px solid #888', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</button>
+                      <img src="https://img.icons8.com/color/48/000000/fire-station.png" style={{ width: 14, height: 14 }} alt="JRG" />
+                      <span title={uName} style={{ flex: 1 }}>
+                        {uName}
                       </span>
-                      <span style={{ background: activeCount > 0 ? '#2b8a3e' : '#c00000', color: '#fff', padding: '0 4px', fontFamily: 'var(--font-mono)', minWidth: '18px', textAlign: 'center' }}>
+                      <span style={{ color: '#000', padding: '0 4px', fontFamily: 'var(--font-mono)' }}>
                         {activeCount}
                       </span>
                     </div>
@@ -5021,7 +5020,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   }}>➕ Utwórz</button>
                 </div>
 
-                <table className="swd-table">
+                <table className="swd-table black-table">
                   <thead><tr><th>ID</th><th>Nazwa</th><th>Woj.</th><th>Akcje</th></tr></thead>
                   <tbody>
                     {allTenants.map(t => (
@@ -5172,7 +5171,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
   const renderCallerSimulator = () => {
     return (
       <div style={{ padding: '20px', overflowY: 'auto', height: '100%', backgroundColor: '#55a8a8' }} className="border-inset fade-in">
-        <div className="win-dialog border-double-outset" style={{ width: '450px', margin: '20px auto' }}>
+        <div className="win-dialog border-double-outset" style={{ pointerEvents: 'all' }} style={{ width: '450px', margin: '20px auto' }}>
           <div className="win-dialog-header">
             <span>☎️ Aparat Zgłoszeniowy CPR (Symulator Pozoranta)</span>
           </div>
@@ -7062,19 +7061,24 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                       });
                       const isCompleted = incident.status === 'processed' || !!(incident.times?.completion);
                       
-                      let rowBg = 'transparent';
-                      if (isSelected) rowBg = '#005fb8';
-                      else if (isCompleted) rowBg = '#f8f9fa';
-                      else if (hasActiveVehicles) rowBg = '#fff5f5'; // Red-tinted for active
-                      else if (hasDispatchedVehicles) rowBg = '#fffde7'; // Yellow-tinted for dispatched
+                      let rowBg = '#000000';
+                      let rowColor = '#00ff00';
+
+                      if (isSelected) {
+                        rowBg = '#ff0000';
+                        rowColor = '#ffffff';
+                      } else if (isCompleted) {
+                        rowBg = '#222222';
+                        rowColor = '#a0a0a0';
+                      }
 
                       return (
                         <tr 
                           key={incident.id} 
                           className={`swd-row ${isSelected ? 'selected' : ''} ${incident.isArchived ? 'archived' : ''} ${incident.type === 'bl' ? 'error-bl' : ''}`}
                           style={{ 
-                            backgroundColor: isSelected ? '#005fb8' : rowBg,
-                            color: isSelected ? '#ffffff' : 'inherit',
+                            backgroundColor: rowBg,
+                            color: rowColor,
                             borderLeft: hasActiveVehicles && !isSelected ? '3px solid #d13438' : hasDispatchedVehicles && !isSelected ? '3px solid #f59f00' : ''
                           }}
                           onClick={() => setSelectedIncidentId(incident.id)}
@@ -7097,7 +7101,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                               {incident.customId || '---'}
                             </div>
                           </td>
-                          <td style={{ color: isSelected ? 'inherit' : '#555' }}>
+                          <td>
                             {timeString}
                           </td>
                           <td>KM/KP PSP</td>
@@ -7106,7 +7110,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
                               <span>{incident.location}</span>
                               {incident.subtype && incident.subtype !== '' && (
-                                <span style={{ fontSize: '7.5px', color: '#555', background: '#f1f3f5', border: '1px solid #ced4da', padding: '0 3px', borderRadius: '2px', whiteSpace: 'nowrap' }}>
+                                <span style={{ fontSize: '7.5px', color: '#000', background: '#d4d0c8', border: '1px solid #ced4da', padding: '0 3px', borderRadius: '2px', whiteSpace: 'nowrap' }}>
                                   {incident.subtype.replace(/_/g, ' ').toUpperCase()}
                                 </span>
                               )}
@@ -7509,44 +7513,51 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
         )}
 
-        <footer className="bottom-console border-outset">
-          <div className="transmission-panel border-inset" style={{ background: '#ffffff', color: '#000' }}>
-            <div className="transmission-top">
-              <span>Podgląd stanu TRANSMISJI</span>
-            </div>
-            <div className="transmission-controls" style={{ padding: '2px 0', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9.5px', color: '#333' }}>
-                <span className="led-indicator green" style={{ width: 7, height: 7 }} />
-                <span>ACS — KW PSP</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9.5px', color: '#333' }}>
-                <span className="led-indicator green" style={{ width: 7, height: 7 }} />
-                <span>Replikacja baz danych</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9.5px', color: incomingCalls.length > 0 ? '#c00000' : '#555' }}>
-                <span className={`led-indicator ${incomingCalls.length > 0 ? 'red' : 'grey'}`} style={{ width: 7, height: 7 }} />
-                <span style={{ fontWeight: incomingCalls.length > 0 ? 'bold' : 'normal' }}>
-                  → 112 {incomingCalls.length > 0 ? `POŁĄCZENIE (${incomingCalls.length})` : 'Linia wolna'}
-                </span>
-              </div>
-            </div>
-          </div>
+        
+<footer className="bottom-console border-outset" style={{ display: 'flex', gap: '8px', padding: '4px', height: '120px', background: '#d4d0c8' }}>
+  {/* Left: Transmisja */}
+  <div className="transmission-panel border-inset" style={{ flex: '0 0 250px', display: 'flex', flexDirection: 'column', background: '#e1e1e1' }}>
+    <div style={{ padding: '2px 6px', background: '#b0b0b0', fontWeight: 'bold', fontSize: '10px' }}>Transmisja</div>
+    <div style={{ flex: 1, padding: '4px', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <span className="led-indicator green" style={{ width: 8, height: 8 }} /> Stan SIWCPR: OK
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <span className="led-indicator red" style={{ width: 8, height: 8 }} /> Błędy (0)
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <span className="led-indicator yellow" style={{ width: 8, height: 8 }} /> Aktualizacje zdarzeń
+      </div>
+      <div style={{ marginTop: 'auto' }}>
+        <button className="btn-win" style={{ width: '100%', textAlign: 'left', background: '#fff' }}>Rejestr wyjazdów</button>
+      </div>
+    </div>
+  </div>
 
-          <div className="tactical-clock-container border-inset">
-            <div className="tactical-clock">
-              {systemTime.toLocaleTimeString('pl-PL')}
-            </div>
-            <div className="tactical-date">
-              {systemTime.toLocaleDateString('pl-PL', { day: '2-digit', month: 'long', year: 'numeric' })}
-            </div>
-          </div>
+  {/* Middle: Terminale statusów (Dziennik Radiowy) */}
+  <div className="border-inset" style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#ffffff', minWidth: '300px' }}>
+    <div style={{ padding: '2px 6px', background: '#b0b0b0', fontWeight: 'bold', fontSize: '10px' }}>Terminale statusów</div>
+    <div style={{ flex: 1, overflowY: 'auto', padding: '2px 4px', fontSize: '10px', display: 'flex', flexDirection: 'column-reverse', background: '#e8e8e8' }}>
+      {(activeIncident?.radioLogs || []).slice().reverse().map((msg, idx) => (
+        <div key={idx} style={{ color: '#555', borderBottom: '1px solid #ddd', paddingBottom: '2px' }}>
+          {msg.time || (msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString('pl-PL') : '')} <strong>{msg.from || msg.senderName}</strong>: {msg.message}
+        </div>
+      ))}
+    </div>
+  </div>
 
-          {/* Mapa GIS moved to modal for SWD-ST 1:1 compliance */}
-
-
-        </footer>
-
-        {/* --- DZIENNIK RADIOWY WIDGET --- */}
+  {/* Right: Duży Zegar */}
+  <div className="border-inset" style={{ flex: '0 0 250px', display: 'flex', flexDirection: 'column', background: '#e1e1e1' }}>
+    <div style={{ padding: '2px 6px', background: '#b0b0b0', fontWeight: 'bold', fontSize: '10px', textAlign: 'center' }}>
+      {systemTime.toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' })}
+    </div>
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', fontFamily: 'var(--font-mono)', letterSpacing: '2px' }}>
+      {systemTime.toLocaleTimeString('pl-PL')}
+    </div>
+  </div>
+</footer>
+{/* --- OLD DZIENNIK RADIOWY REMOVED --- */}
+{/* --- DZIENNIK RADIOWY WIDGET --- */}
         <div style={{ position: 'fixed', bottom: '26px', right: '5px', width: '320px', zIndex: 9999, display: 'flex', flexDirection: 'column', pointerEvents: 'none' }}>
           <div style={{ pointerEvents: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#e0e0e0', border: '1px solid #a0a0a0', padding: '2px 5px', cursor: 'pointer', borderTopLeftRadius: '3px', borderTopRightRadius: '3px' }} onClick={() => setIsRadioLogOpen(!isRadioLogOpen)}>
             <strong style={{ fontSize: '10px' }}>📻 Dziennik Radiowy (KRG/KSW)</strong>
@@ -7878,7 +7889,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           ------------------------------------------------------------- */}
       {isSettingsModalOpen && (
         <div className="win-dialog-overlay" style={{ zIndex: 99990 }}>
-          <div className="win-dialog border-double-outset" style={{ width: '450px' }}>
+          <div className="win-dialog border-double-outset" style={{ width: '450px', position: 'absolute', top: '10%', left: '30%', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', borderRadius: '8px' }}>
             <div className="win-dialog-header">
               <span>Ustawienia Użytkownika</span>
               <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsSettingsModalOpen(false)}>X</button>
@@ -8587,7 +8598,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           DIALOG MODAL: CREATE / EDIT INCIDENT (KDR OSP Form)
           ------------------------------------------------------------- */}
       {isNewIncidentModalOpen && (
-        <div className="win-dialog-overlay">
+        <div className="win-dialog-overlay" style={{ pointerEvents: 'none' }}>
           {activeIncident && activeIncident.status === 'new' ? (
             <div className="win-dialog border-double-outset" style={{ width: '450px' }}>
               <div className="win-dialog-header" style={{ background: '#0a246a', color: '#fff' }}>
