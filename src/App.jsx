@@ -2535,13 +2535,22 @@ function App() {
       logAction(`Meldunek EWID nr ${fullReportNumber} zapisany jako: ${isPartialReport ? 'CZĘŚCIOWY' : 'KOMPLETNY (Zarchiwizowany)'}`);
       
       // AWARD POINTS IF COMPLETED!
-      if (!isPartialReport && isGameModeActive) {
-        setGameScore(prev => {
-          const updated = prev + 100;
-          localStorage.setItem('swd_game_score', updated.toString());
-          return updated;
-        });
-        alert(`🏆 Gratulacje!\nZdarzenie poprawnie zlikwidowane i zarchiwizowane.\n\nZDOBYWASZ +100 PUNKTÓW!`);
+      if (!isPartialReport) {
+        if (user) {
+          await setDoc(doc(db, 'users', user.uid), {
+            xp: increment(10),
+            completedIncidents: increment(1)
+          }, { merge: true });
+        }
+        
+        if (isGameModeActive) {
+          setGameScore(prev => {
+            const updated = prev + 100;
+            localStorage.setItem('swd_game_score', updated.toString());
+            return updated;
+          });
+          alert(`🏆 Gratulacje!\nZdarzenie poprawnie zlikwidowane i zarchiwizowane.\n\nZDOBYWASZ +100 PUNKTÓW!`);
+        }
       }
 
       setIsEwidReportModalOpen(false);
