@@ -5,9 +5,9 @@
   --font-mono: 'Cascadia Code', 'Consolas', monospace;
   
   /* Windows 11 Fluent Design Light Theme */
-  --win-bg: #f3f3f3;
-  --win-face: rgba(255, 255, 255, 0.7); /* Mica effect base */
-  --win-face-solid: #ffffff;
+  --win-bg: #d4d0c8;
+  --win-face: #d4d0c8; /* Mica effect base */
+  --win-face-solid: #d4d0c8;
   --win-shadow: #e5e5e5;
   --win-hilight: #ffffff;
   --win-dark-shadow: rgba(0, 0, 0, 0.1);
@@ -48,7 +48,7 @@ input, textarea, select {
 .tab-content,
 .win-dialog-body {
   padding: 16px;
-  background-color: #ffffff;
+  background-color: #d4d0c8;
   color: var(--win-text);
   flex: 1;
   overflow-y: auto;
@@ -57,8 +57,8 @@ input, textarea, select {
 /* ===== FLUENT DESIGN BORDERS ===== */
 .border-outset, .border-double-outset {
   background: var(--win-face);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  /* backdrop-filter removed for classic look */
+  
   border: 1px solid rgba(255, 255, 255, 0.4);
   box-shadow: var(--win-shadow-soft);
   border-radius: var(--win-border-radius);
@@ -1284,8 +1284,8 @@ input, textarea, select {
 .black-table td {
   border-right: 1px solid #333 ;
   border-bottom: 1px solid #333 ;
-  background-color: #000 ;
-  color: #00ff00 ;
+  background-color: inherit ;
+  color: inherit ;
 }
 .black-table tr.selected td {
   background-color: #ff0000 ;

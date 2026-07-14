@@ -4080,9 +4080,9 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 const activeCount = vehicles.filter(v => getVehicleState(uName, v.name) === 'W koszarach').length;
 
                 return (
-                  <div key={uName} className="combat-column" style={{ background: '#ffffff' }}>
+                  <div key={uName} className="combat-column" style={{ background: '#e0dfde' }}>
                     {/* Column Header with unit name and free-squad counter */}
-                    <div className="combat-column-title" style={{ background: '#f0f0f0', borderBottom: '1px solid #d1d1d1', padding: '2px 4px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#000' }}>
+                    <div className="combat-column-title" style={{ background: '#d4d0c8', borderBottom: '1px solid #d1d1d1', padding: '2px 4px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#000' }}>
                       <button style={{ width: '12px', height: '12px', padding: 0, margin: 0, fontSize: '9px', lineHeight: '9px', background: '#fff', border: '1px solid #888', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</button>
                       <img src="https://img.icons8.com/color/48/000000/fire-station.png" style={{ width: 14, height: 14 }} alt="JRG" />
                       <span title={uName} style={{ flex: 1 }}>
@@ -4270,8 +4270,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
             return (
             // OSP Mode - Gminas on left, ALL vehicles on right
-            <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', height: '100%', background: '#f3f3f3' }}>
-              <div className="border-inset" style={{ background: '#ffffff', overflowY: 'auto', padding: '4px', margin: '4px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', height: '100%', background: '#d4d0c8' }}>
+              <div className="border-inset" style={{ background: '#e0dfde', overflowY: 'auto', padding: '4px', margin: '4px' }}>
                 <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#000', borderBottom: '1px solid #d1d1d1', paddingBottom: '2px', marginBottom: '4px', textTransform: 'uppercase' }}>
                   Gmina
                 </div>
@@ -4308,7 +4308,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 ))}
               </div>
 
-              <div className="border-inset" style={{ background: '#ffffff', overflowY: 'auto', padding: '6px', margin: '4px 4px 4px 0' }}>
+              <div className="border-inset" style={{ background: '#e0dfde', overflowY: 'auto', padding: '6px', margin: '4px 4px 4px 0' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   {displayedUnits.map(osp => {
                     const vehicles = UNIT_VEHICLES[osp] || [];
@@ -4382,7 +4382,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
           {combatTab === 'SPECIALIST' && (
             // Specialists Directory (Page 38)
-            <div style={{ padding: '8px', overflowY: 'auto', height: '100%', background: '#ffffff' }}>
+            <div style={{ padding: '8px', overflowY: 'auto', height: '100%', background: '#e0dfde' }}>
               <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000', marginBottom: '6px', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', textTransform: 'uppercase' }}>Ewidencja Specjalistów (Str. 38 instrukcji)</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                 {SIMULATED_SPECIALISTS.map(spec => (
@@ -4412,7 +4412,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
           {combatTab === 'ODWODY' && (
             // Odwody Operacyjne i SGR (Page 39)
-            <div style={{ padding: '8px', overflowY: 'auto', height: '100%', background: '#ffffff', color: '#000000' }}>
+            <div style={{ padding: '8px', overflowY: 'auto', height: '100%', background: '#e0dfde', color: '#000000' }}>
               <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000', marginBottom: '6px', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', textTransform: 'uppercase' }}>Struktura Odwodów Operacyjnych i SGR (Str. 39 instrukcji)</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {SIMULATED_ODWODY.map(grp => (
@@ -4477,7 +4477,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
           {combatTab === 'AGENTS' && (
             // Extinguishing Agents Registry (Page 25)
-            <div style={{ padding: '8px', overflowY: 'auto', height: '100%', background: '#ffffff', color: '#000000' }}>
+            <div style={{ padding: '8px', overflowY: 'auto', height: '100%', background: '#e0dfde', color: '#000000' }}>
               <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000', marginBottom: '6px', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', textTransform: 'uppercase' }}>
                 Stan Środków Gaśniczych i Neutralizatorów (Str. 25 instrukcji)
               </div>
@@ -4528,7 +4528,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           )}
 
           {combatTab === 'WCPR' && (
-            <div style={{ padding: '4px', overflowY: 'auto', overflowX: 'auto', height: '100%', width: '100%', flex: 1, background: '#ffffff', color: '#000000', display: 'flex', gap: '4px' }}>
+            <div style={{ padding: '4px', overflowY: 'auto', overflowX: 'auto', height: '100%', width: '100%', flex: 1, background: '#e0dfde', color: '#000000', display: 'flex', gap: '4px' }}>
               <div style={{ flex: 1, border: '1px solid #d1d1d1', background: '#fff' }}>
                 <table className="swd-table" style={{ width: '100%', fontSize: '10px' }}>
                   <thead>
@@ -4587,7 +4587,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                       setSelectedWcprCall(null);
                     }
                   }}
-                  style={{ height: '60px', border: '2px solid red', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f3f3f3' }}
+                  style={{ height: '60px', border: '2px solid red', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#d4d0c8' }}
                 >
                   <span style={{ fontSize: '24px' }}>🔊</span>
                   <span style={{ fontSize: '9px', fontWeight: 'bold' }}>Przyjmij zdarzenie</span>
@@ -4641,7 +4641,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 position: 'absolute',
                 top: vehicleContextMenu.y,
                 left: vehicleContextMenu.x,
-                background: '#f3f3f3',
+                background: '#d4d0c8',
                 border: '1.5px solid #d1d1d1',
                 boxShadow: '2px 2px 5px rgba(0,0,0,0.5)',
                 padding: '2px',
@@ -5095,7 +5095,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
   const renderScoreboardSheet = () => {
     const scores = getLeaderboardScores();
     return (
-      <div style={{ padding: '16px', overflowY: 'auto', height: '100%', backgroundColor: '#ffffff', color: '#000' }} className="border-inset fade-in">
+      <div style={{ padding: '16px', overflowY: 'auto', height: '100%', backgroundColor: '#e0dfde', color: '#000' }} className="border-inset fade-in">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '15px' }}>
           <div>
             <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: '#005fb8', borderBottom: '1.5px solid #d1d1d1', paddingBottom: '5px', marginBottom: '15px' }}>
@@ -5129,7 +5129,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
 
           {/* Right Column: Game Mode Stats & Instructions */}
-          <div className="border-double-outset" style={{ padding: '10px', background: '#f3f3f3', height: 'fit-content' }}>
+          <div className="border-double-outset" style={{ padding: '10px', background: '#d4d0c8', height: 'fit-content' }}>
             <h4 style={{ fontSize: '11px', fontWeight: 'bold', color: '#005fb8', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', marginBottom: '8px' }}>
               🎮 GRA DYSPONOWANIA
             </h4>
@@ -5175,7 +5175,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           <div className="win-dialog-header">
             <span>☎️ Aparat Zgłoszeniowy CPR (Symulator Pozoranta)</span>
           </div>
-          <form onSubmit={handleSendSimulatedCall} className="win-dialog-body" style={{ background: '#f3f3f3' }}>
+          <form onSubmit={handleSendSimulatedCall} className="win-dialog-body" style={{ background: '#d4d0c8' }}>
             <div style={{ fontSize: '10px', color: '#444', marginBottom: '8px', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px' }}>
               Wprowadź zgłoszenie, aby wysłać sygnał alarmowy do dyspozytora na żywo
             </div>
@@ -5213,7 +5213,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             </div>
 
             {callStatusMessage && (
-              <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#005fb8', background: '#ffffff', padding: '6px', border: '1px solid #d1d1d1', textAlign: 'center' }}>
+              <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#005fb8', background: '#e0dfde', padding: '6px', border: '1px solid #d1d1d1', textAlign: 'center' }}>
                 📞 {callStatusMessage}
               </div>
             )}
@@ -5335,7 +5335,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
     };
 
     const sectionStyle = {
-      background: '#f0f0f0',
+      background: '#d4d0c8',
       border: '1px solid #d1d1d1',
       borderRadius: '2px',
       padding: '10px',
@@ -5346,7 +5346,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
     const thStyle = { padding: '5px 8px', fontSize: '10px', background: '#005fb8', color: '#fff', fontWeight: 'bold', textAlign: 'left' };
 
     return (
-      <div style={{ padding: '14px', overflowY: 'auto', height: '100%', backgroundColor: '#ffffff', color: '#000000' }} className="border-inset fade-in">
+      <div style={{ padding: '14px', overflowY: 'auto', height: '100%', backgroundColor: '#e0dfde', color: '#000000' }} className="border-inset fade-in">
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #005fb8', paddingBottom: '10px', marginBottom: '10px' }}>
           <div>
@@ -5465,7 +5465,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               </div>
             </div>
             {/* Dodawanie nowych jednostek */}
-            <div style={{ padding: '4px', borderTop: '1px solid #ccc', background: '#f0f0f0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={{ padding: '4px', borderTop: '1px solid #ccc', background: '#d4d0c8', display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {ksisTab === 'PSP' && (
                 <div style={{ display: 'flex', gap: '2px' }}>
                   <input type="text" id="newJrgName" placeholder="Nazwa JRG (np. JRG 1)" style={{ flex: 1, fontSize: '10px', padding: '2px' }} />
@@ -5490,13 +5490,13 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
 
           {/* Siły i środki wybranej jednostki (PRAWA KOLUMNA) */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', border: '2px inset #d1d1d1', background: '#f3f3f3' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', border: '2px inset #d1d1d1', background: '#d4d0c8' }}>
             <div style={{ padding: '2px 4px', background: '#005fb8', color: '#fff', fontSize: '11px', fontWeight: 'bold' }}>
               Dane o jednostce — {parseOsp(currentUnit).name}
             </div>
             
             {/* Wewnętrzne zakładki */}
-            <div style={{ display: 'flex', borderBottom: '1px solid #d1d1d1', background: '#f3f3f3', padding: '4px 4px 0 4px', gap: '2px' }}>
+            <div style={{ display: 'flex', borderBottom: '1px solid #d1d1d1', background: '#d4d0c8', padding: '4px 4px 0 4px', gap: '2px' }}>
               {['jednostka', 'vehicles', 'obsada', 'kierownictwo', 'magazyn'].map(tab => (
                 <div
                   key={tab}
@@ -5524,7 +5524,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
             {sisActiveTab === 'vehicles' && (
               <>
-                <div style={{ padding: '4px', background: '#f3f3f3', borderBottom: '1px solid #d1d1d1', display: 'flex', gap: '4px' }}>
+                <div style={{ padding: '4px', background: '#d4d0c8', borderBottom: '1px solid #d1d1d1', display: 'flex', gap: '4px' }}>
                    <button className="btn-win" style={{ fontSize: '11px', fontWeight: 'bold', color: '#005fb8' }} onClick={() => { if (!currentUnit) return; setSisIsAddingVehicle(true); setSisEditingVehicle(null); }}>
                      ➕ Dopis sprzętu
                    </button>
@@ -5808,7 +5808,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             )}
 
             {sisActiveTab === 'jednostka' && (
-              <div style={{ padding: '10px', fontSize: '11px', background: '#f3f3f3', flex: 1 }}>
+              <div style={{ padding: '10px', fontSize: '11px', background: '#d4d0c8', flex: 1 }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '10px', fontSize: '12px' }}>Dane teleadresowe jednostki: {currentUnit}</div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
                   <tbody>
@@ -5821,7 +5821,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             )}
 
             {sisActiveTab === 'obsada' && (
-              <div style={{ padding: '10px', fontSize: '11px', background: '#f3f3f3', flex: 1 }}>
+              <div style={{ padding: '10px', fontSize: '11px', background: '#d4d0c8', flex: 1 }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '10px', fontSize: '12px' }}>Obsada osobowa (System zmianowy 24/48)</div>
                 <div style={{ padding: '10px', background: '#fff', border: '1px inset #d1d1d1', color: '#888' }}>
                   Tutaj dyspozytor SWD zarządza zmianami służbowymi (Zmiana 1, Zmiana 2, Zmiana 3) i przypisuje obsadę do poszczególnych wozów. Moduł w przygotowaniu.
@@ -5830,7 +5830,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             )}
 
             {sisActiveTab === 'kierownictwo' && (
-              <div style={{ padding: '10px', fontSize: '11px', background: '#f3f3f3', flex: 1 }}>
+              <div style={{ padding: '10px', fontSize: '11px', background: '#d4d0c8', flex: 1 }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '10px', fontSize: '12px' }}>Kierownictwo jednostki</div>
                 <div style={{ padding: '10px', background: '#fff', border: '1px inset #d1d1d1', color: '#888' }}>
                   Wykaz kadry dowódczej (Dowódca JRG, Zastępca Dowódcy, Naczelnik OSP, Prezes OSP). Moduł w przygotowaniu.
@@ -5839,7 +5839,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             )}
 
             {sisActiveTab === 'magazyn' && (
-              <div style={{ padding: '10px', fontSize: '11px', background: '#f3f3f3', flex: 1 }}>
+              <div style={{ padding: '10px', fontSize: '11px', background: '#d4d0c8', flex: 1 }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '10px', fontSize: '12px' }}>Magazyn Sprzętu i Środków Gaśniczych</div>
                 <div style={{ padding: '10px', background: '#fff', border: '1px inset #d1d1d1', color: '#888' }}>
                   Ewidencja węży tłocznych, aparatów ODO, pił spalinowych oraz środków gaśniczych (piana). Moduł w przygotowaniu.
@@ -5862,7 +5862,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           <span style={{ fontWeight: 'bold' }}>BUFOR MELDUNKÓW REJESTRU WYJAZDÓW</span>
         </div>
         <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', border: '1px solid #d1d1d1' }}>
-          <thead style={{ background: '#f3f3f3', color: '#000' }}>
+          <thead style={{ background: '#d4d0c8', color: '#000' }}>
             <tr>
               <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Numer zdarzenia</th>
               <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Zdarzenie</th>
@@ -5921,7 +5921,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
           <div style={{ border: '1px solid #d1d1d1', background: '#fff' }}>
-            <div style={{ background: '#f3f3f3', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>Stan Połączeń Węzła (KM/KP)</div>
+            <div style={{ background: '#d4d0c8', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>Stan Połączeń Węzła (KM/KP)</div>
             <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
               <thead style={{ background: '#e0e0e0' }}>
                 <tr>
@@ -5951,7 +5951,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
 
           <div style={{ border: '1px solid #d1d1d1', background: '#fff' }}>
-            <div style={{ background: '#f3f3f3', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>Statystyki Replikacji Danych (EWID/Rejestr)</div>
+            <div style={{ background: '#d4d0c8', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>Statystyki Replikacji Danych (EWID/Rejestr)</div>
             <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
               <thead style={{ background: '#e0e0e0' }}>
                 <tr>
@@ -5983,7 +5983,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
         <div style={{ marginTop: '15px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
           <div style={{ border: '1px solid #d1d1d1', background: '#fff' }}>
-            <div style={{ background: '#f3f3f3', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>Logi Agenta Transmisji (AT)</div>
+            <div style={{ background: '#d4d0c8', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>Logi Agenta Transmisji (AT)</div>
             <div style={{ padding: '5px', height: '150px', overflowY: 'auto', background: '#000', color: '#0f0', fontFamily: 'monospace', fontSize: '10px' }}>
               {operationalLogs.map((log, idx) => (
                 <div key={idx}>[{new Date().toLocaleDateString('pl-PL')}] {log}</div>
@@ -5996,7 +5996,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
 
           <div style={{ border: '1px solid #d1d1d1', background: '#fff' }}>
-            <div style={{ background: '#f3f3f3', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>Bramka SMS / Terminale MDT (Statusy)</div>
+            <div style={{ background: '#d4d0c8', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>Bramka SMS / Terminale MDT (Statusy)</div>
             <div style={{ padding: '5px', height: '150px', overflowY: 'auto', background: '#e8f0fe', color: '#000', fontFamily: 'monospace', fontSize: '10px' }}>
               {operationalLogs.filter(log => log.includes('Status') || log.includes('ST ') || log.includes('DSP') || log.includes('Syrena') || log.includes('SMS')).map((log, idx) => (
                 <div key={idx} style={{ padding: '2px 0', borderBottom: '1px solid #f3f3f3' }}>{log}</div>
@@ -6024,7 +6024,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           <button className="btn-win">Dodaj Nowy</button>
         </div>
         <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', border: '1px solid #d1d1d1' }}>
-          <thead style={{ background: '#f3f3f3', color: '#000' }}>
+          <thead style={{ background: '#d4d0c8', color: '#000' }}>
             <tr>
               <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'left' }}>Kategoria (wg Słownika KSRG)</th>
               <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'left' }}>Nazwa Obiektu</th>
@@ -6064,7 +6064,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         </div>
         <div style={{ display: 'flex', gap: '15px' }}>
           <div style={{ width: '250px', border: '1px solid #d1d1d1', background: '#fff' }}>
-            <div style={{ background: '#f3f3f3', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>Grupy Zdarzeń</div>
+            <div style={{ background: '#d4d0c8', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>Grupy Zdarzeń</div>
             <ul style={{ listStyleType: 'none', padding: '0', margin: '0', fontSize: '11px' }}>
               <li style={{ padding: '5px', borderBottom: '1px solid #e9ecef', background: '#0a6ece', color: '#fff', cursor: 'pointer' }}>Pożary</li>
               <li style={{ padding: '5px', borderBottom: '1px solid #e9ecef', cursor: 'pointer' }}>Miejscowe Zagrożenia</li>
@@ -6190,7 +6190,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           <span style={{ fontWeight: 'bold' }}>TABLICA KONTROLI CZASU PRACY W SPRZĘCIE ODO</span>
         </div>
         
-        <div className="border-double-outset" style={{ padding: '10px', background: '#f3f3f3', marginBottom: '10px' }}>
+        <div className="border-double-outset" style={{ padding: '10px', background: '#d4d0c8', marginBottom: '10px' }}>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
             <div>
               <label className="input-label" style={{ fontSize: '9px' }}>Rota / Nazwisko strażaka:</label>
@@ -6209,7 +6209,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         </div>
 
         <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', border: '1px solid #d1d1d1' }}>
-          <thead style={{ background: '#f3f3f3', color: '#000' }}>
+          <thead style={{ background: '#d4d0c8', color: '#000' }}>
             <tr>
               <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Rota / Strażak</th>
               <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Wejście</th>
@@ -6270,7 +6270,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         <div style={{ display: 'flex', gap: '10px', height: '400px' }}>
           {/* Odbiorcy / Grupy */}
           <div style={{ width: '250px', border: '1px solid #d1d1d1', background: '#fff', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ background: '#f3f3f3', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>
+            <div style={{ background: '#d4d0c8', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>
               Grupy odbiorców
             </div>
             <div style={{ padding: '5px', flex: 1, overflowY: 'auto' }}>
@@ -6283,10 +6283,10 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
           {/* Konwersacja */}
           <div style={{ flex: 1, border: '1px solid #d1d1d1', background: '#fff', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ background: '#f3f3f3', padding: '5px 10px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>
+            <div style={{ background: '#d4d0c8', padding: '5px 10px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>
               Wiadomości do: {smsRecipient}
             </div>
-            <div style={{ flex: 1, padding: '10px', overflowY: 'auto', background: '#f0f0f0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ flex: 1, padding: '10px', overflowY: 'auto', background: '#d4d0c8', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {smsGatewayLogs.map(sms => (
                 <div key={sms.id} style={{
                   alignSelf: sms.type === 'out' ? 'flex-end' : 'flex-start',
@@ -6304,7 +6304,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 </div>
               ))}
             </div>
-            <div style={{ padding: '10px', background: '#f3f3f3', borderTop: '1px solid #d1d1d1', display: 'flex', gap: '5px' }}>
+            <div style={{ padding: '10px', background: '#d4d0c8', borderTop: '1px solid #d1d1d1', display: 'flex', gap: '5px' }}>
               <input 
                 type="text" 
                 value={smsInput}
@@ -6328,7 +6328,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
   const renderDutyLogSheet = () => {
     const dailyLogs = getChronologicalDutyLogs();
     return (
-      <div style={{ padding: '16px', overflowY: 'auto', height: '100%', backgroundColor: '#ffffff', color: '#000000' }} className="border-inset fade-in">
+      <div style={{ padding: '16px', overflowY: 'auto', height: '100%', backgroundColor: '#e0dfde', color: '#000000' }} className="border-inset fade-in">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid var(--win-shadow)', paddingBottom: '10px', marginBottom: '15px' }}>
           <div>
             <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: '#005fb8' }}>
@@ -6342,14 +6342,14 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 📂 Otwarcie nowej zmiany
               </button>
             )}
-            <button className="btn-win" style={{ backgroundColor: '#f3f3f3', fontWeight: 'bold' }} onClick={() => setPrintPreviewMode('dziennik_sluzby')}>
+            <button className="btn-win" style={{ backgroundColor: '#d4d0c8', fontWeight: 'bold' }} onClick={() => setPrintPreviewMode('dziennik_sluzby')}>
               🖨️ Drukuj raport dobowy
             </button>
           </div>
         </div>
 
         {/* SKKM Shift crew roster form */}
-        <div className="border-inset" style={{ padding: '10px', background: '#f3f3f3', marginBottom: '15px' }}>
+        <div className="border-inset" style={{ padding: '10px', background: '#d4d0c8', marginBottom: '15px' }}>
           <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#005fb8', marginBottom: '8px', textTransform: 'uppercase' }}>
             Obsada Służbowa Dyspozytornia (Dzisiejsza Zmiana)
           </div>
@@ -6375,7 +6375,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         </div>
 
         {/* JRG Shift Roster Details */}
-        <div className="border-inset" style={{ padding: '10px', background: '#f3f3f3', marginBottom: '15px' }}>
+        <div className="border-inset" style={{ padding: '10px', background: '#d4d0c8', marginBottom: '15px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#005fb8', textTransform: 'uppercase' }}>
               Stany Osobowe Zmian Bojowych JRG (Dyspozytornia)
@@ -6392,7 +6392,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
             {/* JRG 1 */}
-            <div style={{ background: '#ffffff', padding: '6px', border: '1px solid #d1d1d1' }}>
+            <div style={{ background: '#e0dfde', padding: '6px', border: '1px solid #d1d1d1' }}>
               <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#ff4b4b', marginBottom: '4px' }}>JRG 1</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '4px' }}>
                 <label style={{ fontSize: '8px' }}>Stan podziału:<input type="number" className="input-field" style={{ fontSize: '8px', padding: '1px' }} value={shiftJrg1Staff.active} onChange={(e) => setShiftJrg1Staff({ ...shiftJrg1Staff, active: parseInt(e.target.value, 10) })} /></label>
@@ -6402,7 +6402,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             </div>
 
             {/* JRG 2 */}
-            <div style={{ background: '#ffffff', padding: '6px', border: '1px solid #d1d1d1' }}>
+            <div style={{ background: '#e0dfde', padding: '6px', border: '1px solid #d1d1d1' }}>
               <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#ff4b4b', marginBottom: '4px' }}>JRG 2</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '4px' }}>
                 <label style={{ fontSize: '8px' }}>Stan podziału:<input type="number" className="input-field" style={{ fontSize: '8px', padding: '1px' }} value={shiftJrg2Staff.active} onChange={(e) => setShiftJrg2Staff({ ...shiftJrg2Staff, active: parseInt(e.target.value, 10) })} /></label>
@@ -6412,7 +6412,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             </div>
 
             {/* JRG 3 */}
-            <div style={{ background: '#ffffff', padding: '6px', border: '1px solid #d1d1d1' }}>
+            <div style={{ background: '#e0dfde', padding: '6px', border: '1px solid #d1d1d1' }}>
               <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#ff4b4b', marginBottom: '4px' }}>JRG 3</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '4px' }}>
                 <label style={{ fontSize: '8px' }}>Stan podziału:<input type="number" className="input-field" style={{ fontSize: '8px', padding: '1px' }} value={shiftJrg3Staff.active} onChange={(e) => setShiftJrg3Staff({ ...shiftJrg3Staff, active: parseInt(e.target.value, 10) })} /></label>
@@ -6429,7 +6429,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         </div>
 
         {/* Weather alerts meteo feed */}
-        <div className="border-inset" style={{ padding: '10px', background: '#f3f3f3', marginBottom: '15px' }}>
+        <div className="border-inset" style={{ padding: '10px', background: '#d4d0c8', marginBottom: '15px' }}>
           <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#d13438', marginBottom: '8px', textTransform: 'uppercase' }}>
             Ostrzeżenia Meteorologiczne KW PSP / IMGW
           </div>
@@ -6441,7 +6441,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         </div>
 
         {/* Log Entries */}
-        <div className="border-inset" style={{ background: '#ffffff', padding: '12px', minHeight: '260px', fontFamily: 'var(--font-mono)', fontSize: '11px', lineHeight: '1.6', overflowY: 'auto' }}>
+        <div className="border-inset" style={{ background: '#e0dfde', padding: '12px', minHeight: '260px', fontFamily: 'var(--font-mono)', fontSize: '11px', lineHeight: '1.6', overflowY: 'auto' }}>
           {dailyLogs.map((log, idx) => (
             <div key={idx} style={{ borderBottom: '1px solid #f3f3f3', padding: '4px 0', display: 'flex', gap: '15px' }}>
               <span style={{ color: '#005fb8', fontWeight: 'bold', minWidth: '45px' }}>[{log.time}]</span>
@@ -6475,11 +6475,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
 
           <div className="border-inset" style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#e9ecef' }}>
-            <div style={{ background: '#f3f3f3', padding: '5px 10px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>
+            <div style={{ background: '#d4d0c8', padding: '5px 10px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>
               Bieżące komunikaty (Kierunek: {msgRecipient === 'Wszyscy' ? 'Ogólny' : msgRecipient})
             </div>
             
-            <div style={{ flex: 1, overflowY: 'auto', padding: '15px', background: '#ffffff', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '15px', background: '#e0dfde', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {messages.map((m, idx) => (
                 <div key={idx} style={{ 
                   background: m.priority === 'urgent' ? '#ffe3e3' : m.priority === 'confirm' ? '#fff9db' : '#f8f9fa', 
@@ -6514,7 +6514,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               ))}
             </div>
 
-            <form onSubmit={handleSendMessage} style={{ display: 'flex', flexDirection: 'column', padding: '15px', gap: '10px', background: '#f3f3f3', borderTop: '2px solid #d1d1d1' }}>
+            <form onSubmit={handleSendMessage} style={{ display: 'flex', flexDirection: 'column', padding: '15px', gap: '10px', background: '#d4d0c8', borderTop: '2px solid #d1d1d1' }}>
               <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
                 <div style={{ fontWeight: 'bold' }}>Wyślij do:</div>
                 <select 
@@ -6580,7 +6580,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           <div className="win-dialog-header">
             <span>Logowanie do SWD-ST 2.5 (Tryb sieciowy)</span>
           </div>
-          <div className="win-dialog-body" style={{ background: '#f3f3f3', padding: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div className="win-dialog-body" style={{ background: '#d4d0c8', padding: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {error && <div style={{ color: 'red', fontWeight: 'bold' }}>{error}</div>}
             
             {authMode === 'login' ? (
@@ -6672,7 +6672,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         <div className="menu-item" onClick={() => setIsSystemMenuOpen(!isSystemMenuOpen)} style={{ position: 'relative', background: isSystemMenuOpen ? '#0a6ece' : '', color: isSystemMenuOpen ? '#fff' : '' }}>
           Plik
           {isSystemMenuOpen && (
-            <div style={{ position: 'absolute', top: '100%', left: 0, background: '#f3f3f3', padding: '2px', zIndex: 10000, display: 'flex', flexDirection: 'column', minWidth: '220px', boxShadow: '2px 2px 5px rgba(0,0,0,0.4)', border: '1.5px solid #d1d1d1' }}>
+            <div style={{ position: 'absolute', top: '100%', left: 0, background: '#d4d0c8', padding: '2px', zIndex: 10000, display: 'flex', flexDirection: 'column', minWidth: '220px', boxShadow: '2px 2px 5px rgba(0,0,0,0.4)', border: '1.5px solid #d1d1d1' }}>
               <div className="menu-item-dropdown" onClick={(e) => { e.stopPropagation(); setIsSystemMenuOpen(false); setIsShiftTransitionModalOpen(true); }} style={{ color: '#000', padding: '4px 10px', fontSize: '11px', textAlign: 'left', cursor: 'pointer' }}>
                 🔑 Rozpocznij nową służbę
               </div>
@@ -7175,7 +7175,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             <div className="forces-pane border-inset" style={{ position: 'relative' }}>
               
               {/* Tab selector */}
-              <div style={{ display: 'flex', background: '#f3f3f3', borderBottom: '1.5px solid #d1d1d1', userSelect: 'none' }}>
+              <div style={{ display: 'flex', background: '#d4d0c8', borderBottom: '1.5px solid #d1d1d1', userSelect: 'none' }}>
                 <button 
                   onClick={() => setRightPanelTab('sis')}
                   style={{ flex: 1, fontSize: '9.5px', padding: '5px 4px', border: '1px solid transparent', borderBottom: 'none', background: rightPanelTab === 'sis' ? '#ffffff' : '#f3f3f3', color: '#000000', fontWeight: rightPanelTab === 'sis' ? 'bold' : 'normal', cursor: 'pointer', outline: 'none', borderTopLeftRadius: '2px', borderTopRightRadius: '2px', marginTop: '2px', borderTop: rightPanelTab === 'sis' ? '1.5px solid #d1d1d1' : 'none', borderLeft: rightPanelTab === 'sis' ? '1.5px solid #d1d1d1' : 'none', borderRight: rightPanelTab === 'sis' ? '1.5px solid #d1d1d1' : 'none' }}
@@ -7196,7 +7196,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 </button>
               </div>
 
-              <div style={{ overflowY: 'auto', flex: 1, backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ overflowY: 'auto', flex: 1, backgroundColor: '#e0dfde', display: 'flex', flexDirection: 'column' }}>
                 {rightPanelTab === 'sis' ? (
                   <>
                     {/* Dyspozycje Toolbar */}
@@ -7212,7 +7212,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                         }}>Przejmij Zdarzenie</button>
                       </div>
                     )}
-                    <div style={{ display: 'flex', gap: '2px', padding: '2px 4px', background: '#f3f3f3', borderBottom: '1px solid #d1d1d1' }}>
+                    <div style={{ display: 'flex', gap: '2px', padding: '2px 4px', background: '#d4d0c8', borderBottom: '1px solid #d1d1d1' }}>
                       <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Wyjazd do akcji (ST 1)" onClick={() => { if(selectedSisVehicle) handleSetVehicleStatus(selectedSisVehicle, 1); else alert('Zaznacz zastęp na liście poniżej!'); }}>▶️</button>
                       <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px', opacity: (activeIncident?.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') ? 0.5 : 1 }} title="Na miejscu (ST 2)" onClick={() => { if (activeIncident?.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') { alert('Tylko komenda dowodząca (wysyłająca żądanie) może sterować tym statusem!'); return; } if(selectedSisVehicle) handleSetVehicleStatus(selectedSisVehicle, 2); else alert('Zaznacz zastęp na liście poniżej!'); }}>📍</button>
                       <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px', opacity: (activeIncident?.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') ? 0.5 : 1 }} title="Powrót / Zakończenie (ST 3)" onClick={() => { if (activeIncident?.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') { alert('Tylko komenda dowodząca (wysyłająca żądanie) może sterować tym statusem!'); return; } if(selectedSisVehicle) handleSetVehicleStatus(selectedSisVehicle, 3); else alert('Zaznacz zastęp na liście poniżej!'); }}>◀️</button>
@@ -7378,7 +7378,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     left: `${contextMenuPosition.x}px`, 
                     top: `${contextMenuPosition.y}px`, 
                     zIndex: 9999, 
-                    background: '#f3f3f3', 
+                    background: '#d4d0c8', 
                     padding: '2px', 
                     display: 'flex', 
                     flexDirection: 'column',
@@ -7429,13 +7429,13 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               
               {/* Ewidencja Hydrantow Nearby Search Display */}
               {activeIncident && (
-                <div className="border-inset" style={{ padding: '6px', background: '#f3f3f3', borderRadius: '4px', margin: '4px' }}>
+                <div className="border-inset" style={{ padding: '6px', background: '#d4d0c8', borderRadius: '4px', margin: '4px' }}>
                   <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#005fb8', textTransform: 'uppercase', marginBottom: '4px' }}>
                     💧 Zaopatrzenie Wodne (Ewidencja Hydr-ST)
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     {getNearbyHydrants(activeIncident.location).map(h => (
-                      <div key={h.id} style={{ fontSize: '8.5px', background: '#ffffff', padding: '3px', borderRadius: '2px', borderLeft: `2px solid ${h.status === 'sprawny' ? '#0a6ece' : '#fa5252'}`, display: 'flex', justifycontent: 'space-between', color: '#000', justifyContent: 'space-between' }}>
+                      <div key={h.id} style={{ fontSize: '8.5px', background: '#e0dfde', padding: '3px', borderRadius: '2px', borderLeft: `2px solid ${h.status === 'sprawny' ? '#0a6ece' : '#fa5252'}`, display: 'flex', justifycontent: 'space-between', color: '#000', justifyContent: 'space-between' }}>
                         <span><strong>{h.id}</strong> ({h.type} {h.diameter}) - {h.location}</span>
                         <span style={{ color: h.status === 'sprawny' ? '#2b8a3e' : '#fa5252', fontWeight: 'bold' }}>~{h.distance}m</span>
                       </div>
@@ -7453,7 +7453,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   <button onClick={() => setIsChatSidebarOpen(false)} style={{ background: 'none', border: 'none', color: '#ff3333', cursor: 'pointer', fontWeight: 'bold' }}>X</button>
                 </div>
                 
-                <div style={{ flex: 1, overflowY: 'auto', padding: '6px', background: '#ffffff', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '6px', background: '#e0dfde', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {messages.map((m, idx) => (
                     <div key={idx} style={{ fontSize: '10px', background: m.priority === 'urgent' ? '#ffe3e3' : m.priority === 'confirm' ? '#fff9db' : '#f8f9fa', border: m.priority === 'urgent' ? '1.5px solid #e03131' : '1px solid #f3f3f3', padding: '5px 8px', borderRadius: '3px', color: '#000000' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', color: m.priority === 'urgent' ? '#d13438' : '#005fb8', fontWeight: 'bold', marginBottom: '2px' }}>
@@ -7472,7 +7472,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   ))}
                 </div>
 
-                <form onSubmit={handleSendMessage} style={{ display: 'flex', flexDirection: 'column', padding: '4px', gap: '3px', background: '#f3f3f3', borderTop: '1px solid var(--win-shadow)' }}>
+                <form onSubmit={handleSendMessage} style={{ display: 'flex', flexDirection: 'column', padding: '4px', gap: '3px', background: '#d4d0c8', borderTop: '1px solid var(--win-shadow)' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '2px' }}>
                     <select 
                       value={msgRecipient} 
@@ -7535,7 +7535,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
   </div>
 
   {/* Middle: Terminale statusów (Dziennik Radiowy) */}
-  <div className="border-inset" style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#ffffff', minWidth: '300px' }}>
+  <div className="border-inset" style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#e0dfde', minWidth: '300px' }}>
     <div style={{ padding: '2px 6px', background: '#b0b0b0', fontWeight: 'bold', fontSize: '10px' }}>Terminale statusów</div>
     <div style={{ flex: 1, overflowY: 'auto', padding: '2px 4px', fontSize: '10px', display: 'flex', flexDirection: 'column-reverse', background: '#e8e8e8' }}>
       {(activeIncident?.radioLogs || []).slice().reverse().map((msg, idx) => (
@@ -7850,7 +7850,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               <div style={{ fontSize: '9.5px', fontWeight: 'bold', color: '#005fb8', marginTop: '10px', marginBottom: '6px', textTransform: 'uppercase' }}>
                 Nieobecni na zmianie (Str. 35 instrukcji):
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: '#ffffff', padding: '8px', border: '1px solid #d1d1d1', marginBottom: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: '#e0dfde', padding: '8px', border: '1px solid #d1d1d1', marginBottom: '12px' }}>
                 <label style={{ fontSize: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   Urlopy:
                   <input type="number" className="input-field" style={{ width: '50px', padding: '1px' }} value={absentUrlop} onChange={(e) => setAbsentUrlop(parseInt(e.target.value, 10))} />
@@ -8045,7 +8045,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 Wszystkie zadysponowane wozy, logi radiowe oraz zgłoszenia wtórne zostaną przeniesione. Proces ten jest nieodwracalny.
               </div>
 
-              <div style={{ maxHeight: '160px', overflowY: 'auto', background: '#ffffff', border: '1px solid #d1d1d1', padding: '4px' }}>
+              <div style={{ maxHeight: '160px', overflowY: 'auto', background: '#e0dfde', border: '1px solid #d1d1d1', padding: '4px' }}>
                 {incidents.filter(inc => inc.id !== activeIncident.id && inc.status !== 'processed' && !inc.isArchived).map(inc => (
                   <div 
                     key={inc.id} 
@@ -8094,7 +8094,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 Zdarzenie zniknie z Twojego bufora i pojawi się w buforze docelowej jednostki. (Rozdz. 8.9)
               </div>
 
-              <div style={{ maxHeight: '160px', overflowY: 'auto', background: '#ffffff', border: '1px solid #d1d1d1', padding: '4px' }}>
+              <div style={{ maxHeight: '160px', overflowY: 'auto', background: '#e0dfde', border: '1px solid #d1d1d1', padding: '4px' }}>
                 <div 
                   style={{ padding: '4px 8px', borderBottom: '1px solid #e9ecef', cursor: 'pointer', fontSize: '11px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                   onClick={() => handleTransferIncident('KM_Tychy')}
@@ -8153,7 +8153,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
               <div style={{ fontWeight: 'bold', marginBottom: '5px', fontSize: '12px' }}>Zadysponowane Siły i Środki:</div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '20px' }}>
-                <thead style={{ background: '#f0f0f0' }}>
+                <thead style={{ background: '#d4d0c8' }}>
                   <tr>
                     <th style={{ border: '1px solid #000', padding: '4px', textAlign: 'left' }}>Kryptonim</th>
                     <th style={{ border: '1px solid #000', padding: '4px', textAlign: 'center' }}>Wyjazd</th>
@@ -8288,7 +8288,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               <span>Żądanie dyspozycji KSiS</span>
               <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsKsisSendModalOpen(false)}>X</button>
             </div>
-            <div className="win-dialog-body" style={{ background: '#f3f3f3', padding: '15px' }}>
+            <div className="win-dialog-body" style={{ background: '#d4d0c8', padding: '15px' }}>
               <div style={{ marginBottom: '10px' }}>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Do kogo wysłać? (Wybierz adresata):</label>
                 <select 
@@ -8373,7 +8373,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               <span>Nowe zdarzenie - SI WCPR {selectedWcprCallForModal.id?.substring(0, 4) || 'ZG/0000'}</span>
               <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsWcprCallModalOpen(false)}>X</button>
             </div>
-            <div className="win-dialog-body" style={{ display: 'flex', flexDirection: 'column', height: '550px', padding: '10px', background: '#f3f3f3', gap: '10px' }}>
+            <div className="win-dialog-body" style={{ display: 'flex', flexDirection: 'column', height: '550px', padding: '10px', background: '#d4d0c8', gap: '10px' }}>
               
               {/* Tabs */}
               <div style={{ display: 'flex', gap: '2px', borderBottom: '1px solid #ccc', paddingLeft: '4px' }}>
@@ -8526,7 +8526,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                       
                       <div style={{ border: '1px solid #ccc', background: '#fff', height: '90px', overflowY: 'auto', borderRadius: '4px' }}>
                         <table style={{ width: '100%', fontSize: '10px', borderCollapse: 'collapse' }}>
-                          <thead style={{ background: '#f3f3f3', borderBottom: '1px solid #ccc' }}>
+                          <thead style={{ background: '#d4d0c8', borderBottom: '1px solid #ccc' }}>
                             <tr>
                               <th style={{ fontWeight: '600', textAlign: 'left', padding: '4px' }}>Służba</th>
                               <th style={{ fontWeight: '600', textAlign: 'left', padding: '4px' }}>Status</th>
@@ -8605,7 +8605,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 <span>Formatka WCPR: {activeIncident.customId || 'Nowe Zgłoszenie'}</span>
                 <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsNewIncidentModalOpen(false)}>X</button>
               </div>
-              <div className="win-dialog-body" style={{ background: '#f3f3f3', padding: '12px' }}>
+              <div className="win-dialog-body" style={{ background: '#d4d0c8', padding: '12px' }}>
                 <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '6px' }}>Otrzymano formatkę zgłoszeniową z CPR:</div>
                 <div style={{ background: '#fff', border: '1px solid #d1d1d1', padding: '10px', fontSize: '11px', fontFamily: 'var(--font-mono)', minHeight: '120px', whiteSpace: 'pre-wrap', marginBottom: '12px' }}>
                   {activeIncident.description}
@@ -8644,7 +8644,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 <div style={{ padding: '2px 8px', border: '1px solid #999', borderBottom: 'none', background: '#fff', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'default' }}>
                    <img src="https://img.icons8.com/color/48/000000/google-logo.png" style={{width: 12, height: 12}} alt="G"/> ZG{activeIncident?.customId?.replace('-', '/') || ''}
                 </div>
-                <div style={{ padding: '2px 8px', border: '1px solid #999', borderBottom: 'none', background: '#f0f0f0', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'default', color: '#555' }}>
+                <div style={{ padding: '2px 8px', border: '1px solid #999', borderBottom: 'none', background: '#d4d0c8', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'default', color: '#555' }}>
                    <img src="https://img.icons8.com/color/48/000000/c-key.png" style={{width: 12, height: 12}} alt="C"/> SI WCPR ZD/{activeIncident?.id?.substring(0,4).toUpperCase() || 'NOWE'}/{activeIncident?.tenantId?.substring(0,3).toUpperCase() || 'KAT'}/{new Date().getFullYear()}
                 </div>
               </div>
@@ -8859,7 +8859,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               <div style={{ border: '2px inset #d1d1d1', position: 'relative', marginTop: '10px' }}>
                 <div style={{ position: 'absolute', top: '-18px', left: '0', display: 'flex' }}>
                   <div style={{ background: '#fff', border: '2px outset #f3f3f3', borderBottom: 'none', padding: '2px 10px', fontSize: '10px', fontWeight: 'bold', zIndex: 1 }}>Nowe zdarzenie</div>
-                  <div style={{ background: '#f3f3f3', border: '1px solid #d1d1d1', borderBottom: 'none', padding: '2px 10px', fontSize: '10px', marginTop: '2px' }}>Zdarzenia</div>
+                  <div style={{ background: '#d4d0c8', border: '1px solid #d1d1d1', borderBottom: 'none', padding: '2px 10px', fontSize: '10px', marginTop: '2px' }}>Zdarzenia</div>
                 </div>
                 
                 <div style={{ padding: '8px', background: '#d0d8e0', minHeight: '200px' }}>
@@ -9050,7 +9050,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   <p style={{ color: '#555', fontSize: '10px', marginTop: '2px' }}>Adres: {activeIncident.location}</p>
                 </div>
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#ffffff', padding: '4px 8px', border: '1px solid #d1d1d1' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#e0dfde', padding: '4px 8px', border: '1px solid #d1d1d1' }}>
                   <input 
                     type="checkbox" 
                     id="partial_checkbox" 
@@ -9092,7 +9092,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               {/* Real-time Obieg Meldunku steps timeline bar (Page 74/77 of manual) */}
               <div className="border-inset" style={{ padding: '8px', background: '#eeeeee', marginBottom: '8px' }}>
                 <div style={{ fontSize: '9.5px', fontWeight: 'bold', color: '#444', marginBottom: '4px', textTransform: 'uppercase' }}>Przebieg Akceptacji Wojewódzkiej (Obieg)</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', background: '#ffffff', border: '1px solid #ccc' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', background: '#e0dfde', border: '1px solid #ccc' }}>
                   <span style={{ fontSize: '10px', color: '#000', fontWeight: reportWorkflowState === '1' ? 'bold' : 'normal' }}>
                     {reportWorkflowState === '1' ? '▶️ JRG Szkic' : '✓ JRG Szkic'}
                   </span>
@@ -9111,7 +9111,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               </div>
 
               {/* Operational times fields */}
-              <div className="border-inset" style={{ padding: '0', background: '#ffffff' }}>
+              <div className="border-inset" style={{ padding: '0', background: '#e0dfde' }}>
                 <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#fff', background: '#005fb8', padding: '2px 4px' }}>
                   Czasy Operacyjne Akcji
                 </div>
@@ -9164,7 +9164,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     <label className="input-label" style={{ fontSize: '9px', color: '#000' }}>Opis obrażeń ratownika (Imię, nazwisko, jednostka, typ urazu):</label>
                     <textarea 
                       className="textarea-field" 
-                      style={{ minHeight: '40px', background: '#ffffff', color: '#000000', border: '1px solid #d1d1d1' }}
+                      style={{ minHeight: '40px', background: '#e0dfde', color: '#000000', border: '1px solid #d1d1d1' }}
                       placeholder="np. asp. Jan Kowalski z JRG 2 - skręcenie lewego stawu skokowego..."
                       value={injuriesDescription}
                       onChange={(e) => setInjuriesDescription(e.target.value)}
@@ -9175,11 +9175,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               </div>
 
               {/* Geocoding precision selector */}
-              <div style={{ display: 'flex', alignItems: 'center', background: '#ffffff', padding: '8px', border: '1px solid #d1d1d1', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', background: '#e0dfde', padding: '8px', border: '1px solid #d1d1d1', justifyContent: 'space-between' }}>
                 <span style={{ fontWeight: 'bold', fontSize: '10px', color: '#000' }}>SPA Geokodowanie:</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   {getGeocodingDot(geocodingStatus)}
-                  <select value={geocodingStatus} onChange={(e) => setGeocodingStatus(e.target.value)} style={{ fontSize: '11px', outline: 'none', background: '#ffffff', color: '#000000' }}>
+                  <select value={geocodingStatus} onChange={(e) => setGeocodingStatus(e.target.value)} style={{ fontSize: '11px', outline: 'none', background: '#e0dfde', color: '#000000' }}>
                     <option value="red">Brak geokodowania (Czerwona)</option>
                     <option value="yellow">Ulica/Miejscowość (Żółta)</option>
                     <option value="green">EMUiA Dokładne (Zielona)</option>
@@ -9203,7 +9203,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               </div>
 
               {/* Real-time Validation Report Log Box */}
-              <div className="border-inset" style={{ padding: '8px', background: '#ffffff' }}>
+              <div className="border-inset" style={{ padding: '8px', background: '#e0dfde' }}>
                 <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000000', marginBottom: '4px', textTransform: 'uppercase', borderBottom: '1px solid #f3f3f3', paddingBottom: '3px' }}>
                   Kontrola poprawności meldunku (Walidacja)
                 </div>
@@ -9221,7 +9221,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               </div>
 
               {/* Obieg meldunku simulation trigger panel */}
-              <div className="border-inset" style={{ padding: '8px', background: '#ffffff' }}>
+              <div className="border-inset" style={{ padding: '8px', background: '#e0dfde' }}>
                 <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000', marginBottom: '6px' }}>
                   Status obiegu meldunku w województwie: <span style={{ color: '#005fb8' }}>[{reportWorkflowState}] ({WORKFLOW_STATES[reportWorkflowState]})</span>
                 </div>
@@ -9404,7 +9404,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           <div style={{ 
             width: '210mm', 
             minHeight: '297mm', 
-            backgroundColor: '#ffffff', 
+            backgroundColor: '#e0dfde', 
             color: '#000000', 
             boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
             margin: '0 auto',
@@ -9641,7 +9641,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             position: 'fixed',
             top: contextMenu.y,
             left: contextMenu.x,
-            background: '#f3f3f3',
+            background: '#d4d0c8',
             border: '2px solid #ffffff',
             borderRightColor: '#404040',
             borderBottomColor: '#404040',
