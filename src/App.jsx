@@ -1381,15 +1381,18 @@ function App() {
             if (localGeminiKey) {
               try {
                 const ai = new GoogleGenAI({ apiKey: localGeminiKey });
-                const prompt = `Jesteś dzwoniącym na numer alarmowy 112 w Polsce. 
-                Miejscowość zdarzenia to: ${city}. Wymyśl i zwróć całkowicie realistyczny adres w tym mieście (istniejąca ulica, np. "ul. Kościuszki 4").
-                Wymyśl krótkie, realistyczne zgłoszenie na stanowisko dyspozytora Straży Pożarnej (2-3 zdania). Zdarzenie musi być typu: ${type === 'pozar' ? 'Pożar (np. budynku, trawy, śmietnika)' : type === 'mz' ? 'Miejscowe Zagrożenie (np. wypadek drogowy, plama oleju, powalone drzewo, owady)' : 'Alarm Fałszywy (w dobrej wierze lub złośliwy)'}.
-                Zwróć odpowiedź WYŁĄCZNIE jako prawidłowy format JSON z polami: 
-                "adres": (wygenerowany adres, w formacie "${city}, ul. [Nazwa] [Nr]"),
-                "t": (tekst zgłoszenia jako dzwoniący),
-                "k": (profesjonalny meldunek KDR z miejsca zdarzenia, używający poprawnej terminologii SWD-ST, np. "Zgłaszam przybycie na miejsce. Rozpoznanie: rozwinięty pożar poddasza, podano dwa prądy wody w natarciu, brak osób poszkodowanych."),
-                "zrm": (boolean - czy potrzebne Pogotowie Ratunkowe),
-                "pol": (boolean - czy potrzebna Policja)`;
+                const prompt = `Jesteś systemem symulacyjnym SWD-ST Państwowej Straży Pożarnej w Polsce.
+Wygeneruj bardzo realistyczne zgłoszenie na 112. Miejscowość zdarzenia to: ${city}.
+Zdarzenie musi być typu: ${type === 'pozar' ? 'Pożar (np. budynku mieszkalnego, lasu, hali, trawy, śmietnika, samochodu)' : type === 'mz' ? 'Miejscowe Zagrożenie (np. poważny wypadek drogowy, rozlewisko, powalone drzewo, owady, ratownictwo chemiczne)' : 'Alarm Fałszywy (w dobrej wierze lub złośliwy)'}.
+
+Wymyśl precyzyjny adres w tym mieście. Nie używaj ogólników. Używaj konkretnych nazw ulic (np. ul. Warszawska, Dworcowa, Leśna), numerów budynków, a dla wypadków skrzyżowań lub kilometraży dróg (np. DW 933 km 12).
+Zwróć odpowiedź WYŁĄCZNIE jako prawidłowy, czysty JSON z polami: 
+"adres": (wygenerowany realistyczny adres, np. "${city}, ul. Mickiewicza 14", "${city}, Skrzyżowanie ul. Polnej i Leśnej"),
+"t": (pełna, pełna emocji lub chaotyczna treść zgłoszenia dzwoniącego - jak w rzeczywistości, np. "Panie, pali się dach na Dworcowej, szybko wysyłajcie straż!"),
+"k": (profesjonalny, suchy meldunek KDR z miejsca zdarzenia do SKKP po dojeździe. Powinien zawierać rozpoznanie i informację o podjętych działaniach, używając terminologii PSP, np. "SKKP z miejsca. Potwierdzam pożar poddasza, budynek ewakuowany. Podajemy dwa prądy w natarciu. Dysponuj pogotowie energetyczne."),
+"zrm": (boolean - czy potrzebne Pogotowie Ratunkowe/ZRM),
+"pol": (boolean - czy potrzebna Policja),
+"requiredUnits": (obiekt JSON z wymaganymi pojazdami do opanowania sytuacji, klucze to typy np. "GBA", "GCBA", "SD", "SLRt", "SCRt", "SRchem", a wartości to wymagana ilość. Dla zwykłego pożaru np. {"GBA": 1, "GCBA": 1}. Musi być spójny z rodzajem i rozmiarem wymyślonego zdarzenia!)`;
                 
                 const response = await ai.models.generateContent({
                   model: 'gemini-2.5-flash',
@@ -1402,6 +1405,7 @@ function App() {
                 expectedKdrMsg = parsed.k;
                 needsZRM = !!parsed.zrm;
                 needsPolice = !!parsed.pol;
+                scenarioObj = { requiredUnits: parsed.requiredUnits || null };
               } catch (err) {
                 console.error("Błąd AI, powrót do generatora offline:", err);
               }
@@ -3274,19 +3278,29 @@ function App() {
           updatedAt: serverTimestamp()
         });
 
-        // Grant XP to the user
+        // Grant XP to the user using setDoc with merge to prevent "not found" errors
         if (user) {
-          await updateDoc(doc(db, 'users', user.uid), {
+          await setDoc(doc(db, 'users', user.uid), {
             xp: increment(10),
             completedIncidents: increment(1)
+          }, { merge: true });
+        }
+        
+        // AWARD POINTS IF IN GAME MODE
+        if (isGameModeActive) {
+          setGameScore(prev => {
+            const updated = prev + 100;
+            localStorage.setItem('swd_game_score', updated.toString());
+            return updated;
           });
+          alert(`🏆 Zdarzenie ratownicze zakończone!\n\nZDOBYWASZ +100 PUNKTÓW!`);
         }
 
         logAction(`Zakończono zdarzenie ${inc.formattedId || incidentId}. Sytuacja opanowana. Przyznano 10 XP.`);
         setActiveIncident(null);
       } catch(e) {
-        console.error(e);
-        alert("Błąd zamykania zdarzenia.");
+        console.error("Błąd zamykania zdarzenia:", e);
+        alert("Błąd zamykania zdarzenia: " + e.message);
       }
     }
   };
@@ -4045,7 +4059,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                       {uName.includes('KM PSP') ? 'ul. Bankowa 8' : ''}
                     </div>
 
-                    <div style={{ flex: 1, overflowY: 'auto' }}>
+                    <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
                       {vehicles.map(v => {
                         const actualUName = v.originalUnit || uName;
                         const isCrossedOut = getVehicleState(actualUName, v.name) === "Wycofany" || v.outOfService;
