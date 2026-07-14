@@ -37,7 +37,7 @@ import MobileTerminal from './components/MobileTerminal';
 import SisEditor from './SisEditor';
 import { getRankByXp, PSP_RANKS } from './ranks';
 
-const APP_VERSION = "0.2.0 beta";
+const APP_VERSION = "0.3.0 beta";
 
 // Web Speech API Polish Voice Announcement (WCPR)
 const speakAnnouncement = (text, isAudioEnabled) => {
@@ -4533,14 +4533,14 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 <table className="swd-table" style={{ width: '100%', fontSize: '10px' }}>
                   <thead>
                     <tr>
-                      <th style={{ width: '20px' }}></th>
-                      <th style={{ width: '80px' }}>ID zdarzenia</th>
+                      <th style={{ width: '30px' }}>Ikona</th>
+                      <th style={{ width: '150px' }}>Nr Zdarzenia</th>
                       <th style={{ width: '120px' }}>Data i godzina</th>
+                      <th style={{ width: '120px' }}>Zgłaszający</th>
+                      <th style={{ width: '120px' }}>Miejscowość</th>
+                      <th style={{ width: '120px' }}>Ulica</th>
+                      <th style={{ width: '120px' }}>Obiekt</th>
                       <th style={{ width: '80px' }}>KP/KM</th>
-                      <th>Miejsce zdarzenia</th>
-                      <th style={{ width: '100px' }}>Zastępy</th>
-                      <th style={{ width: '80px' }}>Rodzaj</th>
-                      <th>Opis</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -7673,7 +7673,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   <li>Ulepszony panel zarządzania użytkownikami dla Dowództwa.</li>
                 </ul>
                 
-                <p style={{ marginTop: '10px' }}><strong>v0.1 beta (Wersja pierwotna)</strong></p>
+                <p><strong>v0.3.0 beta (WCPR UI Rework)</strong></p><ul><li>Dodano zakładki Karty PSP i WCPR do widoku edycji.</li><li>Zreorganizowano widok przyjęcia WCPR do stylistyki SWD-ST.</li></ul><p style={{ marginTop: '10px' }}><strong>v0.1 beta (Wersja pierwotna)</strong></p>
                 <ul style={{ paddingLeft: '20px' }}>
                   <li>Rdzeń systemu: Zgłoszenia alarmowe, karty zdarzeń, mapowanie jednostek PSP/OSP.</li>
                   <li>Multiplayer w czasie rzeczywistym oparty o bazę danych Firestore.</li>
