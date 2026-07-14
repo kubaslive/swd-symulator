@@ -4564,14 +4564,14 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             cursor: 'pointer' 
                           }}
                         >
-                          <td style={{ textAlign: 'center' }}>📞</td>
-                          <td>WCPR/{call.id.substring(0, 4)}</td>
+                          <td style={{ textAlign: 'center' }}><img src="https://img.icons8.com/color/48/000000/c-key.png" style={{width: 14, height: 14}} alt="C" title="Zdarzenie z WCPR"/></td>
+                          <td>SI WCPR ZD/{call.id.substring(0, 4).toUpperCase()}/{call.tenantId?.substring(0,3).toUpperCase() || 'KAT'}/{new Date().getFullYear()}</td>
                           <td>{new Date().toLocaleTimeString('pl-PL')}</td>
+                          <td>WCPR {call.tenantId || 'WCPR'}</td>
+                          <td>{call.miejscowoscStr || call.address?.split(',')[0]}</td>
+                          <td>{call.location?.split('ul. ')[1]?.split(' ')[0] || 'Brak'}</td>
+                          <td>{call.obiektStr || 'Brak'}</td>
                           <td>SI WCPR</td>
-                          <td>{call.address}</td>
-                          <td></td>
-                          <td>{call.category}</td>
-                          <td>{call.description}</td>
                         </tr>
                       ))
                     )}
@@ -8629,11 +8629,19 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             <div className="win-dialog-body" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '6px', background: 'var(--win-face)', height: '600px' }}>
               
               {/* ZAKŁADKI KARTY ZDARZENIA */}
+              <div style={{ display: 'flex', borderBottom: '1px solid #ccc', marginBottom: '5px', background: '#e1e1e1', paddingTop: '2px', paddingLeft: '4px' }}>
+                <div style={{ padding: '2px 8px', border: '1px solid #999', borderBottom: 'none', background: '#fff', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'default' }}>
+                   <img src="https://img.icons8.com/color/48/000000/google-logo.png" style={{width: 12, height: 12}} alt="G"/> ZG{activeIncident?.customId?.replace('-', '/') || ''}
+                </div>
+                <div style={{ padding: '2px 8px', border: '1px solid #999', borderBottom: 'none', background: '#f0f0f0', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'default', color: '#555' }}>
+                   <img src="https://img.icons8.com/color/48/000000/c-key.png" style={{width: 12, height: 12}} alt="C"/> SI WCPR ZD/{activeIncident?.id?.substring(0,4).toUpperCase() || 'NOWE'}/{activeIncident?.tenantId?.substring(0,3).toUpperCase() || 'KAT'}/{new Date().getFullYear()}
+                </div>
+              </div>
               <div style={{ display: 'flex', borderBottom: '1px solid #999', marginBottom: '5px' }}>
                 <button 
                   onClick={() => setIncidentModalTab('formatka')}
-                  style={{ padding: '5px 15px', fontWeight: incidentModalTab === 'formatka' ? 'bold' : 'normal', background: incidentModalTab === 'formatka' ? '#fff' : '#f0f0f0', border: '1px solid #999', borderBottom: incidentModalTab === 'formatka' ? '1px solid #fff' : '1px solid #999', marginBottom: '-1px', zIndex: incidentModalTab === 'formatka' ? 1 : 0, borderRadius: '3px 3px 0 0' }}
-                >Formatka WCPR</button>
+                  style={{ padding: '5px 15px', fontWeight: incidentModalTab === 'formatka' ? 'bold' : 'normal', background: incidentModalTab === 'formatka' ? '#fff' : '#f0f0f0', border: '1px solid #999', borderBottom: incidentModalTab === 'formatka' ? '1px solid #fff' : '1px solid #999', marginBottom: '-1px', zIndex: incidentModalTab === 'formatka' ? 1 : 0, borderRadius: '3px 3px 0 0', borderLeft: '1px solid #f3f3f3', marginLeft: '4px' }}
+                >Karta Zdarzenia PSP</button>
                 <button 
                   onClick={() => setIncidentModalTab('dziennik')}
                   style={{ padding: '5px 15px', fontWeight: incidentModalTab === 'dziennik' ? 'bold' : 'normal', background: incidentModalTab === 'dziennik' ? '#fff' : '#f0f0f0', border: '1px solid #999', borderBottom: incidentModalTab === 'dziennik' ? '1px solid #fff' : '1px solid #999', marginBottom: '-1px', zIndex: incidentModalTab === 'dziennik' ? 1 : 0, marginLeft: '2px', borderRadius: '3px 3px 0 0' }}
