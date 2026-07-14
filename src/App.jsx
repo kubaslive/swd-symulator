@@ -1,4 +1,6 @@
 import { DEFAULT_SCENARIOS } from './scenarios';
+import 'leaflet/dist/leaflet.css';
+import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip } from 'react-leaflet';
 import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase';
 import { wipeAndInitializeDb } from './db_wipe';
@@ -205,24 +207,23 @@ const playSynthSound = (type) => {
 // Resolves Katowice location strings to SVG coordinates
 const getCoordinatesForLocation = (locStr) => {
   const norm = (locStr || "").toLowerCase();
-  if (norm.includes("szopienic")) return { x: 295, y: 85 };
-  if (norm.includes("dąbrówk") || norm.includes("dabrowk")) return { x: 255, y: 55 };
-  if (norm.includes("kostuchn")) return { x: 205, y: 205 };
-  if (norm.includes("podles")) return { x: 145, y: 215 };
-  if (norm.includes("zarzecz")) return { x: 105, y: 205 };
-  if (norm.includes("piotrowic")) return { x: 170, y: 180 };
-  if (norm.includes("ligot")) return { x: 130, y: 150 };
-  if (norm.includes("centrum") || norm.includes("korfant")) return { x: 200, y: 110 };
-  if (norm.includes("mariack") || norm.includes("dworco")) return { x: 220, y: 120 };
+  if (norm.includes("szopienic")) return { lat: 50.2644, lng: 19.0833 };
+  if (norm.includes("dąbrówk") || norm.includes("dabrowk")) return { lat: 50.2764, lng: 19.0681 };
+  if (norm.includes("kostuchn")) return { lat: 50.1878, lng: 18.9950 };
+  if (norm.includes("podles")) return { lat: 50.1820, lng: 18.9660 };
+  if (norm.includes("zarzecz")) return { lat: 50.1866, lng: 18.9482 };
+  if (norm.includes("piotrowic")) return { lat: 50.2078, lng: 18.9806 };
+  if (norm.includes("ligot")) return { lat: 50.2238, lng: 18.9680 };
+  if (norm.includes("centrum") || norm.includes("korfant")) return { lat: 50.2599, lng: 19.0216 };
   
   // Deterministic coordinate based on string hash for unknown locations
   let hash = 0;
   for (let i = 0; i < norm.length; i++) {
     hash = norm.charCodeAt(i) + ((hash << 5) - hash);
   }
-  const x = 110 + Math.abs(hash % 200);
-  const y = 60 + Math.abs((hash >> 8) % 130);
-  return { x, y };
+  const latOffset = (hash % 100) / 1000;
+  const lngOffset = ((hash >> 8) % 100) / 1000;
+  return { lat: 50.25 + latOffset, lng: 19.02 + lngOffset };
 };
 
 
@@ -303,7 +304,7 @@ function App() {
   const getNearbyHydrants = (locStr) => {
     const coords = getCoordinatesForLocation(locStr);
     return SIMULATED_HYDRANTS.map(h => {
-      const dist = Math.round(Math.sqrt(Math.pow(h.x - coords.x, 2) + Math.pow(h.y - coords.y, 2)) * 12);
+      const dist = Math.round(Math.sqrt(Math.pow(h.x - (coords.lng*100), 2) + Math.pow(h.y - (coords.lat*100), 2)) * 12);
       return { ...h, distance: dist };
     }).sort((a, b) => a.distance - b.distance).slice(0, 3);
   };
@@ -6096,66 +6097,44 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
   const renderMapaGIS = () => {
     return (
       <div className="tab-content" style={{ padding: '0', height: '100%', overflow: 'hidden', background: '#e0e0e0', position: 'relative', border: '2px solid #d1d1d1' }}>
-        <div className="section-header" style={{ marginBottom: '0', background: '#005fb8', color: 'white', padding: '5px', position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
+        <div className="section-header" style={{ marginBottom: '0', background: '#005fb8', color: 'white', padding: '5px', position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1000 }}>
           <span style={{ fontWeight: 'bold' }}>SYSTEM WSPOMAGANIA DECYZJI - MODUŁ GEOGRAFICZNY (GIS)</span>
         </div>
         
-        {/* MAPA */}
-        <div style={{ width: '100%', height: '100%', position: 'relative', marginTop: '24px' }}>
-          <svg width="100%" height="100%" style={{ background: '#d0d8ce' }}>
-            {/* Siatka ulic */}
-            <line x1="0" y1="200" x2="1200" y2="200" stroke="#fff" strokeWidth="4" />
-            <line x1="300" y1="0" x2="300" y2="800" stroke="#fff" strokeWidth="4" />
-            <line x1="0" y1="400" x2="1200" y2="400" stroke="#fff" strokeWidth="6" />
-            
-            {/* Obiekty (JRG, OSP) */}
-            {Object.entries(MAP_BASES).map(([name, coords]) => (
-              <g key={name} transform={`translate(${coords.x * 2.5}, ${coords.y * 2.5})`}>
-                <rect x="-8" y="-8" width="16" height="16" fill={coords.color} stroke="#000" strokeWidth="1" />
-                <text x="12" y="4" fontSize="11" fontWeight="bold" fill="#000" style={{ textShadow: '1px 1px 0 #fff' }}>{name}</text>
-              </g>
-            ))}
-
-            {/* Aktywne zdarzenia */}
+        <div style={{ width: '100%', height: '100%', position: 'relative', paddingTop: '24px' }}>
+          <MapContainer center={[50.2599, 19.0216]} zoom={12} style={{ width: '100%', height: '100%' }}>
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; OpenStreetMap contributors'
+            />
             {incidents.filter(inc => !inc.isArchived && inc.status !== 'processed').map(inc => {
-              // Extract coordinates from coordinates string if available, otherwise use deterministic pseudo-random
-              let x = 0;
-              let y = 0;
+              const coords = getCoordinatesForLocation(inc.location);
+              const isSelected = selectedIncidentId === inc.id;
+              const color = inc.type === 'pozar' ? '#ff4b4b' : inc.type === 'mz' ? '#ffcc00' : '#4dabf7';
               
-              if (inc.coordinates && inc.coordinates.x && inc.coordinates.y) {
-                x = inc.coordinates.x * 2.5;
-                y = inc.coordinates.y * 2.5;
-              } else {
-                // Generate consistent hash from customId
-                let hash = 0;
-                const str = inc.customId || inc.id;
-                for (let i = 0; i < str.length; i++) {
-                  hash = str.charCodeAt(i) + ((hash << 5) - hash);
-                }
-                x = Math.abs((hash % 800) + 50);
-                y = Math.abs(((hash >> 8) % 500) + 50);
-              }
-
               return (
-                <g key={inc.id} transform={`translate(${x}, ${y})`}>
-                  <circle cx="0" cy="0" r="12" fill="rgba(255,0,0,0.4)">
-                    <animate attributeName="r" values="5;20;5" dur="1.5s" repeatCount="indefinite" />
-                  </circle>
-                  <circle cx="0" cy="0" r="5" fill="red" stroke="#fff" strokeWidth="1.5" />
-                  <rect x="-25" y="12" width="50" height="14" fill="#fff" stroke="#000" strokeWidth="1" />
-                  <text x="0" y="22" fontSize="9" fontWeight="bold" fill="#000" textAnchor="middle">{inc.customId}</text>
-                </g>
-              )
+                <CircleMarker 
+                  key={inc.id}
+                  center={[coords.lat, coords.lng]} 
+                  pathOptions={{ color: color, fillColor: color, fillOpacity: 0.7 }}
+                  radius={isSelected ? 12 : 8}
+                  eventHandlers={{
+                    click: () => setSelectedIncidentId(inc.id)
+                  }}
+                >
+                  <Tooltip direction="top" offset={[0, -10]} opacity={1} permanent={isSelected}>
+                    <span>{inc.customId || inc.id.substring(0,4)}</span>
+                  </Tooltip>
+                  {isSelected && (
+                    <Popup>
+                      <strong>{inc.location}</strong><br/>
+                      {inc.description}
+                    </Popup>
+                  )}
+                </CircleMarker>
+              );
             })}
-          </svg>
-
-          {/* Legenda */}
-          <div style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(255,255,255,0.85)', padding: '6px', border: '2px solid #d1d1d1', fontSize: '11px', boxShadow: '2px 2px 5px rgba(0,0,0,0.3)' }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '6px', borderBottom: '1px solid #000' }}>LEGENDA MAPY (SPA)</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '12px', height: '12px', background: '#fa5252', border: '1px solid #000' }}></div> Jednostka JRG</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}><div style={{ width: '12px', height: '12px', background: '#fab005', border: '1px solid #000' }}></div> Jednostka OSP</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}><div style={{ width: '12px', height: '12px', borderRadius: '50%', background: 'red', border: '1px solid #fff' }}></div> Zdarzenie</div>
-          </div>
+          </MapContainer>
         </div>
       </div>
     );
