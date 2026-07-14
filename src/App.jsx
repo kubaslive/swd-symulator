@@ -4529,7 +4529,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           )}
 
           {combatTab === 'WCPR' && (
-            <div style={{ padding: '4px', overflowY: 'auto', height: '100%', background: '#ffffff', color: '#000000', display: 'flex', gap: '4px' }}>
+            <div style={{ padding: '4px', overflowY: 'auto', overflowX: 'auto', height: '100%', width: '100%', flex: 1, background: '#ffffff', color: '#000000', display: 'flex', gap: '4px' }}>
               <div style={{ flex: 1, border: '1px solid #d1d1d1', background: '#fff' }}>
                 <table className="swd-table" style={{ width: '100%', fontSize: '10px' }}>
                   <thead>
