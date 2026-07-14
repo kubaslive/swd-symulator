@@ -5,9 +5,9 @@
   --font-mono: 'Cascadia Code', 'Consolas', monospace;
   
   /* Windows 11 Fluent Design Light Theme */
-  --win-bg: #d4d0c8;
-  --win-face: #d4d0c8; /* Mica effect base */
-  --win-face-solid: #d4d0c8;
+  --win-bg: #f3f3f3;
+  --win-face: #f3f3f3; /* Mica effect base */
+  --win-face-solid: #f3f3f3;
   --win-shadow: #e5e5e5;
   --win-hilight: #ffffff;
   --win-dark-shadow: rgba(0, 0, 0, 0.1);
@@ -15,7 +15,7 @@
   --win-blue: #005fb8; /* Windows 11 Blue */
   --win-blue-title: transparent;
   --win-blue-menubar: transparent;
-  --win-border-radius: 8px;
+  --win-border-radius: 0px;
   --win-btn-radius: 4px;
   --win-shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.12);
   --win-shadow-flyout: 0 8px 32px rgba(0, 0, 0, 0.15);
@@ -48,7 +48,7 @@ input, textarea, select {
 .tab-content,
 .win-dialog-body {
   padding: 16px;
-  background-color: #d4d0c8;
+  background-color: #f3f3f3;
   color: var(--win-text);
   flex: 1;
   overflow-y: auto;
@@ -116,7 +116,7 @@ input, textarea, select {
   height: 24px;
   background: transparent;
   border: none;
-  border-radius: 4px;
+  border-radius: 0px;
   font-size: 10px;
   display: flex;
   align-items: center;
@@ -358,7 +358,7 @@ input, textarea, select {
   font-family: var(--font-mono);
   background-color: #f0f0f0;
   border: 1px solid #d1d1d1;
-  border-radius: 4px;
+  border-radius: 0px;
   padding: 2px 4px;
   font-size: 10px;
   color: var(--win-text);
@@ -391,7 +391,7 @@ input, textarea, select {
 
 .vehicle-obsada {
   font-family: var(--font-mono);
-  background-color: #d4d0c8;
+  background-color: #f3f3f3;
   border: 1px solid #808080;
   padding: 0 3px;
   font-size: 9px;
@@ -592,7 +592,7 @@ input, textarea, select {
 
 .swd-row td {
   padding: 2px 5px;
-  border-right: 1px solid #d4d0c8;
+  border-right: 1px solid #f3f3f3;
   vertical-align: middle;
 }
 
@@ -855,7 +855,7 @@ input, textarea, select {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background-color: #d4d0c8;
+  background-color: #f3f3f3;
   overflow-y: auto;
   max-height: 85vh;
 }
@@ -933,7 +933,7 @@ input, textarea, select {
 .badge-wg    { background-color: #e9ecef; color: #000000; border-color: #868e96; }
 .badge-pzr   { background-color: #d0ebff; color: #000000; border-color: #1c7ed6; }
 .badge-zpr   { background-color: #ffe3fa; color: #000000; border-color: #ae3ec9; }
-.badge-bl    { background-color: #d4d0c8; color: #000000; border-color: #808080; }
+.badge-bl    { background-color: #f3f3f3; color: #000000; border-color: #808080; }
 
 /* ===== AUTH SCREENS ===== */
 .auth-container {
@@ -1160,12 +1160,12 @@ input, textarea, select {
 }
 
 ::-webkit-scrollbar-track {
-  background: #d4d0c8;
+  background: #f3f3f3;
   border: 1px solid #808080;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #d4d0c8;
+  background: #f3f3f3;
   border-top: 1.5px solid var(--win-hilight);
   border-left: 1.5px solid var(--win-hilight);
   border-bottom: 1.5px solid var(--win-shadow);
@@ -1178,7 +1178,7 @@ input, textarea, select {
 
 ::-webkit-scrollbar-button {
   display: block;
-  background: #d4d0c8;
+  background: #f3f3f3;
   border-top: 1.5px solid var(--win-hilight);
   border-left: 1.5px solid var(--win-hilight);
   border-bottom: 1.5px solid var(--win-shadow);
@@ -1276,7 +1276,7 @@ input, textarea, select {
   color: #00ff00 ;
 }
 .black-table th {
-  background-color: #d4d0c8 ;
+  background-color: #f3f3f3 ;
   color: #000 ;
   border-right: 1px solid #808080 ;
   border-bottom: 1px solid #808080 ;
@@ -1300,13 +1300,13 @@ input, textarea, select {
 
 .classic-tabs {
   display: flex;
-  background: #d4d0c8;
+  background: #f3f3f3;
   padding-top: 4px;
   padding-left: 2px;
   border-bottom: 1px solid #a0a0a0;
 }
 .classic-tab {
-  background: #d4d0c8;
+  background: #f3f3f3;
   border: 1px solid #fff;
   border-right-color: #a0a0a0;
   border-bottom-color: #a0a0a0;
@@ -1322,8 +1322,8 @@ input, textarea, select {
   gap: 4px;
 }
 .classic-tab.active {
-  background: #d4d0c8;
-  border-bottom: 1px solid #d4d0c8; /* merge with below */
+  background: #f3f3f3;
+  border-bottom: 1px solid #f3f3f3; /* merge with below */
   position: relative;
   top: 1px;
   font-weight: bold;
