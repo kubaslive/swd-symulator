@@ -1,3 +1,4 @@
+import { DEFAULT_SCENARIOS } from './scenarios';
 import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase';
 import { wipeAndInitializeDb } from './db_wipe';
@@ -1194,7 +1195,44 @@ function App() {
         }
       }
       
+      
+      // --- Custom Updates Escalation Logic ---
+      if (incident.updates && Array.isArray(incident.updates)) {
+        const processed = incident.processedUpdates || 0;
+        if (processed < incident.updates.length) {
+          const nextUpdate = incident.updates[processed];
+          let startTime = incident.createdAt?.seconds ? incident.createdAt.seconds * 1000 : (incident.createdAt ? new Date(incident.createdAt).getTime() : Date.now());
+          if (incident.times?.alarm) startTime = new Date(incident.times.alarm).getTime();
+          
+          const elapsedSecs = Math.floor((Date.now() - startTime) / 1000);
+          if (elapsedSecs >= nextUpdate.delay) {
+            const newRadioLog = {
+              time: new Date().toLocaleTimeString('pl-PL'),
+              from: 'KDR',
+              to: 'SKKP',
+              text: "[ESKALACJA] " + nextUpdate.msg,
+              read: false
+            };
+            const radioLogs = incident.radioLogs || [];
+            const updatePayload = {
+              processedUpdates: processed + 1,
+              radioLogs: [...radioLogs, newRadioLog],
+              updatedAt: serverTimestamp()
+            };
+            if (nextUpdate.requiredUnits) {
+               updatePayload.requiredUnits = nextUpdate.requiredUnits;
+               updatePayload.kdrRequestPending = true; // Block closing until satisfied
+               updatePayload.description = (incident.description || '') + "\n\n[ZMIANA WYMOGÓW TAKTYCZNYCH]: KDR poprosił o zadysponowanie: " + JSON.stringify(nextUpdate.requiredUnits);
+            }
+            try {
+              updateDoc(doc(db, 'incidents', incident.id), updatePayload);
+            } catch(e) {}
+          }
+        }
+      }
+      
       // --- Dynamic Incident Mutation Logic ---
+
       if (vehicles.length === 0 && incident.createdAt) {
         const createdTime = incident.createdAt.seconds ? incident.createdAt.seconds * 1000 : new Date(incident.createdAt).getTime();
         const elapsedSinceCreated = Math.floor((new Date().getTime() - createdTime) / 1000);
@@ -1336,97 +1374,45 @@ function App() {
           let scenarioObj = {};
           
           const dynamicScenarios = dbScenarios.filter(s => s.type === type);
-          let usingDynamic = false;
-          // Zwiększamy szansę na niestandardowy scenariusz, by użytkownik mógł go przetestować (80% szans)
-          if (dynamicScenarios.length > 0 && Math.random() > 0.2) {
+          const offlineScenarios = DEFAULT_SCENARIOS.filter(s => s.type === type);
+          
+          if (dynamicScenarios.length > 0 && Math.random() > 0.4) {
             scenarioObj = randomElement(dynamicScenarios);
-            usingDynamic = true;
+          } else {
+            scenarioObj = randomElement(offlineScenarios);
           }
 
           const street = randomElement(activeStreets);
           const houseNum = Math.floor(Math.random() * 150) + 1;
           
-          if (usingDynamic) {
-             const locType = scenarioObj.locType || "building";
-             if (locType === "apartment") {
-               const m = Math.floor(Math.random() * 60) + 1;
-               location = `${city}, ul. ${street} ${houseNum} m. ${m}`;
-             } else if (locType === "intersection") {
-               let street2 = randomElement(activeStreets);
-               while (street2 === street && activeStreets.length > 1) {
-                 street2 = randomElement(activeStreets);
-               }
-               location = `${city}, Skrzyżowanie ul. ${street} z ul. ${street2}`;
-             } else if (locType === "plot") {
-               location = `${city}, Ogródki Działkowe (ROD) przy ul. ${street}`;
-             } else if (locType === "forest") {
-               location = `${city}, Kompleks leśny, dojazd od ul. ${street}`;
-             } else if (locType === "road") {
-               location = `${city}, odcinek drogi ul. ${street}`;
-             } else if (locType === "industrial") {
-               location = `${city}, Tereny przemysłowe, ul. ${street} ${houseNum}`;
-             } else if (locType === "commercial") {
-               location = `${city}, Obiekt handlowo-usługowy, ul. ${street} ${houseNum}`;
-             } else if (locType === "public") {
-               location = `${city}, Obiekt użyteczności publicznej, ul. ${street} ${houseNum}`;
-             } else {
-               location = `${city}, ul. ${street} ${houseNum}`;
-             }
-             text = scenarioObj.t;
-             expectedKdrMsg = scenarioObj.k;
-             needsZRM = !!scenarioObj.zrm;
-             needsPolice = !!scenarioObj.pol;
+          const locType = scenarioObj.locType || "building";
+          if (locType === "apartment") {
+            const m = Math.floor(Math.random() * 60) + 1;
+            location = `${city}, ul. ${street} ${houseNum} m. ${m}`;
+          } else if (locType === "intersection") {
+            let street2 = randomElement(activeStreets);
+            while (street2 === street && activeStreets.length > 1) {
+              street2 = randomElement(activeStreets);
+            }
+            location = `${city}, Skrzyżowanie ul. ${street} z ul. ${street2}`;
+          } else if (locType === "forest") {
+            location = `${city}, Kompleks leśny, dojazd od ul. ${street}`;
+          } else if (locType === "road") {
+            location = `${city}, odcinek drogi ul. ${street}`;
+          } else if (locType === "industrial") {
+            const prefixes = ["Hala Magazynowa", "Zakład Produkcyjny", "Skup Złomu", "Tartak"];
+            location = `${city}, ${randomElement(prefixes)}, ul. ${street} ${houseNum}`;
+          } else if (locType === "commercial" || locType === "public") {
+            const prefixes = locType === "commercial" ? ["Market Biedronka", "Sklep Żabka", "Stacja Paliw Orlen", "Lidl", "Pasaż Handlowy"] : ["Szkoła Podstawowa", "Przychodnia Rejonowa", "Urząd Skarbowy", "Dworzec", "Komisariat Policji"];
+            location = `${city}, ${randomElement(prefixes)}, ul. ${street} ${houseNum}`;
           } else {
-            const localGeminiKey = localStorage.getItem('geminiApiKey');
-            if (localGeminiKey) {
-              try {
-                const ai = new GoogleGenAI({ apiKey: localGeminiKey });
-                const prompt = `Jesteś systemem symulacyjnym SWD-ST Państwowej Straży Pożarnej w Polsce.
-Wygeneruj bardzo realistyczne zgłoszenie na 112. Miejscowość zdarzenia to: ${city}.
-Zdarzenie musi być typu: ${type === 'pozar' ? 'Pożar (np. budynku mieszkalnego, lasu, hali, trawy, śmietnika, samochodu)' : type === 'mz' ? 'Miejscowe Zagrożenie (np. poważny wypadek drogowy, rozlewisko, powalone drzewo, owady, ratownictwo chemiczne)' : 'Alarm Fałszywy (w dobrej wierze lub złośliwy)'}.
-
-Wymyśl precyzyjny adres w tym mieście. Nie używaj ogólników. Używaj konkretnych nazw ulic (np. ul. Warszawska, Dworcowa, Leśna), numerów budynków, a dla wypadków skrzyżowań lub kilometraży dróg (np. DW 933 km 12).
-Zwróć odpowiedź WYŁĄCZNIE jako prawidłowy, czysty JSON z polami: 
-"adres": (wygenerowany realistyczny adres, np. "${city}, ul. Mickiewicza 14", "${city}, Skrzyżowanie ul. Polnej i Leśnej"),
-"t": (pełna, pełna emocji lub chaotyczna treść zgłoszenia dzwoniącego - jak w rzeczywistości, np. "Panie, pali się dach na Dworcowej, szybko wysyłajcie straż!"),
-"k": (profesjonalny, suchy meldunek KDR z miejsca zdarzenia do SKKP po dojeździe. Powinien zawierać rozpoznanie i informację o podjętych działaniach, używając terminologii PSP, np. "SKKP z miejsca. Potwierdzam pożar poddasza, budynek ewakuowany. Podajemy dwa prądy w natarciu. Dysponuj pogotowie energetyczne."),
-"zrm": (boolean - czy potrzebne Pogotowie Ratunkowe/ZRM),
-"pol": (boolean - czy potrzebna Policja),
-"requiredUnits": (obiekt JSON z wymaganymi pojazdami do opanowania sytuacji, klucze to typy np. "GBA", "GCBA", "SD", "SLRt", "SCRt", "SRchem", a wartości to wymagana ilość. Dla zwykłego pożaru np. {"GBA": 1, "GCBA": 1}. Musi być spójny z rodzajem i rozmiarem wymyślonego zdarzenia!)`;
-                
-                const response = await ai.models.generateContent({
-                  model: 'gemini-2.5-flash',
-                  contents: prompt,
-                });
-                let textResp = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
-                const parsed = JSON.parse(textResp);
-                location = parsed.adres;
-                text = parsed.t;
-                expectedKdrMsg = parsed.k;
-                needsZRM = !!parsed.zrm;
-                needsPolice = !!parsed.pol;
-                scenarioObj = { requiredUnits: parsed.requiredUnits || null };
-              } catch (err) {
-                console.error("Błąd AI, powrót do generatora offline:", err);
-              }
-            }
-
-            if (!text) {
-              if (type === "pozar") {
-                scenarioObj = randomElement(pozScenarios);
-              } else if (type === "mz") {
-                scenarioObj = randomElement(mzScenarios);
-              } else {
-                scenarioObj = randomElement(afScenarios);
-              }
-              const locType = scenarioObj.locType || "building";
-              location = `${city}, ul. ${street} ${houseNum}`;
-              text = scenarioObj.t;
-              expectedKdrMsg = scenarioObj.k;
-              needsZRM = !!scenarioObj.zrm;
-              needsPolice = !!scenarioObj.pol;
-            }
+            location = `${city}, ul. ${street} ${houseNum}`;
           }
+          
+          text = scenarioObj.t;
+          expectedKdrMsg = scenarioObj.k;
+          needsZRM = !!scenarioObj.zrm;
+          needsPolice = !!scenarioObj.pol;
 
           try {
             const finalType = scenarioObj.reportedType || type;
@@ -1444,6 +1430,8 @@ Zwróć odpowiedź WYŁĄCZNIE jako prawidłowy, czysty JSON z polami:
               phone: `+48 ${phone}`,
               expectedKdrMsg: expectedKdrMsg,
               requiredUnits: scenarioObj.requiredUnits || null,
+              updates: scenarioObj.updates || [],
+              processedUpdates: 0,
               needsZRM: needsZRM,
               needsPolice: needsPolice,
               createdAt: serverTimestamp()
