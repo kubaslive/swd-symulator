@@ -2872,6 +2872,49 @@ function App() {
   const handleSetVehicleStatus = async (vStr, statusNum) => {
     if (!activeIncident) return;
     
+    // Intercept string commands from Context Menu
+    if (typeof statusNum === 'string') {
+      if (statusNum === 'Lokalizacja zagrożenia') {
+        const currentTimes = activeIncident.times || {};
+        if (!currentTimes.localized) {
+          const nowTimeStr = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+          const newLog = {
+            time: nowTimeStr,
+            from: vStr.split(' | ')[1] || vStr,
+            to: "Dyspozytornia",
+            text: `Zgłaszam lokalizację zagrożenia (sytuacja opanowana).`,
+            channel: "K01 - Kanał Powiatowy",
+            createdAt: new Date().toISOString()
+          };
+          try {
+            await updateDoc(doc(db, 'incidents', activeIncident.id), {
+              times: { ...currentTimes, localized: nowTimeStr },
+              radioLogs: [...(activeIncident.radioLogs || []), newLog],
+              updatedAt: serverTimestamp()
+            });
+            // Game Score for Localization
+            if (isGameModeActive) {
+              setGameScore(prev => {
+                const updated = prev + 50;
+                localStorage.setItem('swd_game_score', updated.toString());
+                return updated;
+              });
+            }
+            alert("Oznaczono jako zlokalizowane/opanowane.");
+          } catch(e) { console.error(e); }
+        }
+        setActiveContextMenuVehicle(null);
+        return;
+      }
+      
+      if (statusNum === 'Zakończenie działań') {
+        statusNum = 3;
+      } else if (statusNum === 'Powrót do bazy') {
+        statusNum = 4;
+      }
+    }
+
+    
     // Bug Fixed: Allow any authenticated player in the game room to set status
     if (!user) {
       alert("Musisz być zalogowany, aby nadać status.");
@@ -6965,30 +7008,37 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
                       // Authentic operational state labels matching SWD-ST 2.5 manual (Page 46/67)
                       let stateLabel = "";
-                      const times = incident.times || {};
-                      if (incident.type === 'pozar') {
-                        if (times.completion) stateLabel = "KP (Koniec)";
-                        else if (times.arrival) stateLabel = "OP (Opanow.)";
-                        else stateLabel = "PP (Prowadz.)";
-                      } else if (incident.type === 'mz') {
-                        if (times.completion) stateLabel = "KM (Koniec)";
-                        else if (times.arrival) stateLabel = "OM (Opanow.)";
-                        else stateLabel = "PM (Prowadz.)";
-                      } else if (incident.type === 'cw') {
-                        if (times.completion) stateLabel = "CZ (Zakończ.)";
-                        else stateLabel = "CW (W toku)";
-                      } else if (incident.type === 'wg') {
-                        if (times.completion) stateLabel = "KWG (Koniec)";
-                        else stateLabel = "WG (Wysył.)";
-                      } else if (incident.type === 'pzr') {
-                        if (times.completion) stateLabel = "KZR (Koniec)";
-                        else stateLabel = "PZR (Zabezp.)";
-                      } else if (incident.type === 'zpr') {
-                        stateLabel = "ZPR (Przekaz.)";
-                      } else if (incident.type === 'bl') {
-                        stateLabel = "BL (Błąd)";
-                      } else {
-                        stateLabel = incident.type?.toUpperCase() || "MZ";
+                      const isLocalized = !!times.localized;
+                      const isIncCompleted = !!times.completion || incident.status === 'processed' || incident.isArchived;
+                      
+                      switch (incident.type) {
+                        case 'pozar':
+                          if (isIncCompleted) stateLabel = "KP";
+                          else if (isLocalized) stateLabel = "OP";
+                          else stateLabel = "PP";
+                          break;
+                        case 'mz':
+                          if (isIncCompleted) stateLabel = "KM";
+                          else if (isLocalized) stateLabel = "OM";
+                          else stateLabel = "PM";
+                          break;
+                        case 'af':
+                          stateLabel = isIncCompleted ? "AF (Koniec)" : "AF (W toku)";
+                          break;
+                        case 'gosp':
+                          stateLabel = isIncCompleted ? "KWG" : "WG";
+                          break;
+                        case 'pzr':
+                          stateLabel = isIncCompleted ? "KZR" : "PZR";
+                          break;
+                        case 'zpr':
+                          stateLabel = "ZPR";
+                          break;
+                        case 'bl':
+                          stateLabel = "BL";
+                          break;
+                        default:
+                          stateLabel = incident.type?.toUpperCase() || "MZ";
                       }
 
                       // Row background color based on incident operational state (SWD-ST Table 4 / Page 24)
