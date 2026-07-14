@@ -509,6 +509,11 @@ function App() {
     "Katalogi operacyjne zsynchronizowane."
   ]);
 
+  const logAction = (msg) => {
+    const timeStr = new Date().toLocaleTimeString('pl-PL');
+    setOperationalLogs(prev => [`[${timeStr}] ${msg}`, ...prev.slice(0, 15)]);
+  };
+
   // Draft / Edit states for Incident Form
   const [incidentDateStr, setIncidentDateStr] = useState(() => new Date().toISOString().split('T')[0]);
   const [incidentTimeStr, setIncidentTimeStr] = useState('12:00:00');
@@ -1794,10 +1799,6 @@ function App() {
     }
   }, [selectedIncidentId, activeIncident]);
 
-  const logAction = (msg) => {
-    const timeStr = new Date().toLocaleTimeString('pl-PL');
-    setOperationalLogs(prev => [`[${timeStr}] ${msg}`, ...prev.slice(0, 15)]);
-  };
 
   const logIncidentHistory = async (incId, actionText) => {
     try {
@@ -7017,8 +7018,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
                       // Authentic operational state labels matching SWD-ST 2.5 manual (Page 46/67)
                       let stateLabel = "";
-                      const isLocalized = !!times.localized;
-                      const isIncCompleted = !!times.completion || incident.status === 'processed' || incident.isArchived;
+                      const isLocalized = !!incident.times?.localized;
+                      const isIncCompleted = !!incident.times?.completion || incident.status === 'processed' || incident.isArchived;
                       
                       switch (incident.type) {
                         case 'pozar':
