@@ -4530,7 +4530,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           {combatTab === 'WCPR' && (
             <div style={{ padding: '4px', overflowY: 'auto', overflowX: 'auto', height: '100%', width: '100%', flex: 1, background: '#e0dfde', color: '#000000', display: 'flex', gap: '4px' }}>
               <div style={{ flex: 1, border: '1px solid #d1d1d1', background: '#fff' }}>
-                <table className="swd-table" style={{ width: '100%', fontSize: '10px' }}>
+                <table className="swd-table bufor-table" style={{ width: '100%', fontSize: '10px', tableLayout: 'auto' }}>
                   <thead>
                     <tr>
                       <th style={{ width: '30px' }}>Ikona</th>
@@ -7540,7 +7540,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
     <div style={{ flex: 1, overflowY: 'auto', padding: '2px 4px', fontSize: '10px', display: 'flex', flexDirection: 'column-reverse', background: '#e8e8e8' }}>
       {(activeIncident?.radioLogs || []).slice().reverse().map((msg, idx) => (
         <div key={idx} style={{ color: '#555', borderBottom: '1px solid #ddd', paddingBottom: '2px' }}>
-          {msg.time || (msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString('pl-PL') : '')} <strong>{msg.from || msg.senderName}</strong>: {msg.message}
+          {msg.time || (msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString('pl-PL') : '')} <strong>{msg.from || msg.senderName}</strong>: {msg.text}
         </div>
       ))}
     </div>

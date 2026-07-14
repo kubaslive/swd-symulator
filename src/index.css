@@ -245,7 +245,7 @@ input, textarea, select {
 /* ===== MAIN DASHBOARD GRID ===== */
 .dashboard-grid {
   display: grid;
-  grid-template-rows: 50% 1fr;
+  grid-template-rows: 35% 1fr;
   flex: 1;
   overflow: hidden;
 }
@@ -1290,4 +1290,10 @@ input, textarea, select {
 .black-table tr.selected td {
   background-color: #ff0000 ;
   color: #ffffff ;
+}
+
+.bufor-table td {
+  white-space: normal !important;
+  word-wrap: break-word;
+  padding: 4px !important;
 }
