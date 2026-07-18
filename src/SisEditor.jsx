@@ -119,13 +119,13 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
   const allUnitsList = ["KM/KP PSP", ...jrgUnits, ...ospUnits];
 
   return (
-    <div className="win-dialog border-double-outset" style={{ width: '600px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', zIndex: 10000, position: 'absolute', top: '10vh', left: '50%', transform: 'translateX(-50%)' }}>
+    <div className="win-dialog border-outset" style={{ width: '600px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', zIndex: 10000, position: 'absolute', top: '10vh', left: '50%', transform: 'translateX(-50%)' }}>
       <div className="win-dialog-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>Edytor Sił i Środków - {userProfile.tenantId}</span>
         <button className="btn-win" onClick={onClose} style={{ padding: '0 5px' }}>X</button>
       </div>
       
-      <div className="win-dialog-body" style={{ background: '#d4d0c8', padding: '10px', flex: 1, overflowY: 'auto' }}>
+      <div className="win-dialog-body" style={{ background: 'var(--win-face)', padding: '10px', flex: 1, overflowY: 'auto' }}>
         {error && <div style={{ color: 'red', fontWeight: 'bold', marginBottom: '10px' }}>{error}</div>}
         
         {/* Tabs */}
@@ -142,7 +142,7 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
               <input type="text" value={newItemName} onChange={e => setNewItemName(e.target.value)} placeholder="Nazwa JRG (np. JRG nr 1 Katowice)" className="input-field" style={{ flex: 1 }} />
               <button className="btn-win" onClick={() => handleAddUnit('jrg')}>Dodaj</button>
             </div>
-            <div style={{ background: '#fff', border: '2px solid inset', height: '200px', overflowY: 'scroll', padding: '5px' }}>
+            <div style={{ background: '#fff', border: '1px solid var(--win-shadow)', borderRadius: '4px', height: '200px', overflowY: 'scroll', padding: '5px' }}>
               {jrgUnits.map(u => (
                 <div key={u} style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid #ccc', padding: '4px 0' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -167,7 +167,7 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
               <input type="text" value={newItemName} onChange={e => setNewItemName(e.target.value)} placeholder="Nazwa OSP (np. OSP Szopienice)" className="input-field" style={{ flex: 1 }} />
               <button className="btn-win" onClick={() => handleAddUnit('osp')}>Dodaj</button>
             </div>
-            <div style={{ background: '#fff', border: '2px solid inset', height: '200px', overflowY: 'scroll', padding: '5px' }}>
+            <div style={{ background: '#fff', border: '1px solid var(--win-shadow)', borderRadius: '4px', height: '200px', overflowY: 'scroll', padding: '5px' }}>
               {ospUnits.map(u => (
                 <div key={u} style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid #ccc', padding: '4px 0' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -211,7 +211,7 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
                   </select>
                   <button className="btn-win" onClick={handleAddVehicle}>Dodaj</button>
                 </div>
-                <div style={{ background: '#fff', border: '2px solid inset', height: '180px', overflowY: 'scroll', padding: '5px' }}>
+                <div style={{ background: '#fff', border: '1px solid var(--win-shadow)', borderRadius: '4px', height: '180px', overflowY: 'scroll', padding: '5px' }}>
                   {(Array.isArray(vehicles[selectedUnit]) ? vehicles[selectedUnit] : Object.values(vehicles[selectedUnit] || {})).map((v, i) => (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #ccc', padding: '2px 0' }}>
                       <span>{v.name} ({v.type}) - obsada: {v.obsada}</span>
@@ -225,7 +225,7 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
         )}
       </div>
       
-            <div className="win-dialog-footer" style={{ background: '#d4d0c8', padding: '10px', display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #fff' }}>
+            <div className="win-dialog-footer" style={{ background: 'var(--win-face)', padding: '10px', display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #fff' }}>
         <button className="btn-win" onClick={onClose} style={{ padding: '4px 15px' }}>Anuluj</button>
         <button className="btn-win" onClick={handleSave} disabled={loading} style={{ padding: '4px 15px', fontWeight: 'bold' }}>
           {loading ? 'Zapisywanie...' : 'Zapisz do bazy'}
