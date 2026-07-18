@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 
-const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, tenantVehicles }) => {
+const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, tenantVehicles, tenantUnitCoordinates }) => {
   const [jrgUnits, setJrgUnits] = useState([...(tenantJrgUnits || [])]);
   const [ospUnits, setOspUnits] = useState([...(tenantOspUnits || [])]);
   const [vehicles, setVehicles] = useState({ ...(tenantVehicles || {}) });
@@ -24,9 +24,9 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
       setJrgUnits([...(tenantJrgUnits || [])]);
       setOspUnits([...(tenantOspUnits || [])]);
       setVehicles({ ...(tenantVehicles || {}) });
-      setUnitCoordinates({ ...(arguments[0].tenantUnitCoordinates || {}) });
+      setUnitCoordinates({ ...(tenantUnitCoordinates || {}) });
     }
-  }, [tenantJrgUnits, tenantOspUnits, tenantVehicles]);
+  }, [tenantJrgUnits, tenantOspUnits, tenantVehicles, tenantUnitCoordinates]);
 
   const handleSave = async () => {
     setLoading(true);
