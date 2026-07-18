@@ -19,11 +19,13 @@ function MapClickHandler({ onSelect }) {
   return null;
 }
 
-const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, tenantVehicles, tenantUnitCoordinates }) => {
+const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, tenantVehicles, tenantUnitCoordinates, tenantOdwody }) => {
   const [jrgUnits, setJrgUnits] = useState(Array.isArray(tenantJrgUnits) ? [...tenantJrgUnits] : Object.values(tenantJrgUnits || {}));
   const [ospUnits, setOspUnits] = useState(Array.isArray(tenantOspUnits) ? [...tenantOspUnits] : Object.values(tenantOspUnits || {}));
   const [vehicles, setVehicles] = useState({ ...(tenantVehicles || {}) });
   const [unitCoordinates, setUnitCoordinates] = useState({ ...(tenantUnitCoordinates || {}) });
+  const [odwody, setOdwody] = useState(Array.isArray(tenantOdwody) ? [...tenantOdwody] : []);
+  const [newOdwodName, setNewOdwodName] = useState('');
   
   const [activeTab, setActiveTab] = useState('jrg');
   const [newItemName, setNewItemName] = useState('');
@@ -45,8 +47,9 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
       setOspUnits(Array.isArray(tenantOspUnits) ? [...tenantOspUnits] : Object.values(tenantOspUnits || {}));
       setVehicles({ ...(tenantVehicles || {}) });
       setUnitCoordinates({ ...(tenantUnitCoordinates || {}) });
+      setOdwody(Array.isArray(tenantOdwody) ? [...tenantOdwody] : []);
     }
-  }, [tenantJrgUnits, tenantOspUnits, tenantVehicles, tenantUnitCoordinates]);
+  }, [tenantJrgUnits, tenantOspUnits, tenantVehicles, tenantUnitCoordinates, tenantOdwody]);
 
   const handleSave = async () => {
     setLoading(true);
@@ -179,6 +182,83 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
                     <input type="text" placeholder="Lat (np. 50.25)" className="input-field" style={{ width: '80px', fontSize: '9px' }} value={unitCoordinates[u]?.lat || ''} onChange={(e) => setUnitCoordinates({...unitCoordinates, [u]: {...unitCoordinates[u], lat: e.target.value}})} />
                     <input type="text" placeholder="Lng (np. 19.02)" className="input-field" style={{ width: '80px', fontSize: '9px' }} value={unitCoordinates[u]?.lng || ''} onChange={(e) => setUnitCoordinates({...unitCoordinates, [u]: {...unitCoordinates[u], lng: e.target.value}})} />
                     <button onClick={() => setMapPickerTarget(u)} className="btn-win" style={{ fontSize: '9px', padding: '0 5px' }}>📍 Z Mapy</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'odwody' && (
+          <div style={{ flex: 1, padding: '10px', overflowY: 'auto' }}>
+            <h3 style={{ fontSize: '14px', borderBottom: '1px solid #ccc', paddingBottom: '4px' }}>Struktura Odwodów Operacyjnych i Grup</h3>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+              <input 
+                type="text" 
+                placeholder="Nazwa grupy (np. Pluton Katowice, Kompania Śląsk)" 
+                value={newOdwodName} 
+                onChange={(e) => setNewOdwodName(e.target.value)}
+                style={{ flex: 1, padding: '4px' }}
+              />
+              <button 
+                onClick={() => {
+                  if (newOdwodName.trim()) {
+                    if (!odwody.find(o => o.id === newOdwodName.trim())) {
+                      setOdwody([...odwody, { id: newOdwodName.trim(), name: newOdwodName.trim(), type: 'Odwód Operacyjny', vehicles: [] }]);
+                      setNewOdwodName('');
+                    } else {
+                      alert('Grupa o takiej nazwie już istnieje.');
+                    }
+                  }
+                }}
+                className="btn-win"
+              >Dodaj Grupę</button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {odwody.map(grp => (
+                <div key={grp.id} style={{ border: '1px solid #ccc', padding: '8px', background: '#f9f9f9' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <strong>{grp.name}</strong>
+                    <button className="btn-win" style={{ color: 'red' }} onClick={() => {
+                      if (window.confirm('Na pewno usunąć tę grupę?')) {
+                        setOdwody(odwody.filter(o => o.id !== grp.id));
+                      }
+                    }}>Usuń Grupę</button>
+                  </div>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '4px' }}>
+                    {[...jrgUnits, ...ospUnits].map(uName => {
+                      const uVehicles = vehicles[uName] || [];
+                      if (uVehicles.length === 0) return null;
+                      return uVehicles.map(v => {
+                        const vFullName = `${uName} | ${v.name}`;
+                        const isChecked = grp.vehicles?.includes(vFullName);
+                        return (
+                          <label key={vFullName} style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <input 
+                              type="checkbox" 
+                              checked={!!isChecked}
+                              onChange={(e) => {
+                                const newOdwody = [...odwody];
+                                const currentGrp = newOdwody.find(o => o.id === grp.id);
+                                if (!currentGrp.vehicles) currentGrp.vehicles = [];
+                                
+                                if (e.target.checked) {
+                                  if (!currentGrp.vehicles.includes(vFullName)) {
+                                    currentGrp.vehicles.push(vFullName);
+                                  }
+                                } else {
+                                  currentGrp.vehicles = currentGrp.vehicles.filter(name => name !== vFullName);
+                                }
+                                setOdwody(newOdwody);
+                              }}
+                            />
+                            {vFullName}
+                          </label>
+                        );
+                      });
+                    })}
                   </div>
                 </div>
               ))}

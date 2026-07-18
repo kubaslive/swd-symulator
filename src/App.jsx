@@ -4615,7 +4615,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   <div key={grp.id} className="border-outset" style={{ padding: '6px', background: '#f1f3f5' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ced4da', paddingBottom: '3px', marginBottom: '4px' }}>
                       <span style={{ fontSize: '10.5px', fontWeight: 'bold', color: '#005fb8' }}>🚒 {grp.name}</span>
-                      <span style={{ fontSize: '8px', background: grp.type.includes('Specjalistyczna') ? '#101113' : '#1864ab', color: 'white', padding: '1px 3px', borderRadius: '2px' }}>{grp.type}</span>
+                      <span style={{ fontSize: '8px', background: grp.type?.includes('Specjalistyczna') ? '#101113' : '#1864ab', color: 'white', padding: '1px 3px', borderRadius: '2px' }}>{grp.type || 'Grupa Operacyjna'}</span>
                     </div>
                     
                     <div style={{ paddingLeft: '8px', fontSize: '9.5px', color: '#333' }}>
@@ -4624,7 +4624,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                         const name = vStr.split(' | ')[1] || vStr;
                         return (
                           <div key={vStr} style={{ display: 'flex', alignItems: 'center', gap: '4px', margin: '2px 0' }}>
-                            <span className="led-indicator green" style={{ width: 6, height: 6 }} />
+                            {renderTable4StatusIcon(vStr.split(' | ')[0], vStr.split(' | ')[1])}
                             <span>{name} ({base})</span>
                           </div>
                         );
@@ -10000,6 +10000,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               tenantOspUnits={tenantOspUnits}
               tenantVehicles={tenantVehicles}
               tenantUnitCoordinates={tenantUnitCoordinates}
+              tenantOdwody={tenantOdwody}
             />
           </div>
         </div>
