@@ -5,7 +5,7 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
   const [jrgUnits, setJrgUnits] = useState([...(tenantJrgUnits || [])]);
   const [ospUnits, setOspUnits] = useState([...(tenantOspUnits || [])]);
   const [vehicles, setVehicles] = useState({ ...(tenantVehicles || {}) });
-  const [unitCoordinates, setUnitCoordinates] = useState({ ...(arguments[0].tenantUnitCoordinates || {}) });
+  const [unitCoordinates, setUnitCoordinates] = useState({ ...(tenantUnitCoordinates || {}) });
   
   const [activeTab, setActiveTab] = useState('jrg');
   const [newItemName, setNewItemName] = useState('');
