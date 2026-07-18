@@ -33,6 +33,7 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
   const [vehName, setVehName] = useState('');
   const [vehObsada, setVehObsada] = useState(6);
   const [vehType, setVehType] = useState('GBA');
+  const [vehSgr, setVehSgr] = useState('');
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -200,6 +201,14 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
                 <div style={{ display: 'flex', gap: '5px', marginBottom: '10px', alignItems: 'center' }}>
                   <input type="text" value={vehName} onChange={e => setVehName(e.target.value)} placeholder="Nazwa wozu (np. GBA 2.5/16)" className="input-field" style={{ flex: 2 }} />
                   <input type="number" value={vehObsada} onChange={e => setVehObsada(e.target.value)} title="Obsada" className="input-field" style={{ width: '50px' }} min="1" max="8" />
+                  <select value={vehSgr} onChange={e => setVehSgr(e.target.value)} className="input-field" title="Specjalizacja">
+                    <option value="">Brak SGR</option>
+                    <option value="SGRW">SGRW</option>
+                    <option value="SGRN">SGRN</option>
+                    <option value="SGRChem-Eko">SGRChem-Eko</option>
+                    <option value="SGPR">SGPR</option>
+                    <option value="SGRT">SGRT</option>
+                  </select>
                   <select value={vehType} onChange={e => setVehType(e.target.value)} className="input-field">
                     <option value="GBA">GBA</option>
                     <option value="GCBA">GCBA</option>
@@ -214,7 +223,7 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
                 <div style={{ background: '#fff', border: '1px solid var(--win-shadow)', borderRadius: '4px', height: '180px', overflowY: 'scroll', padding: '5px' }}>
                   {(Array.isArray(vehicles[selectedUnit]) ? vehicles[selectedUnit] : Object.values(vehicles[selectedUnit] || {})).map((v, i) => (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #ccc', padding: '2px 0' }}>
-                      <span>{v.name} ({v.type}) - obsada: {v.obsada}</span>
+                      <span>{v.name} ({v.type}) - obsada: {v.obsada} {v.sgr && <span style={{color: '#d13438', fontWeight: 'bold', marginLeft: '5px'}}>[{v.sgr}]</span>}</span>
                       <button onClick={() => handleRemoveVehicle(selectedUnit, i)} style={{ color: 'red', cursor: 'pointer', background: 'none', border: 'none' }}>X</button>
                     </div>
                   ))}

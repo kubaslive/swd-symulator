@@ -470,6 +470,7 @@ function App() {
   const [gmTenantId, setGmTenantId] = useState('');
   const [gmType, setGmType] = useState('pozar');
   const [gmLocation, setGmLocation] = useState('');
+  const [gmSgr, setGmSgr] = useState('');
   const [gmDescription, setGmDescription] = useState('');
   const [gmKdrMsg, setGmKdrMsg] = useState('');
   const [newScenType, setNewScenType] = useState('pozar');
@@ -1527,6 +1528,7 @@ function App() {
               processedUpdates: 0,
               needsZRM: !!scenarioObj.zrm,
               needsPolice: !!scenarioObj.pol,
+              requiredSgr: scenarioObj.requiredSgr || null,
               createdAt: serverTimestamp()
             });
             logAction(`🚨 Gra: Wymuszono nowe połączenie 112!`);
@@ -1562,7 +1564,20 @@ function App() {
         const statusTimes = { ...(inc.vehicleStatusTimes || {}) };
         const eventHistory = [...(inc.eventHistory || [])];
         
+        let hasSgrOnSite = false;
+        
         for (const [vStr, status] of Object.entries(currentStatuses)) {
+          // Check SGR fulfillment if vehicle is on site (status >= 2 && status <= 4)
+          if ((status === 2 || status === 3 || status === 4) && inc.requiredSgr) {
+            const parts = vStr.split(' | ');
+            if (parts.length === 2 && tenantVehicles && tenantVehicles[parts[0]]) {
+              const veh = tenantVehicles[parts[0]].find(v => v.name === parts[1]);
+              if (veh && veh.sgr === inc.requiredSgr) {
+                hasSgrOnSite = true;
+              }
+            }
+          }
+          
           if (status === 1) { // Wyjazd
             const stTime = statusTimes[vStr];
             if (stTime) {
@@ -1598,6 +1613,50 @@ function App() {
           }
         }
         
+        // SGR reminder logic
+        if (inc.requiredSgr && !hasSgrOnSite && Object.values(currentStatuses).some(s => s >= 2)) {
+          // At least one vehicle is on site, but no SGR.
+          // Let's remind every 2 minutes. We can use the last event history time to throttle, 
+          // or add a property 'lastSgrReminder'.
+          const lastReminder = inc.lastSgrReminder || 0;
+          if (now - lastReminder > 120000) {
+            inc.lastSgrReminder = now;
+            const nowStr = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+            
+            const kdrVeh = Object.entries(currentStatuses).find(([v, s]) => s >= 2)?.[0] || 'KDR';
+            
+            radioLogs.push({
+              time: nowStr + ':' + new Date().getSeconds().toString().padStart(2, '0'),
+              from: kdrVeh.split(' | ')[1] || kdrVeh,
+              to: "Dyspozytornia",
+              text: `Sytuacja skomplikowana. Pilnie potrzebujemy na miejscu Grupy Specjalistycznej ${inc.requiredSgr}!`,
+              channel: "K01 - Kanał Powiatowy",
+              createdAt: new Date().toISOString()
+            });
+            
+            eventHistory.push({
+              time: nowStr,
+              user: "KDR",
+              action: `Zgłoszono zapotrzebowanie na ${inc.requiredSgr}.`,
+              createdAt: new Date().toISOString()
+            });
+            changed = true;
+          }
+        }
+        
+        // Auto-fulfill SGR if it just arrived
+        if (inc.requiredSgr && hasSgrOnSite && !inc.sgrFulfilled) {
+           inc.sgrFulfilled = true;
+           const nowStr = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+           eventHistory.push({
+              time: nowStr,
+              user: "SYSTEM",
+              action: `Wymóg ${inc.requiredSgr} został spełniony.`,
+              createdAt: new Date().toISOString()
+           });
+           changed = true;
+        }
+
         if (changed) {
           const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
           try {
@@ -4914,6 +4973,14 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 <option value="mz">Miejscowe Zagrożenie</option>
                 <option value="af">Alarm Fałszywy</option>
               </select>
+              <select value={gmSgr} onChange={e => setGmSgr(e.target.value)} className="win-input">
+                <option value="">-- Brak Wymogu SGR --</option>
+                <option value="SGRW">SGRW (Wysokościowa)</option>
+                <option value="SGRN">SGRN (Nurkowa)</option>
+                <option value="SGRChem-Eko">SGRChem-Eko</option>
+                <option value="SGPR">SGPR (Poszukiwawczo-Ratownicza)</option>
+                <option value="SGRT">SGRT (Techniczna)</option>
+              </select>
             </div>
             <input type="text" placeholder="Lokalizacja (np. Katowice, ul. Złota 2)" className="win-input" style={{ width: '100%', marginBottom: '10px' }} value={gmLocation} onChange={e => setGmLocation(e.target.value)} />
             <textarea placeholder="Opis zgłoszenia z formatki WCPR..." className="win-input" style={{ width: '100%', height: '60px', marginBottom: '10px' }} value={gmDescription} onChange={e => setGmDescription(e.target.value)} />
@@ -4937,6 +5004,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   requiredUnits: null,
                   needsZRM: false,
                   needsPolice: false,
+                  requiredSgr: gmSgr || null,
                   createdAt: serverTimestamp(),
                   isRead: false
                 });
