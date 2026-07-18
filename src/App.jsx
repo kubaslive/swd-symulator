@@ -1,6 +1,6 @@
 import { DEFAULT_SCENARIOS } from './scenarios';
 import 'leaflet/dist/leaflet.css';
-import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip, useMap } from 'react-leaflet';
 
 function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
   var R = 6371; // Radius of the earth in km
@@ -741,7 +741,7 @@ function App() {
           [out:json][timeout:25];
           area[name="${city}"]->.searchArea;
           way(area.searchArea)[highway][name];
-          out tags;
+          out center;
         `;
         fetch('https://overpass-api.de/api/interpreter', {
           method: 'POST',
@@ -750,17 +750,24 @@ function App() {
         .then(res => res.json())
         .then(data => {
           if (data && data.elements) {
-            const streets = new Set();
+            const streetsMap = new Map();
             data.elements.forEach(e => {
-              if (e.tags && e.tags.name) {
-                streets.add(e.tags.name);
+              if (e.tags && e.tags.name && e.center) {
+                // Keep the first segment of the street to avoid duplicates, but store lat/lon
+                if (!streetsMap.has(e.tags.name)) {
+                  streetsMap.set(e.tags.name, {
+                    name: e.tags.name,
+                    lat: e.center.lat,
+                    lon: e.center.lon
+                  });
+                }
               }
             });
-            const streetsArr = Array.from(streets);
+            const streetsArr = Array.from(streetsMap.values());
             if (streetsArr.length > 0) {
               localStorage.setItem(cacheKey, JSON.stringify(streetsArr));
               localStorage.setItem(cacheTimeKey, Date.now().toString());
-              console.log(`[Overpass] Cached ${streetsArr.length} streets for ${city}`);
+              console.log(`[Overpass] Cached ${streetsArr.length} streets with coords for ${city}`);
             }
           }
         })
@@ -1433,7 +1440,9 @@ function App() {
             scenarioObj = randomElement(offlineScenarios);
           }
 
-          const street = randomElement(activeStreets);
+          const streetObj = randomElement(activeStreets);
+          const street = typeof streetObj === 'object' && streetObj !== null ? streetObj.name : streetObj;
+          const incidentCoords = typeof streetObj === 'object' && streetObj !== null ? { lat: streetObj.lat, lng: streetObj.lon } : null;
           const houseNum = Math.floor(Math.random() * 150) + 1;
           
           const locType = scenarioObj.locType || "building";
@@ -1441,9 +1450,9 @@ function App() {
             const m = Math.floor(Math.random() * 60) + 1;
             location = `${city}, ul. ${street} ${houseNum} m. ${m}`;
           } else if (locType === "intersection") {
-            let street2 = randomElement(activeStreets);
+            let street2Obj = randomElement(activeStreets); let street2 = typeof street2Obj === 'object' ? street2Obj.name : street2Obj;
             while (street2 === street && activeStreets.length > 1) {
-              street2 = randomElement(activeStreets);
+              street2Obj = randomElement(activeStreets); street2 = typeof street2Obj === 'object' ? street2Obj.name : street2Obj;
             }
             location = `${city}, Skrzyżowanie ul. ${street} z ul. ${street2}`;
           } else if (locType === "forest") {
@@ -1474,6 +1483,7 @@ function App() {
               status: 'pending',
               location: location,
               address: location,
+              coords: incidentCoords || null,
               gminaStr: `Gmina m. ${city}`,
               miejscowoscStr: city,
               description: text,
@@ -1505,7 +1515,9 @@ function App() {
         const offlineScenarios = DEFAULT_SCENARIOS.filter(s => s.type === type);
         const scenarioObj = (dynamicScenarios.length > 0 && Math.random() > 0.4) ? randomElement(dynamicScenarios) : randomElement(offlineScenarios);
         
-        let street = activeStreets && activeStreets.length > 0 ? randomElement(activeStreets) : "Główna";
+        const streetObj = activeStreets && activeStreets.length > 0 ? randomElement(activeStreets) : "Główna";
+        const street = typeof streetObj === 'object' && streetObj !== null ? streetObj.name : streetObj;
+        const incidentCoords = typeof streetObj === 'object' && streetObj !== null ? { lat: streetObj.lat, lng: streetObj.lon } : null;
         const houseNum = Math.floor(Math.random() * 150) + 1;
         let location = `${city}, ul. ${street} ${houseNum}`;
         
@@ -1517,6 +1529,7 @@ function App() {
               status: 'pending',
               location: location,
               address: location,
+              coords: incidentCoords || null,
               gminaStr: `Gmina m. ${city}`,
               miejscowoscStr: city,
               description: scenarioObj.text || "Zgłoszenie z formatki WCPR",
@@ -6339,12 +6352,13 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         <div style={{ width: '100%', height: '100%', position: 'relative', paddingTop: '24px' }}>
           const mapCenter = getCityBaseCoords(tenantName || "Katowice");
 <MapContainer key={tenantName} center={[mapCenter.lat, mapCenter.lng]} zoom={12} style={{ width: '100%', height: '100%' }}>
+            <MapCenterUpdater selectedIncidentId={selectedIncidentId} incidents={incidents} getCoordinatesForLocation={getCoordinatesForLocation} />
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; OpenStreetMap contributors'
             />
             {incidents.filter(inc => !inc.isArchived && inc.status !== 'processed').map(inc => {
-              const coords = getCoordinatesForLocation(inc.location);
+              const coords = inc.coords || getCoordinatesForLocation(inc.location, inc.tenantId);
               const isSelected = selectedIncidentId === inc.id;
               const color = inc.type === 'pozar' ? '#ff4b4b' : inc.type === 'mz' ? '#ffcc00' : '#4dabf7';
               
