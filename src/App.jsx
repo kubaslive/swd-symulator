@@ -4678,6 +4678,17 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 >
                   <span style={{ fontSize: '9px' }}>Odrzuć zdarzenie</span>
                 </button>
+                <div style={{ marginTop: 'auto', paddingTop: '10px' }}>
+                  <button 
+                    className="btn-win" 
+                    onClick={() => window._triggerManualWCPR && window._triggerManualWCPR()}
+                    style={{ height: '40px', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#ffe3e3', border: '1px solid #fa5252', color: '#d13438' }}
+                    title="Generuje natychmiastowo nowe zgłoszenie z WCPR"
+                  >
+                    <span style={{ fontSize: '16px' }}>📞</span>
+                    <span style={{ fontSize: '8px', fontWeight: 'bold' }}>Wymuś WCPR</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}
