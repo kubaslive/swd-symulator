@@ -359,6 +359,7 @@ function App() {
 
   // Context menu state for vehicles
   const [vehicleContextMenu, setVehicleContextMenu] = useState(null);
+  const [incidentContextMenu, setIncidentContextMenu] = useState(null);
 
   // App data states
   const [dbScenarios, setDbScenarios] = useState([]);
@@ -4656,7 +4657,33 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           
           
         </div>
-        {/* Global overlay for context menu */}
+        {/* Global overlay for INCIDENT context menu */}
+        {incidentContextMenu && (
+          <div 
+            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999 }}
+            onClick={() => setIncidentContextMenu(null)}
+            onContextMenu={(e) => { e.preventDefault(); setIncidentContextMenu(null); }}
+          >
+            <div 
+              className="win-context-menu"
+              style={{ top: incidentContextMenu.y, left: incidentContextMenu.x }}
+              onClick={e => e.stopPropagation()}
+            >
+              <button onClick={() => {
+                setSelectedIncidentId(incidentContextMenu.id);
+                setIncidentContextMenu(null);
+              }}>📄 Otwórz Kartę Zdarzenia</button>
+              <div className="separator"></div>
+              {userProfile?.role === 'admin' && (
+                <button onClick={() => {
+                  deleteDoc(doc(db, 'incidents', incidentContextMenu.id));
+                  setIncidentContextMenu(null);
+                }}>❌ Usuń trwale (Admin)</button>
+              )}
+            </div>
+          </div>
+        )}
+        {/* Global overlay for VEHICLE context menu */}
         {vehicleContextMenu && (
           <div 
             style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999 }}
@@ -4664,18 +4691,10 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             onContextMenu={(e) => { e.preventDefault(); setVehicleContextMenu(null); }}
           >
             <div 
+              className="win-context-menu"
               style={{
-                position: 'absolute',
                 top: vehicleContextMenu.y,
-                left: vehicleContextMenu.x,
-                background: '#f3f3f3',
-                border: '1.5px solid #d1d1d1',
-                boxShadow: '2px 2px 5px rgba(0,0,0,0.5)',
-                padding: '2px',
-                display: 'flex',
-                flexDirection: 'column',
-                minWidth: '150px',
-                zIndex: 100000
+                left: vehicleContextMenu.x
               }}
               onClick={e => e.stopPropagation()}
             >
@@ -6982,7 +7001,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               {/* Removed old WCPR banner; now handled in Bufor zdarzeń tab */}
 
               <div className="incident-table-container" style={{ flex: 1 }}>
-                <table className="swd-table">
+                <table className="swd-table-dark">
                   <thead>
                     <tr>
                       <th style={{ width: '40px', textAlign: 'center' }}>STAN</th>

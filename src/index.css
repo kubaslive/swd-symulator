@@ -1328,3 +1328,84 @@ input, textarea, select {
   top: 1px;
   font-weight: bold;
 }
+
+
+/* --- SWD TERMINAL STYLES --- */
+.swd-table-dark {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  background-color: #121212;
+  color: #d1d1d1;
+  border: 1px solid #444;
+}
+
+.swd-table-dark th {
+  background-color: #2a2a2a;
+  color: #fff;
+  border: 1px solid #444;
+  padding: 4px;
+  text-align: left;
+}
+
+.swd-table-dark td {
+  border: 1px solid #333;
+  padding: 4px 6px;
+  vertical-align: middle;
+}
+
+.swd-table-dark tbody tr:hover {
+  background-color: #2b2b2b;
+  cursor: pointer;
+}
+
+.swd-table-dark tbody tr.selected {
+  background-color: #004b8b !important;
+  color: #fff !important;
+}
+
+/* Kolorystyka wierszy Zdarzeń */
+.row-pozar {
+  color: #ff6b6b;
+}
+.row-mz {
+  color: #ffd43b;
+}
+.row-inna {
+  color: #74c0fc;
+}
+
+/* --- WIN 10 CONTEXT MENU --- */
+.win-context-menu {
+  position: fixed;
+  background: #f2f2f2;
+  border: 1px solid #a0a0a0;
+  box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+  z-index: 9999;
+  min-width: 180px;
+  padding: 2px 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.win-context-menu button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 5px 24px;
+  font-size: 12px;
+  color: #000;
+  cursor: default;
+}
+
+.win-context-menu button:hover {
+  background: #cce8ff;
+  outline: 1px solid #99d1ff;
+}
+
+.win-context-menu .separator {
+  height: 1px;
+  background: #d1d1d1;
+  margin: 3px 0;
+}
