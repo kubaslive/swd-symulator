@@ -411,6 +411,7 @@ function App() {
   const [selectedWcprCall, setSelectedWcprCall] = useState(null);
   const [wcprModalOpen, setWcprModalOpen] = useState(false);
   const [activeCallToAnswer, setActiveCallToAnswer] = useState(null);
+  const [wcprTargetJrg, setWcprTargetJrg] = useState('JRG 1');
   const [battleAlarmModalOpen, setBattleAlarmModalOpen] = useState(false);
   const [selectedSisVehicle, setSelectedSisVehicle] = useState(null);
   const [selectedCombatVehicle, setSelectedCombatVehicle] = useState(null);
@@ -3841,6 +3842,19 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
   const handleAnswerCall = (call) => {
     setActiveCallToAnswer(call);
     setSelectedWcprCallForModal(call);
+    
+    // Zgadywanie rejonu dla ułatwienia
+    let guessedJrg = "JRG 1";
+    const norm = (call.location || '').toLowerCase();
+    if (norm.includes("szopienic") || norm.includes("dąbrówk") || norm.includes("dabrowk") || norm.includes("janów") || norm.includes("janow") || norm.includes("giszowiec") || norm.includes("nikiszowiec") || norm.includes("szopienick")) {
+      guessedJrg = "JRG 1";
+    } else if (norm.includes("piotrowic") || norm.includes("kostuchn") || norm.includes("podles") || norm.includes("zarzecz") || norm.includes("ligot") || norm.includes("panewnik") || norm.includes("piotrowick")) {
+      guessedJrg = "JRG 2";
+    } else if (norm.includes("centrum") || norm.includes("bogucic") || norm.includes("zawodzi") || norm.includes("koszutk") || norm.includes("wełnowiec") || norm.includes("welnowiec") || norm.includes("korfant") || norm.includes("mariack") || norm.includes("dworco")) {
+      guessedJrg = "JRG 3";
+    }
+    setWcprTargetJrg(guessedJrg);
+    
     setIsWcprCallModalOpen(true);
   };
 
@@ -3866,15 +3880,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
       const currentYear = new Date().getFullYear();
       const sequenceNumber = String(incidents.length + 4801).padStart(4, '0');
       
-      let targetJrg = "JRG 1";
-      const norm = (call.location || '').toLowerCase();
-      if (norm.includes("szopienic") || norm.includes("dąbrówk") || norm.includes("dabrowk") || norm.includes("janów") || norm.includes("janow") || norm.includes("giszowiec") || norm.includes("nikiszowiec") || norm.includes("szopienick")) {
-        targetJrg = "JRG 1";
-      } else if (norm.includes("piotrowic") || norm.includes("kostuchn") || norm.includes("podles") || norm.includes("zarzecz") || norm.includes("ligot") || norm.includes("panewnik") || norm.includes("piotrowick")) {
-        targetJrg = "JRG 2";
-      } else if (norm.includes("centrum") || norm.includes("bogucic") || norm.includes("zawodzi") || norm.includes("koszutk") || norm.includes("wełnowiec") || norm.includes("welnowiec") || norm.includes("korfant") || norm.includes("mariack") || norm.includes("dworco")) {
-        targetJrg = "JRG 3";
-      }
+      let targetJrg = wcprTargetJrg || "JRG 1";
       
       const prefix = getJrgPrefix(targetJrg, userProfile?.tenantId || 'Katowice');
       const incidentFormat = userProfile?.settings?.incidentFormat || '{prefix}-{nr}';
@@ -8742,6 +8748,13 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                         </select>
                       </div>
 
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '6px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px', width: '70px', fontWeight: 'bold', color: '#b91c1c' }}>Rejon JRG</span>
+                        <select className="win-input" style={{ flex: 1, background: '#fff', border: '1px solid #b91c1c', fontWeight: 'bold' }} value={wcprTargetJrg} onChange={(e) => setWcprTargetJrg(e.target.value)}>
+                          {JRG_UNITS.map(j => <option key={j} value={j}>{j}</option>)}
+                        </select>
+                      </div>
+
                     </fieldset>
 
                     {/* Right: Opisy & Table */}
@@ -8901,7 +8914,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 <div style={{ display: 'flex', gap: '10px' }}>
                   {/* Czas */}
                   <fieldset style={{ padding: '4px', margin: 0, flex: 0.3 }}>
-                    <legend style={{ fontSize: '9px' }}>Czas</legend>
+                    <legend style={{ fontSize: '10px', color: '#0a246a' }}>Czas</legend>
                     <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                       <span style={{ fontSize: '9px' }}>Data</span>
                       <input type="date" className="win-input" style={{ width: '90px' }} value={incidentDateStr} onChange={(e) => setIncidentDateStr(e.target.value)} />
@@ -8912,7 +8925,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
                   {/* Zgłaszający */}
                   <fieldset style={{ padding: '4px', margin: 0, flex: 0.7 }}>
-                    <legend style={{ fontSize: '9px' }}>Przyjęcie zgł.</legend>
+                    <legend style={{ fontSize: '10px', color: '#0a246a' }}>Zgłoszenie / Jednostka</legend>
                     <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                       <select className="win-input" style={{ width: '100px' }}>
                         <option>Telefon</option>
@@ -8932,7 +8945,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
                   {/* Lokalizacja + Opis */}
                   <fieldset style={{ padding: '4px', margin: 0, flex: 0.6 }}>
-                    <legend style={{ fontSize: '9px' }}>Lokalizacja</legend>
+                    <legend style={{ fontSize: '10px', color: '#0a246a' }}>Lokalizacja</legend>
                     <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 30px 40px', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
                       <span style={{ fontSize: '9px', textAlign: 'right' }}>Gmina</span>
                       <input type="text" className="win-input" value={gminaStr} onChange={(e) => setGminaStr(e.target.value)} style={{ gridColumn: '2 / span 3' }} />
@@ -8960,7 +8973,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   {/* Dane osoby + Powiadomione służby */}
                   <div style={{ flex: 0.4, display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <fieldset style={{ padding: '4px', margin: 0 }}>
-                      <legend style={{ fontSize: '9px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <legend style={{ fontSize: '10px', display: 'flex', alignItems: 'center', gap: '5px', color: '#0a246a' }}>
                           Dane osoby zgłaszającej
                           <button className="btn-win" style={{ fontSize: '8px', padding: '1px 3px', background: '#ffe3e3', color: '#c92a2a', fontWeight: 'bold' }} onClick={(e) => {
                             e.preventDefault();
