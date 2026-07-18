@@ -1,5 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
+
+function MapClickHandler({ onSelect }) {
+  useMapEvents({
+    click(e) {
+      onSelect(e.latlng);
+    }
+  });
+  return null;
+}
 
 const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, tenantVehicles, tenantUnitCoordinates }) => {
   const [jrgUnits, setJrgUnits] = useState(Array.isArray(tenantJrgUnits) ? [...tenantJrgUnits] : Object.values(tenantJrgUnits || {}));
@@ -9,6 +27,7 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
   
   const [activeTab, setActiveTab] = useState('jrg');
   const [newItemName, setNewItemName] = useState('');
+  const [mapPickerTarget, setMapPickerTarget] = useState(null);
   
   const [selectedUnit, setSelectedUnit] = useState('');
   const [vehName, setVehName] = useState('');
@@ -130,9 +149,10 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
                     <span style={{ fontWeight: 'bold' }}>{u}</span>
                     <button onClick={() => handleRemoveUnit('jrg', u)} style={{ color: 'red', cursor: 'pointer', background: 'none', border: 'none', fontSize: '10px' }}>X Usun</button>
                   </div>
-                  <div style={{ display: 'flex', gap: '5px', marginTop: '2px' }}>
+                  <div style={{ display: 'flex', gap: '5px', marginTop: '2px', alignItems: 'center' }}>
                     <input type="text" placeholder="Lat (np. 50.25)" className="input-field" style={{ width: '80px', fontSize: '9px' }} value={unitCoordinates[u]?.lat || ''} onChange={(e) => setUnitCoordinates({...unitCoordinates, [u]: {...unitCoordinates[u], lat: e.target.value}})} />
                     <input type="text" placeholder="Lng (np. 19.02)" className="input-field" style={{ width: '80px', fontSize: '9px' }} value={unitCoordinates[u]?.lng || ''} onChange={(e) => setUnitCoordinates({...unitCoordinates, [u]: {...unitCoordinates[u], lng: e.target.value}})} />
+                    <button onClick={() => setMapPickerTarget(u)} className="btn-win" style={{ fontSize: '9px', padding: '0 5px' }}>📍 Z Mapy</button>
                   </div>
                 </div>
               ))}
@@ -154,9 +174,10 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
                     <span style={{ fontWeight: 'bold' }}>{u}</span>
                     <button onClick={() => handleRemoveUnit('osp', u)} style={{ color: 'red', cursor: 'pointer', background: 'none', border: 'none', fontSize: '10px' }}>X Usun</button>
                   </div>
-                  <div style={{ display: 'flex', gap: '5px', marginTop: '2px' }}>
+                  <div style={{ display: 'flex', gap: '5px', marginTop: '2px', alignItems: 'center' }}>
                     <input type="text" placeholder="Lat (np. 50.25)" className="input-field" style={{ width: '80px', fontSize: '9px' }} value={unitCoordinates[u]?.lat || ''} onChange={(e) => setUnitCoordinates({...unitCoordinates, [u]: {...unitCoordinates[u], lat: e.target.value}})} />
                     <input type="text" placeholder="Lng (np. 19.02)" className="input-field" style={{ width: '80px', fontSize: '9px' }} value={unitCoordinates[u]?.lng || ''} onChange={(e) => setUnitCoordinates({...unitCoordinates, [u]: {...unitCoordinates[u], lng: e.target.value}})} />
+                    <button onClick={() => setMapPickerTarget(u)} className="btn-win" style={{ fontSize: '9px', padding: '0 5px' }}>📍 Z Mapy</button>
                   </div>
                 </div>
               ))}
@@ -204,12 +225,33 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
         )}
       </div>
       
-      <div className="win-dialog-footer" style={{ background: '#d4d0c8', padding: '10px', display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #fff' }}>
+            <div className="win-dialog-footer" style={{ background: '#d4d0c8', padding: '10px', display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #fff' }}>
         <button className="btn-win" onClick={onClose} style={{ padding: '4px 15px' }}>Anuluj</button>
         <button className="btn-win" onClick={handleSave} disabled={loading} style={{ padding: '4px 15px', fontWeight: 'bold' }}>
           {loading ? 'Zapisywanie...' : 'Zapisz do bazy'}
         </button>
       </div>
+
+      {mapPickerTarget && (
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.85)', zIndex: 10001, display: 'flex', flexDirection: 'column' }}>
+          <div className="win-dialog-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>📍 Zaznacz na mapie współrzędne dla: {mapPickerTarget}</span>
+            <button className="btn-win" onClick={() => setMapPickerTarget(null)} style={{ padding: '0 5px' }}>X</button>
+          </div>
+          <div style={{ flex: 1, background: '#fff', position: 'relative' }}>
+            <MapContainer center={[52.0, 19.0]} zoom={6} style={{ height: '100%', width: '100%' }}>
+              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              <MapClickHandler onSelect={(latlng) => {
+                setUnitCoordinates({...unitCoordinates, [mapPickerTarget]: { lat: latlng.lat.toFixed(6), lng: latlng.lng.toFixed(6) }});
+                setMapPickerTarget(null);
+              }} />
+              {unitCoordinates[mapPickerTarget]?.lat && unitCoordinates[mapPickerTarget]?.lng && (
+                <Marker position={[parseFloat(unitCoordinates[mapPickerTarget].lat), parseFloat(unitCoordinates[mapPickerTarget].lng)]} />
+              )}
+            </MapContainer>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
