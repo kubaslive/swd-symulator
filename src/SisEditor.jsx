@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 
 const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, tenantVehicles, tenantUnitCoordinates }) => {
-  const [jrgUnits, setJrgUnits] = useState([...(tenantJrgUnits || [])]);
-  const [ospUnits, setOspUnits] = useState([...(tenantOspUnits || [])]);
+  const [jrgUnits, setJrgUnits] = useState(Array.isArray(tenantJrgUnits) ? [...tenantJrgUnits] : Object.values(tenantJrgUnits || {}));
+  const [ospUnits, setOspUnits] = useState(Array.isArray(tenantOspUnits) ? [...tenantOspUnits] : Object.values(tenantOspUnits || {}));
   const [vehicles, setVehicles] = useState({ ...(tenantVehicles || {}) });
   const [unitCoordinates, setUnitCoordinates] = useState({ ...(tenantUnitCoordinates || {}) });
   
@@ -21,8 +21,8 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
   // Synchronize when props change if needed (but usually editing locally is fine)
   useEffect(() => {
     if (!loading) {
-      setJrgUnits([...(tenantJrgUnits || [])]);
-      setOspUnits([...(tenantOspUnits || [])]);
+      setJrgUnits(Array.isArray(tenantJrgUnits) ? [...tenantJrgUnits] : Object.values(tenantJrgUnits || {}));
+      setOspUnits(Array.isArray(tenantOspUnits) ? [...tenantOspUnits] : Object.values(tenantOspUnits || {}));
       setVehicles({ ...(tenantVehicles || {}) });
       setUnitCoordinates({ ...(tenantUnitCoordinates || {}) });
     }
@@ -191,7 +191,7 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
                   <button className="btn-win" onClick={handleAddVehicle}>Dodaj</button>
                 </div>
                 <div style={{ background: '#fff', border: '2px solid inset', height: '180px', overflowY: 'scroll', padding: '5px' }}>
-                  {(vehicles[selectedUnit] || []).map((v, i) => (
+                  {(Array.isArray(vehicles[selectedUnit]) ? vehicles[selectedUnit] : Object.values(vehicles[selectedUnit] || {})).map((v, i) => (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #ccc', padding: '2px 0' }}>
                       <span>{v.name} ({v.type}) - obsada: {v.obsada}</span>
                       <button onClick={() => handleRemoveVehicle(selectedUnit, i)} style={{ color: 'red', cursor: 'pointer', background: 'none', border: 'none' }}>X</button>
