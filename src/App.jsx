@@ -4671,6 +4671,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             >
               <button onClick={() => {
                 setSelectedIncidentId(incidentContextMenu.id);
+                setIsNewIncidentModalOpen(true);
                 setIncidentContextMenu(null);
               }}>📄 Otwórz Kartę Zdarzenia</button>
               <div className="separator"></div>
