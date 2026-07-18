@@ -7000,7 +7000,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               
               {/* Removed old WCPR banner; now handled in Bufor zdarzeń tab */}
 
-              <div className="incident-table-container" style={{ flex: 1 }}>
+              <div className="incident-table-container" style={{ flex: 1 }} onClick={() => setSelectedIncidentId(null)}>
                 <table className="swd-table-dark">
                   <thead>
                     <tr>
@@ -7106,7 +7106,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             color: rowColor,
                             borderLeft: hasActiveVehicles && !isSelected ? '3px solid #d13438' : hasDispatchedVehicles && !isSelected ? '3px solid #f59f00' : ''
                           }}
-                          onClick={() => setSelectedIncidentId(incident.id)}
+                          onClick={(e) => { e.stopPropagation(); setSelectedIncidentId(incident.id); }}
                           onDoubleClick={() => {
                             setSelectedIncidentId(incident.id);
                             loadIncidentForEditing(incident);
@@ -7298,7 +7298,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                                 key={i} 
                                 className={`swd-row ${isSelected ? 'selected' : ''}`}
                                 style={{ background: statusBg, cursor: 'default' }}
-                                onClick={() => setSelectedSisVehicle(vStr)}
+                                onClick={(e) => { e.stopPropagation(); setSelectedSisVehicle(vStr); }}
                                 onContextMenu={(e) => { setSelectedSisVehicle(vStr); openVehicleContextMenu(e, vStr); }}
                               >
                                 <td style={{ textAlign: 'center', padding: '1px 2px', fontSize: '10px' }}>
