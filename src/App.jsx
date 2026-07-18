@@ -1,6 +1,19 @@
 import { DEFAULT_SCENARIOS } from './scenarios';
 import 'leaflet/dist/leaflet.css';
 import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip } from 'react-leaflet';
+
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+  var R = 6371; // Radius of the earth in km
+  var dLat = (lat2-lat1) * (Math.PI/180);
+  var dLon = (lon2-lon1) * (Math.PI/180); 
+  var a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * (Math.PI/180)) * Math.cos(lat2 * (Math.PI/180)) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2); 
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+  return R * c; 
+}
+
 import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase';
 import { wipeAndInitializeDb } from './db_wipe';
@@ -39,7 +52,7 @@ import MobileTerminal from './components/MobileTerminal';
 import SisEditor from './SisEditor';
 import { getRankByXp, PSP_RANKS } from './ranks';
 
-const APP_VERSION = "0.3.0 beta";
+const APP_VERSION = "0.3.3 beta";
 
 // Web Speech API Polish Voice Announcement (WCPR)
 const speakAnnouncement = (text, isAudioEnabled) => {
@@ -306,6 +319,7 @@ function App() {
   const [ksisTab, setKsisTab] = useState('PSP');
   const [ksisOspGmina, setKsisOspGmina] = useState('');
   const [tenantVehicles, setTenantVehicles] = useState({});
+  const [tenantUnitCoordinates, setTenantUnitCoordinates] = useState({});
   const [tenantMapBases, setTenantMapBases] = useState({});
   const [tenantHydrants, setTenantHydrants] = useState([]);
   const [tenantOdwody, setTenantOdwody] = useState([]);
@@ -840,6 +854,7 @@ function App() {
         setTenantJrgUnits(data.jrgUnits || []);
         setTenantOspUnits(data.ospUnits || []);
         setTenantVehicles(data.vehicles || {});
+        setTenantUnitCoordinates(data.unitCoordinates || {});
         setTenantMapBases(data.mapBases || {});
         setTenantHydrants(data.hydrants || []);
         setTenantOdwody(data.odwody || []);
@@ -852,6 +867,7 @@ function App() {
         setTenantJrgUnits([]);
         setTenantOspUnits([]);
         setTenantVehicles({});
+        setTenantUnitCoordinates({});
         setTenantMapBases({});
         setTenantHydrants([]);
         setTenantOdwody([]);
@@ -1399,7 +1415,8 @@ function App() {
         let location = "";
         
         const generateAndAddIncident = async () => {
-          const type = randomElement(["pozar", "mz", "pozar", "mz", "mz", "af"]);
+          if (!window._triggerManualWCPR) window._triggerManualWCPR = generateAndAddIncident;
+          const type = randomElement(["pozar", "mz", "pozar", "mz", "mz"]);
           let text = "";
           let expectedKdrMsg = "";
           let needsZRM = false;
@@ -2907,6 +2924,22 @@ function App() {
   };
 
   // Digital vehicle status radios (ST 1-5) auto-fill times logic
+  // Calculate ETA logic
+function calculateETA(vStr, incident, tenantUnitCoordinates) {
+   let ms = 2 * 60000; // Default 2 min
+   const vUnit = vStr.split(' | ')[0];
+   const coords = tenantUnitCoordinates?.[vUnit];
+   if (coords && coords.lat && coords.lng && incident.lat && incident.lng) {
+       const dist = getDistanceFromLatLonInKm(parseFloat(incident.lat), parseFloat(incident.lng), parseFloat(coords.lat), parseFloat(coords.lng));
+       // city speed 45 km/h -> 45km / 60min = 0.75 km/min -> dist / 0.75 = mins
+       let mins = dist / 0.75;
+       if (mins < 1) mins = 1;
+       if (mins > 30) mins = 30;
+       ms = Math.floor(mins * 60000);
+   }
+   return Date.now() + ms;
+}
+
   const handleSetVehicleStatus = async (vStr, statusNum) => {
     if (!activeIncident) return;
     
@@ -2957,6 +2990,16 @@ function App() {
     if (!user) {
       alert("Musisz być zalogowany, aby nadać status.");
       return;
+    }
+
+        if (statusNum === 2) {
+      const expectedArrival = activeIncident.vehiclesExpectedArrival?.[vStr];
+      if (expectedArrival && Date.now() < expectedArrival) {
+        const remainingMs = expectedArrival - Date.now();
+        const mins = Math.ceil(remainingMs / 60000);
+        alert(`Zastęp ${vStr} jest jeszcze w drodze! Szacowany czas dojazdu to około ${mins} minut(y).`);
+        return;
+      }
     }
 
     const currentStatuses = activeIncident.vehicleStatuses || {};
@@ -3027,6 +3070,8 @@ function App() {
              const nowStr = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
              const finalStatuses = { ...freshStatuses, [vStr]: 1 };
              const currentTimes = freshInc.times || {};
+             const freshExpected = freshInc.vehiclesExpectedArrival || {};
+             const finalExpected = { ...freshExpected, [vStr]: calculateETA(vStr, freshInc, tenantUnitCoordinates) };
              const finalTimes = { ...currentTimes };
              if (!finalTimes.departure) finalTimes.departure = nowStr;
              const freshStatusTimes = { ...freshInc.vehicleStatusTimes, [vStr]: new Date().toISOString() };
@@ -4804,6 +4849,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
           <button className="btn-win" onClick={() => setIsSisEditorOpen(true)}>🔧 Otwórz Edytor SiS (Jednostki)</button>
           <button className="btn-win" onClick={() => setActiveMenuTab('game_master')}>⚡ Mistrz Gry (Kreator Zdarzeń)</button>
+              <button className="btn-win" onClick={() => window._triggerManualWCPR && window._triggerManualWCPR()}>📞 Wymuś Zgłoszenie WCPR</button>
           <button className="btn-win" onClick={() => setActiveMenuTab('scenariusze')}>📚 Edytor Scenariuszy</button>
         </div>
 
@@ -7130,8 +7176,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                           <td>
                             {timeString}
                           </td>
-                          <td>KM/KP PSP</td>
-                          <td>{incident.targetJrg ? incident.targetJrg : '---'}</td>
+                          <td>{incident.tenantId === "Bedzin" ? "KP PSP Będzin" : (incident.tenantId ? `KM PSP ${incident.tenantId}` : "KM PSP")}</td>
+                          <td>{incident.targetJrg ? incident.targetJrg : (incident.location?.includes('Szopienice') || incident.location?.includes('Zawodzie') ? 'JRG 3' : (incident.location?.includes('Piotrowice') || incident.location?.includes('Ligota') ? 'JRG 2' : 'JRG 1'))}</td>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
                               <span>{incident.location}</span>
@@ -9810,6 +9856,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               tenantJrgUnits={tenantJrgUnits}
               tenantOspUnits={tenantOspUnits}
               tenantVehicles={tenantVehicles}
+              tenantUnitCoordinates={tenantUnitCoordinates}
             />
           </div>
         </div>

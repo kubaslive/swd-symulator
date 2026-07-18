@@ -5,6 +5,7 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
   const [jrgUnits, setJrgUnits] = useState([...(tenantJrgUnits || [])]);
   const [ospUnits, setOspUnits] = useState([...(tenantOspUnits || [])]);
   const [vehicles, setVehicles] = useState({ ...(tenantVehicles || {}) });
+  const [unitCoordinates, setUnitCoordinates] = useState({ ...(arguments[0].tenantUnitCoordinates || {}) });
   
   const [activeTab, setActiveTab] = useState('jrg');
   const [newItemName, setNewItemName] = useState('');
@@ -23,6 +24,7 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
       setJrgUnits([...(tenantJrgUnits || [])]);
       setOspUnits([...(tenantOspUnits || [])]);
       setVehicles({ ...(tenantVehicles || {}) });
+      setUnitCoordinates({ ...(arguments[0].tenantUnitCoordinates || {}) });
     }
   }, [tenantJrgUnits, tenantOspUnits, tenantVehicles]);
 
@@ -41,7 +43,8 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
       await updateDoc(tenantRef, {
         jrgUnits,
         ospUnits,
-        vehicles
+        vehicles,
+        unitCoordinates
       });
       onClose();
     } catch (err) {
@@ -122,9 +125,15 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
             </div>
             <div style={{ background: '#fff', border: '2px solid inset', height: '200px', overflowY: 'scroll', padding: '5px' }}>
               {jrgUnits.map(u => (
-                <div key={u} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #ccc', padding: '2px 0' }}>
-                  <span>{u}</span>
-                  <button onClick={() => handleRemoveUnit('jrg', u)} style={{ color: 'red', cursor: 'pointer', background: 'none', border: 'none' }}>X</button>
+                <div key={u} style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid #ccc', padding: '4px 0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 'bold' }}>{u}</span>
+                    <button onClick={() => handleRemoveUnit('jrg', u)} style={{ color: 'red', cursor: 'pointer', background: 'none', border: 'none', fontSize: '10px' }}>X Usun</button>
+                  </div>
+                  <div style={{ display: 'flex', gap: '5px', marginTop: '2px' }}>
+                    <input type="text" placeholder="Lat (np. 50.25)" className="input-field" style={{ width: '80px', fontSize: '9px' }} value={unitCoordinates[u]?.lat || ''} onChange={(e) => setUnitCoordinates({...unitCoordinates, [u]: {...unitCoordinates[u], lat: e.target.value}})} />
+                    <input type="text" placeholder="Lng (np. 19.02)" className="input-field" style={{ width: '80px', fontSize: '9px' }} value={unitCoordinates[u]?.lng || ''} onChange={(e) => setUnitCoordinates({...unitCoordinates, [u]: {...unitCoordinates[u], lng: e.target.value}})} />
+                  </div>
                 </div>
               ))}
             </div>
@@ -140,9 +149,15 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
             </div>
             <div style={{ background: '#fff', border: '2px solid inset', height: '200px', overflowY: 'scroll', padding: '5px' }}>
               {ospUnits.map(u => (
-                <div key={u} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #ccc', padding: '2px 0' }}>
-                  <span>{u}</span>
-                  <button onClick={() => handleRemoveUnit('osp', u)} style={{ color: 'red', cursor: 'pointer', background: 'none', border: 'none' }}>X</button>
+                <div key={u} style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid #ccc', padding: '4px 0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 'bold' }}>{u}</span>
+                    <button onClick={() => handleRemoveUnit('osp', u)} style={{ color: 'red', cursor: 'pointer', background: 'none', border: 'none', fontSize: '10px' }}>X Usun</button>
+                  </div>
+                  <div style={{ display: 'flex', gap: '5px', marginTop: '2px' }}>
+                    <input type="text" placeholder="Lat (np. 50.25)" className="input-field" style={{ width: '80px', fontSize: '9px' }} value={unitCoordinates[u]?.lat || ''} onChange={(e) => setUnitCoordinates({...unitCoordinates, [u]: {...unitCoordinates[u], lat: e.target.value}})} />
+                    <input type="text" placeholder="Lng (np. 19.02)" className="input-field" style={{ width: '80px', fontSize: '9px' }} value={unitCoordinates[u]?.lng || ''} onChange={(e) => setUnitCoordinates({...unitCoordinates, [u]: {...unitCoordinates[u], lng: e.target.value}})} />
+                  </div>
                 </div>
               ))}
             </div>
