@@ -5449,6 +5449,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             <p style={{ fontSize: '10px', color: '#555', marginTop: '3px', margin: '3px 0 0 0' }}>
               Ewidencja pojazdów, sprzętu specjalistycznego i środków gaśniczych wg. rozdz. 8.5 Podręcznika SWD-ST 2.5
             </p>
+            <button className="btn-win" style={{ marginTop: '5px', fontWeight: 'bold', color: '#005fb8' }} onClick={() => setIsSisEditorOpen(true)}>🔧 Edytor SiS (Jednostki, Pojazdy i Współrzędne dojazdowe)</button>
           </div>
           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <div style={{ fontSize: '9px', background: '#d4edda', color: '#155724', border: '1px solid #c3e6cb', padding: '3px 8px', borderRadius: '2px', fontWeight: 'bold' }}>
