@@ -1,5 +1,6 @@
 import { DEFAULT_SCENARIOS } from './scenarios';
 import { getRandomStreetWithCoords } from './addressData';
+import { SettingsModal } from './components/SettingsModal';
 import 'leaflet/dist/leaflet.css';
 import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip, useMap } from 'react-leaflet';
 
@@ -309,6 +310,55 @@ const WORKFLOW_STATES = {
   "7": "Żądanie zmiany -> Powiat",
   "8": "Zmień zaakceptowane powiat",
   "9": "Zmień odrzucone powiat"
+};
+
+
+const getRandomLocationForGenerator = async (userProfile, gameModeCities, tenantName) => {
+  const randomElement = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const settings = userProfile?.settings || {};
+  const areas = settings.generatorAreas || [];
+
+  if (areas.length > 0) {
+    const area = randomElement(areas);
+    if (area.bbox) {
+      const latMin = Math.min(parseFloat(area.bbox[0]), parseFloat(area.bbox[1]));
+      const latMax = Math.max(parseFloat(area.bbox[0]), parseFloat(area.bbox[1]));
+      const lonMin = Math.min(parseFloat(area.bbox[2]), parseFloat(area.bbox[3]));
+      const lonMax = Math.max(parseFloat(area.bbox[2]), parseFloat(area.bbox[3]));
+
+      const lat = latMin + Math.random() * (latMax - latMin);
+      const lon = lonMin + Math.random() * (lonMax - lonMin);
+
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+        const data = await res.json();
+        
+        let streetName = "Główna";
+        let cityName = area.name;
+
+        if (data && data.address) {
+          streetName = data.address.road || data.address.pedestrian || data.address.path || "Główna";
+          cityName = data.address.city || data.address.town || data.address.village || area.name;
+        }
+
+        return { city: cityName, street: streetName, coords: { lat, lng: lon } };
+      } catch (e) {
+        console.error("Nominatim reverse geocoding failed", e);
+      }
+    }
+  }
+
+  const settingsCities = settings.generatorCities || gameModeCities || '';
+  const parsedCities = settingsCities.split(',').map(s => s.trim()).filter(s => s.length > 0);
+  let cityPool = [tenantName];
+  if (tenantName === 'Będzin') cityPool = ['Będzin', 'Czeladź', 'Siewierz', 'Wojkowice', 'Sławków', 'Psary', 'Mierzęcice', 'Bobrowniki'];
+  else if (tenantName === 'Katowice') cityPool = ['Katowice'];
+  else if (tenantName === 'Zabrze') cityPool = ['Zabrze'];
+  else if (tenantName === 'Bytom') cityPool = ['Bytom'];
+  
+  const city = parsedCities.length > 0 ? randomElement(parsedCities) : randomElement(cityPool);
+  const streetData = getRandomStreetWithCoords(city);
+  return { city: streetData.city, street: streetData.name, coords: { lat: streetData.lat, lng: streetData.lon } };
 };
 
 function App() {
@@ -1428,9 +1478,8 @@ function App() {
             scenarioObj = randomElement(offlineScenarios);
           }
 
-          const streetData = getRandomStreetWithCoords(city);
-          const street = streetData.name;
-          const incidentCoords = { lat: streetData.lat, lng: streetData.lon };
+          const street = locData.street;
+          const incidentCoords = locData.coords;
           const houseNum = Math.floor(Math.random() * 150) + 1;
           
           const locType = scenarioObj.locType || "building";
@@ -1438,9 +1487,9 @@ function App() {
             const m = Math.floor(Math.random() * 60) + 1;
             location = `${city}, ul. ${street} ${houseNum} m. ${m}`;
           } else if (locType === "intersection") {
-            const street2Data = getRandomStreetWithCoords(city);
-            const street2 = street2Data.name;
-            location = `${streetData.city}, Skrzyżowanie ul. ${street} z ul. ${street2}`;
+            const street2Data = await getRandomLocationForGenerator(userProfile, gameModeCities, tenantName);
+            const street2 = street2Data.street;
+            location = `${city}, Skrzyżowanie ul. ${street} z ul. ${street2}`;
           } else if (locType === "forest") {
             location = `${city}, Kompleks leśny, dojazd od ul. ${street}`;
           } else if (locType === "road") {
@@ -1503,12 +1552,12 @@ function App() {
       const offlineScenarios = DEFAULT_SCENARIOS.filter(s => s.type === type);
       const scenarioObj = (dynamicScenarios.length > 0 && Math.random() > 0.4) ? randomElement(dynamicScenarios) : randomElement(offlineScenarios);
       
-      const city = gameModeCities.length > 0 ? randomElement(gameModeCities) : "Katowice";
-      const streetData = getRandomStreetWithCoords(city);
-      const street = streetData.name;
-      const incidentCoords = { lat: streetData.lat, lng: streetData.lon };
+      const locData = await getRandomLocationForGenerator(userProfile, gameModeCities, tenantName);
+      const city = locData.city;
+      const street = locData.street;
+      const incidentCoords = locData.coords;
       const houseNum = Math.floor(Math.random() * 150) + 1;
-      let location = `${streetData.city}, ul. ${street} ${houseNum}`;
+      let location = `${city}, ul. ${street} ${houseNum}`;
       
       try {
           await addDoc(collection(db, 'calls'), {
@@ -8156,132 +8205,15 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
       )}
 
       {/* -------------------------------------------------------------
-          DIALOG MODAL: USTAWIENIA UŻYTKOWNIKA
+          DIALOG MODAL: USTAWIENIA UŻYTKOWNIKA (Zewnętrzny komponent)
           ------------------------------------------------------------- */}
-      {isSettingsModalOpen && (
-        <div className="win-dialog-overlay" style={{ zIndex: 99990 }}>
-          <div className="win-dialog border-outset" style={{ width: '450px', position: 'absolute', top: '10%', left: '30%', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', borderRadius: '8px' }}>
-            <div className="win-dialog-header">
-              <span>Ustawienia Użytkownika</span>
-              <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsSettingsModalOpen(false)}>X</button>
-            </div>
-            <div className="win-dialog-content border-inset" style={{ padding: '12px', background: '#fff', fontSize: '11px' }}>
-              <div style={{ marginBottom: '10px' }}>
-                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Nazwa jednostki nadrzędnej (np. KM PSP Będzin)</label>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  value={settingsData.kmkpName} 
-                  onChange={e => setSettingsData({...settingsData, kmkpName: e.target.value})}
-                  placeholder="Domyślna nazwa zostanie użyta, jeśli puste"
-                  style={{ width: '100%' }}
-                />
-              </div>
-              <div style={{ marginBottom: '10px' }}>
-                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Miasta/gminy w rejonie (oddzielone przecinkiem)</label>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  value={settingsData.generatorCities} 
-                  onChange={e => setSettingsData({...settingsData, generatorCities: e.target.value})}
-                  placeholder="Będzin, Czeladź, Wojkowice..."
-                  style={{ width: '100%' }}
-                />
-              </div>
-              <div style={{ marginBottom: '10px' }}>
-                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Wzór numeru zdarzenia (zmienne: {`{prefix}, {nr}, {rok}`})</label>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  value={settingsData.incidentFormat} 
-                  onChange={e => setSettingsData({...settingsData, incidentFormat: e.target.value})}
-                  placeholder="{prefix}-{nr}"
-                  style={{ width: '100%' }}
-                />
-              </div>
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Wzór numeru meldunku (zmienne: {`{nr}, {rok}`})</label>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  value={settingsData.reportFormat} 
-                  onChange={e => setSettingsData({...settingsData, reportFormat: e.target.value})}
-                  placeholder="EWID/{nr}/{rok}"
-                  style={{ width: '100%' }}
-                />
-              </div>
-
-              <div style={{ marginBottom: '15px', padding: '10px', background: '#e8f4fd', border: '1px solid #b8d4f2', borderRadius: '4px' }}>
-                <strong style={{ display: 'block', marginBottom: '8px', color: '#005fb8' }}>🤖 AI Generator (Google Gemini)</strong>
-                <p style={{ margin: '0 0 8px 0', color: '#555' }}>Wygeneruj i wprowadź klucz API Google Gemini (AI Studio), aby zdarzenia z Trybu Gry były wymyślane przez Sztuczną Inteligencję na żywo!</p>
-                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Klucz API Gemini (zostaje tylko na Twoim PC)</label>
-                <input 
-                  type="password" 
-                  className="input-field" 
-                  value={settingsData.geminiApiKey || ''} 
-                  onChange={e => setSettingsData({...settingsData, geminiApiKey: e.target.value})}
-                  placeholder="AIzaSy..."
-                  style={{ width: '100%' }}
-                />
-              </div>
-
-              <div style={{ marginBottom: '15px', padding: '10px', background: '#f5f5f5', border: '1px solid #d1d1d1', borderRadius: '4px' }}>
-                <strong style={{ display: 'block', marginBottom: '8px', color: '#5865F2' }}>🎮 Integracja Discord (Webhook)</strong>
-                <p style={{ margin: '0 0 8px 0', color: '#555' }}>Wklej URL Webhooka z Twojego serwera Discord, aby powiadamiać znajomych o wysłanych zastępach i powrotach.</p>
-                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Adres URL Webhooka</label>
-                <input 
-                  type="password" 
-                  className="input-field" 
-                  value={settingsData.discordWebhookUrl || ''} 
-                  onChange={e => setSettingsData({...settingsData, discordWebhookUrl: e.target.value})}
-                  placeholder="https://discord.com/api/webhooks/..."
-                  style={{ width: '100%' }}
-                />
-              </div>
-
-              <div style={{ marginBottom: '15px', padding: '10px', background: '#f5f5f5', border: '1px solid #d1d1d1' }}>
-                <strong style={{ display: 'block', marginBottom: '8px', color: '#005fb8' }}>Rozgrywka / Symulator</strong>
-                
-                <div style={{ marginBottom: '10px' }}>
-                  <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Częstotliwość wpływania zgłoszeń WCPR (Poziom Trudności)</label>
-                  <select 
-                    className="input-field" 
-                    value={settingsData.difficulty || 'normal'} 
-                    onChange={e => setSettingsData({...settingsData, difficulty: e.target.value})}
-                    style={{ width: '100%' }}
-                  >
-                    <option value="easy">Spokojny dyżur (zdarzenie co 4-5 min)</option>
-                    <option value="normal">Normalny dzień (zdarzenie co 2-3 min)</option>
-                    <option value="hard">Armagedon / Front Burzowy (zdarzenie co 30-60 sek)</option>
-                  </select>
-                </div>
-
-                <div style={{ marginBottom: '5px' }}>
-                  <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Dźwięk nowej formatki WCPR</label>
-                  <select 
-                    className="input-field" 
-                    value={settingsData.customSound || 'buzzer'} 
-                    onChange={e => setSettingsData({...settingsData, customSound: e.target.value})}
-                    style={{ width: '100%' }}
-                  >
-                    <option value="buzzer">Domyślny WCPR (Buzzer)</option>
-                    <option value="bell">Klasyczny Dzwonek (Telefoniczny)</option>
-                    <option value="siren">Dyskretna Syrena</option>
-                    <option value="ping">Krótki PING</option>
-                  </select>
-                </div>
-              </div>
-              
-              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', borderTop: '1px solid var(--win-shadow)', paddingTop: '8px' }}>
-                <button className="btn-win" onClick={() => setIsSettingsModalOpen(false)}>❌ Anuluj</button>
-                <button className="btn-win" style={{ backgroundColor: '#2b8a3e', color: 'white', fontWeight: 'bold' }} onClick={handleSaveSettings}>
-                  💾 Zapisz
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <SettingsModal 
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        settingsData={settingsData}
+        setSettingsData={setSettingsData}
+        saveSettings={handleSaveSettings}
+      />
 
       {/* -------------------------------------------------------------
           DIALOG MODAL: MAPA GIS
