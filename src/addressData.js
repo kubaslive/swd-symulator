@@ -1,3 +1,15 @@
+export const COUNTY_CITY_MAP = {
+  "m. Katowice": ["Katowice"],
+  "m. Sosnowiec": ["Sosnowiec"],
+  "m. Bytom": ["Bytom"],
+  "m. Zabrze": ["Zabrze"],
+  "m. Gliwice": ["Gliwice"],
+  "m. Chorzów": ["Chorzów"],
+  "m. Rybnik": ["Rybnik"],
+  "powiat będziński": ["Będzin", "Czeladź", "Sławków", "Wojkowice", "Bobrowniki", "Mierzęcice", "Psary", "Siewierz"],
+  "powiat tarnogórski": ["Tarnowskie Góry", "Radzionków", "Miasteczko Śląskie", "Kalety", "Krupski Młyn", "Ożarowice", "Świerklaniec", "Tworóg", "Zbrosławice"]
+};
+
 export const SILESIA_STREETS = {
   "Katowice": [
     { name: "3 Maja", lat: 50.2587, lon: 19.0175 },

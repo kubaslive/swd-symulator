@@ -1,51 +1,84 @@
 const fs = require('fs');
-let code = fs.readFileSync('src/App.jsx', 'utf8');
+const path = require('path');
 
-const target1 = `if (!window._triggerManualWCPR) window._triggerManualWCPR = generateAndAddIncident;`;
-code = code.replace(target1, "");
+const p = path.join(__dirname, 'src/App.jsx');
+let content = fs.readFileSync(p, 'utf8');
 
-const target2 = `        generateAndAddIncident();
-        window.triggerGen = generateAndAddIncident;`;
-const replacement2 = `        generateAndAddIncident();
-      }
-      
-      // EXPORT FOR MANUAL BUTTON
-      window._triggerManualWCPR = async () => {
-        const callerName = \`\${randomElement(firstNames)} \${randomElement(lastNames)}\`;
-        const phone = \`\${Math.floor(500 + Math.random() * 200)}-\${Math.floor(100 + Math.random() * 800)}-\${Math.floor(100 + Math.random() * 800)}\`;
-        const type = randomElement(["pozar", "mz", "pozar", "mz", "mz"]);
-        const dynamicScenarios = dbScenarios.filter(s => s.type === type);
-        const offlineScenarios = DEFAULT_SCENARIOS.filter(s => s.type === type);
-        const scenarioObj = (dynamicScenarios.length > 0 && Math.random() > 0.4) ? randomElement(dynamicScenarios) : randomElement(offlineScenarios);
-        
-        let street = activeStreets && activeStreets.length > 0 ? randomElement(activeStreets) : "Główna";
-        const houseNum = Math.floor(Math.random() * 150) + 1;
-        let location = \`\${city}, ul. \${street} \${houseNum}\`;
-        
-        try {
-            await addDoc(collection(db, 'calls'), {
-              tenantId: userProfile?.tenantId || 'brak',
-              type: scenarioObj.reportedType || type,
-              category: scenarioObj.reportedType || type,
-              status: 'pending',
-              location: location,
-              address: location,
-              gminaStr: \`Gmina m. \${city}\`,
-              miejscowoscStr: city,
-              description: scenarioObj.text || "Zgłoszenie z formatki WCPR",
-              callerName: callerName,
-              phone: \`+48 \${phone}\`,
-              expectedKdrMsg: scenarioObj.expectedKdrMsg || "",
-              requiredUnits: scenarioObj.requiredUnits || null,
-              updates: scenarioObj.updates || [],
-              processedUpdates: 0,
-              needsZRM: !!scenarioObj.zrm,
-              needsPolice: !!scenarioObj.pol,
-              createdAt: serverTimestamp()
-            });
-            logAction(\`🚨 Gra: Wymuszono nowe połączenie 112!\`);
-        } catch(e) { console.error(e); }
-      };`;
+// 1. Add wcprTargetJrg state
+if (!content.includes('const [wcprTargetJrg, setWcprTargetJrg] = useState(')) {
+  content = content.replace(
+    /const \[activeCallToAnswer, setActiveCallToAnswer\] = useState\(null\);/,
+    "const [activeCallToAnswer, setActiveCallToAnswer] = useState(null);\n  const [wcprTargetJrg, setWcprTargetJrg] = useState('JRG 1');"
+  );
+}
 
-code = code.replace(target2, replacement2);
-fs.writeFileSync('src/App.jsx', code);
+// 2. Update handleAnswerCall to pre-guess the JRG
+content = content.replace(
+  /const handleAnswerCall = \(call\) => \{\s*setActiveCallToAnswer\(call\);\s*setSelectedWcprCallForModal\(call\);\s*setIsWcprCallModalOpen\(true\);\s*\};/,
+  `const handleAnswerCall = (call) => {
+    setActiveCallToAnswer(call);
+    setSelectedWcprCallForModal(call);
+    
+    // Zgadywanie rejonu dla ułatwienia
+    let guessedJrg = "JRG 1";
+    const norm = (call.location || '').toLowerCase();
+    if (norm.includes("szopienic") || norm.includes("dąbrówk") || norm.includes("dabrowk") || norm.includes("janów") || norm.includes("janow") || norm.includes("giszowiec") || norm.includes("nikiszowiec") || norm.includes("szopienick")) {
+      guessedJrg = "JRG 1";
+    } else if (norm.includes("piotrowic") || norm.includes("kostuchn") || norm.includes("podles") || norm.includes("zarzecz") || norm.includes("ligot") || norm.includes("panewnik") || norm.includes("piotrowick")) {
+      guessedJrg = "JRG 2";
+    } else if (norm.includes("centrum") || norm.includes("bogucic") || norm.includes("zawodzi") || norm.includes("koszutk") || norm.includes("wełnowiec") || norm.includes("welnowiec") || norm.includes("korfant") || norm.includes("mariack") || norm.includes("dworco")) {
+      guessedJrg = "JRG 3";
+    }
+    setWcprTargetJrg(guessedJrg);
+    
+    setIsWcprCallModalOpen(true);
+  };`
+);
+
+// 3. Update proceedWithCallAccept to use wcprTargetJrg
+content = content.replace(
+  /let targetJrg = "JRG 1";[\s\S]*?targetJrg = "JRG 3";\s*\}/,
+  `let targetJrg = wcprTargetJrg || "JRG 1";`
+);
+
+// 4. Inject Rejon JRG dropdown into the WCPR modal UI
+// Find: <span style={{ fontSize: '11px', width: '70px', fontWeight: '500' }}>Priorytet</span>
+content = content.replace(
+  /<div style=\{\{ display: 'flex', gap: '6px', alignItems: 'center' \}\}>\s*<span style=\{\{ fontSize: '11px', width: '70px', fontWeight: '500' \}\}>Priorytet<\/span>\s*<select className="win-input" style=\{\{ flex: 1, background: '#fff' \}\} readOnly value="Pilny">\s*<option>Pilny<\/option>\s*<\/select>\s*<\/div>/,
+  `<div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px', width: '70px', fontWeight: '500' }}>Priorytet</span>
+                        <select className="win-input" style={{ flex: 1, background: '#fff' }} readOnly value="Pilny">
+                          <option>Pilny</option>
+                        </select>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '6px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px', width: '70px', fontWeight: 'bold', color: '#b91c1c' }}>Rejon JRG</span>
+                        <select className="win-input" style={{ flex: 1, background: '#fff', border: '1px solid #b91c1c', fontWeight: 'bold' }} value={wcprTargetJrg} onChange={(e) => setWcprTargetJrg(e.target.value)}>
+                          {JRG_UNITS.map(j => <option key={j} value={j}>{j}</option>)}
+                        </select>
+                      </div>`
+);
+
+// Fix layout of "Karta Zdarzenia PSP"
+// Find fields in Karta Zdarzenia
+content = content.replace(
+  /legend style=\{\{ fontSize: '9px' \}\}>Czas<\/legend>/g,
+  `legend style={{ fontSize: '10px', color: '#0a246a' }}>Czas</legend>`
+);
+content = content.replace(
+  /legend style=\{\{ fontSize: '9px' \}\}>Przyjęcie zgł\.<\/legend>/g,
+  `legend style={{ fontSize: '10px', color: '#0a246a' }}>Zgłoszenie / Jednostka</legend>`
+);
+content = content.replace(
+  /legend style=\{\{ fontSize: '9px' \}\}>Lokalizacja<\/legend>/g,
+  `legend style={{ fontSize: '10px', color: '#0a246a' }}>Lokalizacja</legend>`
+);
+content = content.replace(
+  /legend style=\{\{ fontSize: '9px', display: 'flex', alignItems: 'center', gap: '5px' \}\}>\s*Dane osoby zgłaszającej/g,
+  `legend style={{ fontSize: '10px', display: 'flex', alignItems: 'center', gap: '5px', color: '#0a246a' }}>
+                          Dane osoby zgłaszającej`
+);
+
+fs.writeFileSync(p, content, 'utf8');
+console.log('Fixed WCPR Target JRG and UI');

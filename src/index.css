@@ -63,7 +63,7 @@ input, textarea, select {
 }
 
 .border-inset, .border-double-inset {
-  background-color: var(--win-face-solid);
+  background-color: var(--win-face);
   border: 1px solid var(--win-shadow);
   border-radius: var(--win-btn-radius);
   color: var(--win-text);
@@ -289,7 +289,7 @@ input, textarea, select {
   min-width: 0;
   border: 1px solid var(--win-shadow);
   border-radius: var(--win-border-radius);
-  background-color: var(--win-face-solid);
+  background-color: var(--win-face);
   color: var(--win-text);
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
@@ -502,7 +502,7 @@ input, textarea, select {
   gap: 8px;
   padding: 8px;
   overflow: hidden;
-  background-color: var(--win-face-solid);
+  background-color: var(--win-face);
   flex: 1;
 }
 
@@ -531,7 +531,7 @@ input, textarea, select {
   border-spacing: 0;
   font-size: 11.5px;
   text-align: left;
-  background-color: var(--win-face-solid);
+  background-color: var(--win-face);
   color: var(--win-text);
 }
 
@@ -601,7 +601,7 @@ input, textarea, select {
   height: 100%;
   border: 1px solid var(--win-shadow);
   border-radius: var(--win-border-radius);
-  background-color: var(--win-face-solid);
+  background-color: var(--win-face);
 }
 
 .forces-title {
@@ -616,7 +616,7 @@ input, textarea, select {
 
 /* ===== BOTTOM STATUS BAR (Dolny pasek statusu SWD-ST) ===== */
 .status-bar {
-  background-color: var(--win-face-solid);
+  background-color: var(--win-face);
   border-top: 1px solid var(--win-shadow);
   display: flex;
   align-items: center;
@@ -723,7 +723,7 @@ input, textarea, select {
   justify-content: center;
   align-items: center;
   padding: 8px 16px;
-  background-color: var(--win-face-solid);
+  background-color: var(--win-face);
   border: 1px solid var(--win-shadow);
   border-radius: var(--win-border-radius);
   box-shadow: var(--win-shadow-soft);
@@ -791,20 +791,21 @@ input, textarea, select {
 
 /* ===== BUTTONS (WIN11 STYLE) ===== */
 .btn-win {
-  background: var(--win-blue);
-  color: #ffffff;
-  border: none;
-  padding: 6px 12px;
-  border-radius: var(--win-btn-radius);
+  background: #e4e4e4;
+  color: #000000;
+  border: 1px solid #a0a0a0;
+  padding: 4px 12px;
+  border-radius: 2px;
   font-family: var(--font-sans);
   font-size: 12px;
-  font-weight: 500;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.btn-win:hover {
+  background: #d4d4d4;
+  border: 1px solid #808080;
 }
 
 .btn-win:disabled {
@@ -830,7 +831,7 @@ input, textarea, select {
 }
 
 .win-dialog {
-  background-color: var(--win-face-solid);
+  background-color: var(--win-face);
   box-shadow: var(--win-shadow-flyout);
   border: 1px solid var(--win-shadow);
   border-radius: var(--win-border-radius);
@@ -876,19 +877,17 @@ input, textarea, select {
 
 .input-field {
   background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
-  padding: 4px 8px;
+  border: 1px inset #a0a0a0;
+  border-radius: 0px;
+  padding: 2px 4px;
   font-family: var(--font-sans);
   font-size: 12px;
-  color: var(--win-text);
+  color: #000000;
   outline: none;
-  transition: border-color 0.2s;
 }
 
 .input-field:focus {
-  border-color: var(--win-blue);
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+  border: 1px inset #000000;
 }
 
 .textarea-field {
@@ -1329,49 +1328,83 @@ input, textarea, select {
 
 
 /* --- SWD TERMINAL STYLES --- */
-.swd-table-dark {
+.swd-table-light {
   width: 100%;
-  border-collapse: collapse;
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 11px;
-  background-color: #121212;
-  color: #d1d1d1;
-  border: 1px solid #444;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  background-color: #ffffff;
+  color: #000000;
+  border: 1px solid #a0a0a0;
+  overflow: hidden;
 }
 
-.swd-table-dark th {
-  background-color: #2a2a2a;
-  color: #fff;
-  border: 1px solid #444;
-  padding: 4px;
+.swd-table-light th {
+  background-color: #e4e4e4;
+  color: #000000;
+  border-bottom: 1px solid #a0a0a0;
+  border-right: 1px solid #a0a0a0;
+  padding: 4px 8px;
   text-align: left;
+  font-weight: 500;
+  font-size: 12px;
+}
+.swd-table-light th:last-child {
+  border-right: none;
 }
 
-.swd-table-dark td {
-  border: 1px solid #333;
-  padding: 4px 6px;
+.swd-table-light td {
+  border-bottom: 1px solid #e0e0e0;
+  border-right: 1px solid #e0e0e0;
+  padding: 4px 8px;
   vertical-align: middle;
+  background-color: #ffffff;
+}
+.swd-table-light td:last-child {
+  border-right: none;
 }
 
-.swd-table-dark tbody tr:hover {
-  background-color: #2b2b2b;
+.swd-table-light tbody tr:hover td {
+  background-color: #f0f8ff;
   cursor: pointer;
 }
 
-.swd-table-dark tbody tr.selected {
-  background-color: #004b8b !important;
-  color: #fff !important;
+.swd-table-light tbody tr.selected td {
+  background-color: #0078d7 !important;
+  color: #ffffff !important;
+}
+
+/* Tabela Zdarzeń - styl klasyczny SWD (Czarne Tło) */
+.swd-table-incidents {
+  background-color: #000000;
+  color: #ffffff;
+}
+.swd-table-incidents td {
+  background-color: #000000;
+  border-bottom: 1px solid #333333;
+  border-right: 1px solid #333333;
+}
+.swd-table-incidents tbody tr:hover td {
+  background-color: #1a1a1a;
+}
+.swd-table-incidents tbody tr.selected td {
+  background-color: #003366 !important;
+  color: #ffffff !important;
 }
 
 /* Kolorystyka wierszy Zdarzeń */
 .row-pozar {
-  color: #ff6b6b;
+  color: #ff3333; /* Jasny czerwony na czarnym tle */
+  font-weight: bold;
 }
 .row-mz {
-  color: #ffd43b;
+  color: #ffcc00; /* Zółty/pomarańczowy na czarnym tle */
+  font-weight: bold;
 }
 .row-inna {
-  color: #74c0fc;
+  color: #33ccff; /* Jasny niebieski na czarnym tle */
+  font-weight: bold;
 }
 
 /* --- WIN 10 CONTEXT MENU --- */

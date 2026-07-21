@@ -1,5 +1,5 @@
 import { DEFAULT_SCENARIOS } from './scenarios';
-import { getRandomStreetWithCoords } from './addressData';
+import { getRandomStreetWithCoords, COUNTY_CITY_MAP } from './addressData';
 import { SettingsModal } from './components/SettingsModal';
 import 'leaflet/dist/leaflet.css';
 import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip, useMap } from 'react-leaflet';
@@ -54,7 +54,7 @@ import MobileTerminal from './components/MobileTerminal';
 import SisEditor from './SisEditor';
 import { getRankByXp, PSP_RANKS } from './ranks';
 
-const APP_VERSION = "0.3.3 beta";
+const APP_VERSION = "1.0 Beta";
 
 // Web Speech API Polish Voice Announcement (WCPR)
 const speakAnnouncement = (text, isAudioEnabled) => {
@@ -318,35 +318,7 @@ const getRandomLocationForGenerator = async (userProfile, gameModeCities, tenant
   const settings = userProfile?.settings || {};
   const areas = settings.generatorAreas || [];
 
-  if (areas.length > 0) {
-    const area = randomElement(areas);
-    if (area.bbox) {
-      const latMin = Math.min(parseFloat(area.bbox[0]), parseFloat(area.bbox[1]));
-      const latMax = Math.max(parseFloat(area.bbox[0]), parseFloat(area.bbox[1]));
-      const lonMin = Math.min(parseFloat(area.bbox[2]), parseFloat(area.bbox[3]));
-      const lonMax = Math.max(parseFloat(area.bbox[2]), parseFloat(area.bbox[3]));
-
-      const lat = latMin + Math.random() * (latMax - latMin);
-      const lon = lonMin + Math.random() * (lonMax - lonMin);
-
-      try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
-        const data = await res.json();
-        
-        let streetName = "Główna";
-        let cityName = area.name;
-
-        if (data && data.address) {
-          streetName = data.address.road || data.address.pedestrian || data.address.path || "Główna";
-          cityName = data.address.city || data.address.town || data.address.village || area.name;
-        }
-
-        return { city: cityName, street: streetName, coords: { lat, lng: lon } };
-      } catch (e) {
-        console.error("Nominatim reverse geocoding failed", e);
-      }
-    }
-  }
+  // Bounding box generation is inaccurate for irregular cities. We rely on parsedCities instead.
 
   const settingsCities = settings.generatorCities || gameModeCities || '';
   const parsedCities = settingsCities.split(',').map(s => s.trim()).filter(s => s.length > 0);
@@ -357,6 +329,25 @@ const getRandomLocationForGenerator = async (userProfile, gameModeCities, tenant
   else if (tenantName === 'Bytom') cityPool = ['Bytom'];
   
   const city = parsedCities.length > 0 ? randomElement(parsedCities) : randomElement(cityPool);
+  
+  const cacheKey = `swd_streets_${city.toLowerCase()}`;
+  const cached = localStorage.getItem(cacheKey);
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      if (parsed && parsed.length > 0) {
+        // Handle both old string array and new object array
+        let validStreets = parsed.filter(s => typeof s === 'object' && s.name && s.lat && s.lon);
+        if (validStreets.length > 0) {
+          const randItem = randomElement(validStreets);
+          return { city: city, street: randItem.name, coords: { lat: randItem.lat, lng: randItem.lon } };
+        }
+      }
+    } catch (e) {
+      console.error("Cache read error", e);
+    }
+  }
+
   const streetData = getRandomStreetWithCoords(city);
   return { city: streetData.city, street: streetData.name, coords: { lat: streetData.lat, lng: streetData.lon } };
 };
@@ -403,6 +394,11 @@ function App() {
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [incidentView, setIncidentView] = useState('list');
+  const [isIncidentModalOpen, setIsIncidentModalOpen] = useState(false);
+  const handleEditKryptonim = (vehicle) => {
+    alert("Edycja kryptonimu z poziomu mapy nie jest jeszcze w pełni wspierana.");
+  };
 
   const JRG_UNITS = tenantJrgUnits.length > 0 ? tenantJrgUnits : ["Brak zdefiniowanych JRG"];
   const OSP_UNITS = tenantOspUnits.length > 0 ? tenantOspUnits : ["Brak zdefiniowanych OSP"];
@@ -462,7 +458,7 @@ function App() {
   const [selectedWcprCall, setSelectedWcprCall] = useState(null);
   const [wcprModalOpen, setWcprModalOpen] = useState(false);
   const [activeCallToAnswer, setActiveCallToAnswer] = useState(null);
-  const [wcprTargetJrg, setWcprTargetJrg] = useState('JRG 1');
+  const [wcprTargetJrg, setWcprTargetJrg] = useState('');
   const [battleAlarmModalOpen, setBattleAlarmModalOpen] = useState(false);
   const [selectedSisVehicle, setSelectedSisVehicle] = useState(null);
   const [selectedCombatVehicle, setSelectedCombatVehicle] = useState(null);
@@ -777,15 +773,36 @@ function App() {
   // Address Generator - Background Overpass API fetcher
   useEffect(() => {
     const settingsCities = userProfile?.settings?.generatorCities || gameModeCities || '';
-    const parsedCities = settingsCities.split(',').map(s => s.trim()).filter(s => s.length > 0);
+    const parsedAreas = settingsCities.split(',').map(s => s.trim()).filter(s => s.length > 0);
+    
+    let parsedCities = [];
+    parsedAreas.forEach(area => {
+      if (COUNTY_CITY_MAP[area]) {
+        parsedCities = parsedCities.concat(COUNTY_CITY_MAP[area]);
+      } else {
+        parsedCities.push(area);
+      }
+    });
+    parsedCities = [...new Set(parsedCities)];
     
     parsedCities.forEach(city => {
       const cacheKey = `swd_streets_${city.toLowerCase()}`;
       const cacheTimeKey = `swd_streets_time_${city.toLowerCase()}`;
       const cachedTime = localStorage.getItem(cacheTimeKey);
       
-      // Fetch if no cache or cache is older than 30 days
-      const shouldFetch = !localStorage.getItem(cacheKey) || !cachedTime || (Date.now() - parseInt(cachedTime) > 30 * 24 * 60 * 60 * 1000);
+      let isCacheValid = false;
+      const cachedData = localStorage.getItem(cacheKey);
+      if (cachedData) {
+        try {
+          const parsed = JSON.parse(cachedData);
+          if (parsed && parsed.length > 0 && typeof parsed[0] === 'object' && parsed[0].lat) {
+            isCacheValid = true;
+          }
+        } catch(e) {}
+      }
+      
+      // Fetch if no valid cache or cache is older than 30 days
+      const shouldFetch = !isCacheValid || !cachedTime || (Date.now() - parseInt(cachedTime) > 30 * 24 * 60 * 60 * 1000);
       
       if (shouldFetch) {
         // Fetch via Overpass API (all streets in the city area)
@@ -797,7 +814,8 @@ function App() {
         `;
         fetch('https://overpass-api.de/api/interpreter', {
           method: 'POST',
-          body: query
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'data=' + encodeURIComponent(query)
         })
         .then(res => res.json())
         .then(data => {
@@ -940,40 +958,6 @@ function App() {
   }, [userProfile]);
 
   // Fetch real streets from Overpass API based on generatorCities
-  useEffect(() => {
-    const fetchStreets = async (city) => {
-      const cacheKey = `swd_streets_${city.toLowerCase()}`;
-      if (localStorage.getItem(cacheKey)) return;
-
-      try {
-        const query = `[out:json]; area["name"="${city}"]->.searchArea; way(area.searchArea)["highway"~"^(residential|primary|secondary|tertiary|unclassified|living_street|pedestrian)$"]["name"]; out tags;`;
-        const res = await fetch('https://overpass-api.de/api/interpreter', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'data=' + encodeURIComponent(query)
-        });
-        const data = await res.json();
-        const streets = [];
-        if (data && data.elements) {
-          data.elements.forEach(e => {
-            if (e.tags && e.tags.name && !streets.includes(e.tags.name)) {
-              streets.push(e.tags.name);
-            }
-          });
-        }
-        if (streets.length > 0) {
-          localStorage.setItem(cacheKey, JSON.stringify(streets));
-          console.log(`Pobrano i zapisano ${streets.length} ulic dla miasta ${city}`);
-        }
-      } catch (e) {
-        console.error(`Failed to fetch streets for ${city}:`, e);
-      }
-    };
-
-    const settingsCities = userProfile?.settings?.generatorCities || gameModeCities || '';
-    const parsedCities = settingsCities.split(',').map(s => s.trim()).filter(s => s.length > 0);
-    parsedCities.forEach(city => fetchStreets(city));
-  }, [userProfile?.settings?.generatorCities, gameModeCities]);
 
   // Listen to Incidents
   useEffect(() => {
@@ -1055,13 +1039,20 @@ function App() {
       if (sortedItems.length > 0 && activeRole === 'dyspozytor') {
         if (isSystemAudioEnabled) {
           const soundPref = userProfile?.settings?.customSound || 'buzzer';
-          if (soundPref === 'buzzer') playSynthSound('dispatch_alarm');
-          else if (soundPref === 'bell') playSynthSound('ring');
-          else if (soundPref === 'siren') playSynthSound('siren');
-          else if (soundPref === 'ping') playSynthSound('message_beep');
-          setTimeout(() => {
-            speakAnnouncement("Nowe zdarzenie, odbierz!", isSystemAudioEnabled);
-          }, 800);
+          if (soundPref === 'custom' && userProfile?.settings?.customAudioBase64) {
+            try {
+              const audio = new Audio(userProfile.settings.customAudioBase64);
+              audio.play();
+            } catch(e) { console.error("Error playing custom audio", e); }
+          } else {
+            if (soundPref === 'buzzer') playSynthSound('dispatch_alarm');
+            else if (soundPref === 'bell') playSynthSound('ring');
+            else if (soundPref === 'siren') playSynthSound('siren');
+            else if (soundPref === 'ping') playSynthSound('message_beep');
+            setTimeout(() => {
+              speakAnnouncement("Nowe zdarzenie, odbierz!", isSystemAudioEnabled);
+            }, 800);
+          }
         }
         logAction(`Odebrano nowe zgłoszenie na linii alarmowej 112!`);
       }
@@ -1449,7 +1440,17 @@ function App() {
         const randomElement = (arr) => arr[Math.floor(Math.random() * arr.length)];
         
         const settingsCities = userProfile?.settings?.generatorCities || gameModeCities || '';
-        const parsedCities = settingsCities.split(',').map(s => s.trim()).filter(s => s.length > 0);
+        const parsedAreas = settingsCities.split(',').map(s => s.trim()).filter(s => s.length > 0);
+        let parsedCities = [];
+        parsedAreas.forEach(area => {
+          if (COUNTY_CITY_MAP[area]) {
+            parsedCities = parsedCities.concat(COUNTY_CITY_MAP[area]);
+          } else {
+            parsedCities.push(area);
+          }
+        });
+        parsedCities = [...new Set(parsedCities)];
+        
         let cityPool = [tenantName];
         if (tenantName === 'Będzin') cityPool = ['Będzin', 'Czeladź', 'Siewierz', 'Wojkowice', 'Sławków', 'Psary', 'Mierzęcice', 'Bobrowniki'];
         else if (tenantName === 'Katowice') cityPool = ['Katowice'];
@@ -1478,6 +1479,8 @@ function App() {
             scenarioObj = randomElement(offlineScenarios);
           }
 
+          const locData = await getRandomLocationForGenerator(userProfile, gameModeCities, tenantName);
+          const city = locData.city;
           const street = locData.street;
           const incidentCoords = locData.coords;
           const houseNum = Math.floor(Math.random() * 150) + 1;
@@ -1504,7 +1507,10 @@ function App() {
             location = `${city}, ul. ${street} ${houseNum}`;
           }
           
-          text = scenarioObj.t;
+          let baseDesc = scenarioObj.t || "Zgłoszenie z formatki WCPR";
+          baseDesc = baseDesc.replace("Formatka WCPR: ", "").trim();
+          text = `[WCPR] Zgłoszenie z adresu: ${location}\nTreść: ${baseDesc}`;
+          
           expectedKdrMsg = scenarioObj.k;
           needsZRM = !!scenarioObj.zrm;
           needsPolice = !!scenarioObj.pol;
@@ -1545,6 +1551,10 @@ function App() {
       
     // EXPORT FOR MANUAL BUTTON (Now outside the dyzurny_sk check, available to all roles)
     window._triggerManualWCPR = async () => {
+      const firstNames = ["Jan", "Andrzej", "Piotr", "Krzysztof", "Stanisław", "Tomasz", "Paweł", "Józef", "Marcin", "Marek", "Anna", "Maria", "Katarzyna", "Małgorzata", "Agnieszka", "Krystyna", "Barbara", "Ewa", "Elżbieta", "Zofia", "Karol", "Michał", "Artur", "Dawid", "Mateusz", "Zuzanna", "Julia", "Maja", "Oliwia", "Jakub", "Szymon"];
+      const lastNames = ["Nowak", "Kowalski", "Wiśniewski", "Wójcik", "Kowalczyk", "Kamiński", "Lewandowski", "Zieliński", "Szymański", "Woźniak", "Dąbrowski", "Kozłowski", "Jankowski", "Mazur", "Wojciechowski", "Kwiatkowski", "Krawczyk", "Kaczmarek", "Piotrowski", "Grabowski", "Smuga", "Zając", "Bąk", "Krupa", "Sikora"];
+      const randomElement = (arr) => arr[Math.floor(Math.random() * arr.length)];
+      
       const callerName = `${randomElement(firstNames)} ${randomElement(lastNames)}`;
       const phone = `${Math.floor(500 + Math.random() * 200)}-${Math.floor(100 + Math.random() * 800)}-${Math.floor(100 + Math.random() * 800)}`;
       const type = randomElement(["pozar", "mz", "pozar", "mz", "mz"]);
@@ -1559,6 +1569,10 @@ function App() {
       const houseNum = Math.floor(Math.random() * 150) + 1;
       let location = `${city}, ul. ${street} ${houseNum}`;
       
+      let baseDesc2 = scenarioObj.t || scenarioObj.text || "Zgłoszenie z formatki WCPR";
+      baseDesc2 = baseDesc2.replace("Formatka WCPR: ", "").trim();
+      let text2 = `[WCPR] Zgłoszenie z adresu: ${location}\nTreść: ${baseDesc2}`;
+      
       try {
           await addDoc(collection(db, 'calls'), {
             tenantId: userProfile?.tenantId || 'brak',
@@ -1570,10 +1584,10 @@ function App() {
             coords: incidentCoords || null,
             gminaStr: `Gmina m. ${city}`,
             miejscowoscStr: city,
-            description: scenarioObj.text || "Zgłoszenie z formatki WCPR",
+            description: text2,
             callerName: callerName,
             phone: `+48 ${phone}`,
-            expectedKdrMsg: scenarioObj.expectedKdrMsg || "",
+            expectedKdrMsg: scenarioObj.k || scenarioObj.expectedKdrMsg || "",
             requiredUnits: scenarioObj.requiredUnits || null,
             updates: scenarioObj.updates || [],
             processedUpdates: 0,
@@ -1709,7 +1723,7 @@ function App() {
         }
 
         if (changed) {
-          const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+          
           try {
             await updateDoc(doc(db, 'incidents', inc.id), {
               vehicleStatuses: currentStatuses,
@@ -2758,17 +2772,50 @@ function App() {
   const handleArchiveIncident = async () => {
     if (!activeIncident) return;
     if (userProfile?.role !== 'admin' && userProfile?.role !== 'pa_jrg' && userProfile?.role !== 'dyspozytor') {
-      alert("Tylko PA JRG lub Administrator może archiwizować karty zdarzeń.");
+      alert("Tylko PA JRG, Dyspozytor lub Administrator może archiwizować karty zdarzeń.");
       return;
     }
 
     try {
-      await updateDoc(doc(db, 'incidents', activeIncident.id), {
-        isArchived: true,
+      // GRA: Logika nagród i kar punktowych (XP i Budżet)
+      let earnedXp = 50; // bazowe XP za archiwizacje (zakonczenie)
+      let earnedBudget = 1000;
+      let summaryStr = "Podsumowanie Akcji:\\n";
+
+      // Kary za brak powiadomienia PRM/Policji jeśli wymagano
+      const reqPRM = activeIncident.flags?.includes('masowe') || activeIncident.flags?.includes('katastrofa') || activeIncident.flags?.includes('interwenc');
+      if (reqPRM) {
+        if (!activeIncident.externalServices?.zrm) {
+          earnedXp -= 100;
+          earnedBudget -= 5000;
+          summaryStr += "❌ BŁĄD KRYTYCZNY: Nie powiadomiono Państwowego Ratownictwa Medycznego (PRM) o zdarzeniu wymagającym ich obecności! Kara: -100 XP, -5000 PLN.\\n";
+        } else {
+          earnedXp += 20;
+          summaryStr += "✅ Prawidłowo zadysponowano siły PRM.\\n";
+        }
+      }
+
+      const totalXp = (userProfile.xp || 0) + earnedXp;
+      const totalBudget = (userProfile.budget || 0) + earnedBudget;
+
+      await updateDoc(doc(db, 'users', userProfile.uid), {
+        xp: totalXp,
+        budget: totalBudget,
         updatedAt: serverTimestamp()
       });
+
+      await updateDoc(doc(db, 'incidents', activeIncident.id), {
+        isArchived: true,
+        scoreSummary: summaryStr,
+        awardedXp: earnedXp,
+        updatedAt: serverTimestamp()
+      });
+      
       logIncidentHistory(activeIncident.id, "Przeniesiono meldunek do archiwum.");
-      logAction(`Zdarzenie ${activeIncident.customId} zostało przeniesione do archiwum.`);
+      logAction(`Zdarzenie ${activeIncident.customId} zarchiwizowane. Przyznano: ${earnedXp} XP.`);
+      
+      alert(summaryStr + `\\nZdobyto: ${earnedXp} XP oraz ${earnedBudget} PLN do budżetu.`);
+      
       setSelectedIncidentId(null);
     } catch (err) {
       console.error(err);
@@ -2990,6 +3037,7 @@ function App() {
     setSettingsData({
       kmkpName: userProfile?.settings?.kmkpName || '',
       generatorCities: userProfile?.settings?.generatorCities || '',
+      generatorAreas: userProfile?.settings?.generatorAreas || [],
       incidentFormat: userProfile?.settings?.incidentFormat || '{prefix}-{nr}',
       reportFormat: userProfile?.settings?.reportFormat || 'EWID/{nr}/{rok}',
       difficulty: userProfile?.settings?.difficulty || 'normal',
@@ -3208,7 +3256,7 @@ function calculateETA(vStr, incident, tenantUnitCoordinates) {
       const delayMs = Math.floor(Math.random() * (90000 - 30000 + 1) + 30000);
       
       setTimeout(async () => {
-         const { getDoc, doc, updateDoc, serverTimestamp, addDoc, collection } = await import('firebase/firestore');
+         
          const incSnap = await getDoc(doc(db, 'incidents', activeIncident.id));
          if (incSnap.exists()) {
            const freshInc = incSnap.data();
@@ -3723,7 +3771,7 @@ function calculateETA(vStr, incident, tenantUnitCoordinates) {
 
   const getEwidWorkflowBadge = (inc) => {
     if (!inc.reportNumber) {
-      return <span style={{ color: '#d1d1d1', fontSize: '9px', fontWeight: 'normal' }}>brak meldunku</span>;
+      return <span style={{ color: 'var(--win-shadow)', fontSize: '9px', fontWeight: 'normal' }}>brak meldunku</span>;
     }
     const isPartial = inc.times?.isPartialReport !== false;
     const workflow = inc.times?.reportWorkflowState || '1';
@@ -3880,17 +3928,9 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
     setActiveCallToAnswer(call);
     setSelectedWcprCallForModal(call);
     
-    // Zgadywanie rejonu dla ułatwienia
-    let guessedJrg = "JRG 1";
-    const norm = (call.location || '').toLowerCase();
-    if (norm.includes("szopienic") || norm.includes("dąbrówk") || norm.includes("dabrowk") || norm.includes("janów") || norm.includes("janow") || norm.includes("giszowiec") || norm.includes("nikiszowiec") || norm.includes("szopienick")) {
-      guessedJrg = "JRG 1";
-    } else if (norm.includes("piotrowic") || norm.includes("kostuchn") || norm.includes("podles") || norm.includes("zarzecz") || norm.includes("ligot") || norm.includes("panewnik") || norm.includes("piotrowick")) {
-      guessedJrg = "JRG 2";
-    } else if (norm.includes("centrum") || norm.includes("bogucic") || norm.includes("zawodzi") || norm.includes("koszutk") || norm.includes("wełnowiec") || norm.includes("welnowiec") || norm.includes("korfant") || norm.includes("mariack") || norm.includes("dworco")) {
-      guessedJrg = "JRG 3";
-    }
-    setWcprTargetJrg(guessedJrg);
+    // Zgodnie z wymaganiami wyłączono automatyczne zgadywanie rejonu.
+    // Dyspozytor musi ręcznie wskazać rejon JRG.
+    setWcprTargetJrg('');
     
     setIsWcprCallModalOpen(true);
   };
@@ -3947,6 +3987,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         actionType: '',
         eventDate: new Date().toISOString().split('T')[0],
         description: call.description || '',
+        coords: call.coords || null,
         vehicles: [],
         vehicleStatuses: {},
         firefightersCount: 0,
@@ -4307,7 +4348,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 return (
                   <div key={uName} className="combat-column" style={{ background: '#ffffff' }}>
                     {/* Column Header with unit name and free-squad counter */}
-                    <div className="combat-column-title" style={{ background: 'var(--win-face)', borderBottom: '1px solid #d1d1d1', padding: '2px 4px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#000' }}>
+                    <div className="combat-column-title" style={{ background: 'var(--win-face)', borderBottom: '1px solid var(--win-shadow)', padding: '2px 4px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#000' }}>
                       <button style={{ width: '12px', height: '12px', padding: 0, margin: 0, fontSize: '9px', lineHeight: '9px', background: '#fff', border: '1px solid #888', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</button>
                       <img src="https://img.icons8.com/color/48/000000/fire-station.png" style={{ width: 14, height: 14 }} alt="JRG" />
                       <span title={uName} style={{ flex: 1 }}>
@@ -4320,7 +4361,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
 
                     {/* Unit address (usunięto adresy JRG zgodnie z dyspozycją) */}
-                    <div style={{ fontSize: '7.5px', color: '#d1d1d1', padding: '1px 5px', borderBottom: '1px solid #f3f3f3' }}>
+                    <div style={{ fontSize: '7.5px', color: 'var(--win-shadow)', padding: '1px 5px', borderBottom: '1px solid #f3f3f3' }}>
                       {uName.includes('KM PSP') ? 'ul. Bankowa 8' : ''}
                     </div>
 
@@ -4497,7 +4538,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             // OSP Mode - Gminas on left, ALL vehicles on right
             <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', height: '100%', background: 'var(--win-face)' }}>
               <div className="border-inset" style={{ background: '#ffffff', overflowY: 'auto', padding: '4px', margin: '4px' }}>
-                <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#000', borderBottom: '1px solid #d1d1d1', paddingBottom: '2px', marginBottom: '4px', textTransform: 'uppercase' }}>
+                <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#000', borderBottom: '1px solid var(--win-shadow)', paddingBottom: '2px', marginBottom: '4px', textTransform: 'uppercase' }}>
                   Gmina
                 </div>
                 <div 
@@ -4553,7 +4594,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             display: 'flex', 
                             alignItems: 'center',
                             fontSize: '11px',
-                            background: isSelected ? '#005fb8' : ((state !== 'W koszarach' && state !== 'Wycofany') ? '#ffe3e3' : 'transparent'),
+                            background: isSelected ? 'var(--win-blue)' : ((state !== 'W koszarach' && state !== 'Wycofany') ? '#ffe3e3' : 'transparent'),
                             color: isSelected ? '#ffffff' : '#000000',
                             borderBottom: '1px solid #f3f3f3'
                           }}
@@ -4612,7 +4653,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 if (sgrVehicles.length === 0) return null;
                 return (
                   <div key={uName} style={{ marginBottom: '8px' }}>
-                    <div style={{ fontSize: '10px', fontWeight: 'bold', background: '#005fb8', color: '#fff', padding: '2px 4px', marginBottom: '2px' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 'bold', background: 'var(--win-blue)', color: '#fff', padding: '2px 4px', marginBottom: '2px' }}>
                       {uName} - Specjalistyczne Grupy Ratownicze
                     </div>
                     {sgrVehicles.map((v, i) => {
@@ -4665,12 +4706,12 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           {combatTab === 'ODWODY' && (
             // Odwody Operacyjne i SGR (Page 39)
             <div style={{ padding: '8px', overflowY: 'auto', height: '100%', background: '#ffffff', color: '#000000' }}>
-              <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000', marginBottom: '6px', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', textTransform: 'uppercase' }}>Struktura Odwodów Operacyjnych i SGR (Str. 39 instrukcji)</div>
+              <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000', marginBottom: '6px', borderBottom: '1px solid var(--win-shadow)', paddingBottom: '3px', textTransform: 'uppercase' }}>Struktura Odwodów Operacyjnych i SGR (Str. 39 instrukcji)</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {SIMULATED_ODWODY.map(grp => (
                   <div key={grp.id} className="border-outset" style={{ padding: '6px', background: '#f1f3f5' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ced4da', paddingBottom: '3px', marginBottom: '4px' }}>
-                      <span style={{ fontSize: '10.5px', fontWeight: 'bold', color: '#005fb8' }}>🚒 {grp.name}</span>
+                      <span style={{ fontSize: '10.5px', fontWeight: 'bold', color: 'var(--win-blue)' }}>🚒 {grp.name}</span>
                       <span style={{ fontSize: '8px', background: grp.type?.includes('Specjalistyczna') ? '#101113' : '#1864ab', color: 'white', padding: '1px 3px', borderRadius: '2px' }}>{grp.type || 'Grupa Operacyjna'}</span>
                     </div>
                     
@@ -4730,13 +4771,13 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           {combatTab === 'AGENTS' && (
             // Extinguishing Agents Registry (Page 25)
             <div style={{ padding: '8px', overflowY: 'auto', height: '100%', background: '#ffffff', color: '#000000' }}>
-              <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000', marginBottom: '6px', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', textTransform: 'uppercase' }}>
+              <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000', marginBottom: '6px', borderBottom: '1px solid var(--win-shadow)', paddingBottom: '3px', textTransform: 'uppercase' }}>
                 Stan Środków Gaśniczych i Neutralizatorów (Str. 25 instrukcji)
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                 {["JRG 1", "JRG 2", "JRG 3"].map(jrg => (
                   <div key={jrg} className="border-inset" style={{ padding: '6px', background: '#f8f9fa' }}>
-                    <div style={{ fontWeight: 'bold', fontSize: '10px', color: '#005fb8', borderBottom: '1px solid #ced4da', paddingBottom: '2px', marginBottom: '4px' }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '10px', color: 'var(--win-blue)', borderBottom: '1px solid #ced4da', paddingBottom: '2px', marginBottom: '4px' }}>
                       {jrg === "JRG 1" ? "JRG 1" : jrg === "JRG 2" ? "JRG 2" : "JRG 3"}
                     </div>
                     {agentsInventory[jrg].map(item => {
@@ -4764,7 +4805,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             {userProfile && (userProfile.role === 'admin' || userProfile.role === 'pa_jrg') && (
                               <input 
                                 type="number" 
-                                style={{ width: '40px', fontSize: '8px', padding: '0 2px', border: '1px solid #d1d1d1', height: '14px' }} 
+                                style={{ width: '40px', fontSize: '8px', padding: '0 2px', border: '1px solid var(--win-shadow)', height: '14px' }} 
                                 value={item.current} 
                                 onChange={(e) => handleUpdateAgentStock(jrg, item.name, e.target.value)} 
                               />
@@ -4781,7 +4822,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
           {combatTab === 'WCPR' && (
             <div style={{ padding: '4px', overflowY: 'auto', overflowX: 'auto', height: '100%', width: '100%', flex: 1, background: '#ffffff', color: '#000000', display: 'flex', gap: '4px' }}>
-              <div style={{ flex: 1, border: '1px solid #d1d1d1', background: '#fff' }}>
+              <div style={{ flex: 1, border: '1px solid var(--win-shadow)', background: '#fff' }}>
                 <table className="swd-table bufor-table" style={{ width: '100%', fontSize: '10px', tableLayout: 'auto' }}>
                   <thead>
                     <tr>
@@ -4798,7 +4839,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   <tbody>
                     {incomingCalls.length === 0 ? (
                       <tr>
-                        <td colSpan="8" style={{ textAlign: 'center', padding: '10px', color: '#d1d1d1' }}>Brak zdarzeń w buforze</td>
+                        <td colSpan="8" style={{ textAlign: 'center', padding: '10px', color: 'var(--win-shadow)' }}>Brak zdarzeń w buforze</td>
                       </tr>
                     ) : (
                       incomingCalls.map(call => (
@@ -4810,7 +4851,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             handleAnswerCall(call);
                           }}
                           style={{ 
-                            background: selectedWcprCall?.id === call.id ? '#005fb8' : '#ffffff', 
+                            background: selectedWcprCall?.id === call.id ? 'var(--win-blue)' : '#ffffff', 
                             color: selectedWcprCall?.id === call.id ? '#ffffff' : '#000000',
                             cursor: 'pointer' 
                           }}
@@ -4875,12 +4916,12 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
         {/* LED Color Legend (SWD-ST Tab. 4 - Page 24) */}
         <div className="sis-legend">
-          <strong style={{ color: '#005fb8', marginRight: '4px' }}>LEGENDA:</strong>
+          <strong style={{ color: 'var(--win-blue)', marginRight: '4px' }}>LEGENDA:</strong>
           <span className="sis-legend-item"><span className="led-indicator green" style={{ width: '7px', height: '7px' }} /> W koszarach</span>
           <span className="sis-legend-item"><span className="led-indicator yellow" style={{ width: '7px', height: '7px' }} /> Zadysponowany</span>
           <span className="sis-legend-item"><span className="led-indicator red" style={{ width: '7px', height: '7px' }} /> W drodze / W akcji</span>
-          <span className="sis-legend-item" style={{ color: '#d1d1d1' }}>✖ OOS (wycofany)</span>
-          <span style={{ marginLeft: 'auto', color: '#d1d1d1', fontStyle: 'italic', fontSize: '8.5px' }}>Kliknij pojazd: dopisz do zdarzenia</span>
+          <span className="sis-legend-item" style={{ color: 'var(--win-shadow)' }}>✖ OOS (wycofany)</span>
+          <span style={{ marginLeft: 'auto', color: 'var(--win-shadow)', fontStyle: 'italic', fontSize: '8.5px' }}>Kliknij pojazd: dopisz do zdarzenia</span>
         </div>
 
         <div className="classic-tabs">
@@ -4933,7 +4974,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               }}
               onClick={e => e.stopPropagation()}
             >
-              <div style={{ background: '#005fb8', color: '#fff', fontSize: '10px', fontWeight: 'bold', padding: '2px 4px', marginBottom: '2px' }}>
+              <div style={{ background: 'var(--win-blue)', color: '#fff', fontSize: '10px', fontWeight: 'bold', padding: '2px 4px', marginBottom: '2px' }}>
                 Status ST - {vehicleContextMenu.vName}
               </div>
               
@@ -5017,20 +5058,20 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
   // Master Control Panel
   const renderAdminDashboard = () => {
     return (
-      <div style={{ padding: '16px', overflowY: 'auto', height: '100%', backgroundColor: '#f0f0f0' }} className="border-inset fade-in">
-        <h2 style={{ color: '#005fb8', borderBottom: '2px solid #ccc', paddingBottom: '8px', marginBottom: '16px' }}>Master Control Panel (Admin)</h2>
+      <div style={{ padding: '16px', overflowY: 'auto', height: '100%', backgroundColor: 'var(--win-face)' }} className="border-inset fade-in">
+        <h2 style={{ color: 'var(--win-blue)', borderBottom: '2px solid #ccc', paddingBottom: '8px', marginBottom: '16px' }}>Master Control Panel (Admin)</h2>
         
         <div style={{ display: 'flex', gap: '20px', marginBottom: '30px' }}>
           <div style={{ flex: 1, backgroundColor: '#f0f5fa', border: '1px solid #b3d4ff', borderRadius: '4px', padding: '15px' }}>
-            <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#005fb8' }}>Zdarzenia w Buforze</h3>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--win-blue)' }}>Zdarzenia w Buforze</h3>
             <div style={{ fontSize: '32px', fontWeight: 'bold' }}>{incidents.filter(i => i.status === 'pending').length}</div>
           </div>
           <div style={{ flex: 1, backgroundColor: '#f0f5fa', border: '1px solid #b3d4ff', borderRadius: '4px', padding: '15px' }}>
-            <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#005fb8' }}>Zdarzenia Aktywne</h3>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--win-blue)' }}>Zdarzenia Aktywne</h3>
             <div style={{ fontSize: '32px', fontWeight: 'bold' }}>{incidents.filter(i => i.status === 'dispatched' || i.status === 'on_scene').length}</div>
           </div>
           <div style={{ flex: 1, backgroundColor: '#f0f5fa', border: '1px solid #b3d4ff', borderRadius: '4px', padding: '15px' }}>
-            <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#005fb8' }}>Zdarzenia Zakończone</h3>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', color: 'var(--win-blue)' }}>Zdarzenia Zakończone</h3>
             <div style={{ fontSize: '32px', fontWeight: 'bold' }}>{incidents.filter(i => i.status === 'processed').length}</div>
           </div>
         </div>
@@ -5043,7 +5084,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         </div>
 
         {activeMenuTab === 'game_master' && (
-          <div style={{ border: '1px solid #999', padding: '15px', backgroundColor: '#e1e1e1', marginBottom: '20px' }}>
+          <div style={{ border: '1px solid var(--win-shadow)', padding: '15px', backgroundColor: '#e1e1e1', marginBottom: '20px' }}>
             <h3 style={{ marginTop: 0 }}>Mistrz Gry - Wymuś Zdarzenie</h3>
             <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
               <select value={gmTenantId} onChange={e => setGmTenantId(e.target.value)} className="win-input">
@@ -5098,7 +5139,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         )}
 
         {activeMenuTab === 'scenariusze' && (
-          <div style={{ border: '1px solid #999', padding: '15px', backgroundColor: '#e1e1e1', marginBottom: '20px' }}>
+          <div style={{ border: '1px solid var(--win-shadow)', padding: '15px', backgroundColor: '#e1e1e1', marginBottom: '20px' }}>
             <h3 style={{ marginTop: 0 }}>{editingScenarioId ? 'Edytuj Scenariusz' : 'Kreator Scenariuszy (Baza Globalna)'}</h3>
             <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
               <select value={newScenType} onChange={e => setNewScenType(e.target.value)} className="win-input">
@@ -5130,7 +5171,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     return alert('Błąd formatu JSON wymaganych zastępów! Wpisz poprawny format: {"GCBA": 1}');
                   }
                 }
-                const { doc, updateDoc, addDoc, collection } = await import('firebase/firestore');
+                
                 try {
                   const data = {
                     type: newScenType,
@@ -5179,7 +5220,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     }}>✏️ Edytuj</button>
                     <button className="btn-win" style={{ padding: '2px 5px', fontSize: '10px', color: 'red' }} onClick={async () => {
                       if (window.confirm("Na pewno usunąć?")) {
-                        const { doc, deleteDoc } = await import('firebase/firestore');
+                        
                         await deleteDoc(doc(db, 'scenarios', s.id));
                       }
                     }}>🗑️ Usuń</button>
@@ -5193,13 +5234,13 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
           
           {/* BEZPIECZEŃSTWO I PIELĘGNACJA BAZY */}
-          <div style={{ background: '#fff', border: '2px groove threedface', padding: '12px', boxShadow: '2px 2px 5px rgba(0,0,0,0.1)' }}>
+          <div style={{ background: '#fff', border: '2px solid #f1f5f9', padding: '12px', boxShadow: '2px 2px 5px rgba(0,0,0,0.1)' }}>
              <h3 style={{ fontSize: '14px', borderBottom: '1px solid #eee', paddingBottom: '4px' }}>🛡️ Pielęgnacja Bazy Danych</h3>
              <p style={{ fontSize: '11px', marginTop: '5px' }}>Narzędzia administratorskie do usuwania martwych dusz i starych zgłoszeń, zapobiegające zapychaniu bazy.</p>
              <button className="btn-win" style={{ padding: '6px 12px', color: 'red', fontWeight: 'bold', marginTop: '10px' }} onClick={async () => {
               if (window.confirm("Czy na pewno chcesz trwale usunąć wszystkie zdarzenia starsze niż 48 godzin? To zwolni miejsce w buforze Firebase!")) {
                  try {
-                   const { collection, getDocs, deleteDoc, doc } = await import('firebase/firestore');
+                   
                    const snap = await getDocs(collection(db, 'incidents'));
                    let count = 0;
                    const now = Date.now();
@@ -5221,7 +5262,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
           
           {/* GRACZE */}
-          <div style={{ background: '#fff', border: '2px groove threedface', padding: '12px', boxShadow: '2px 2px 5px rgba(0,0,0,0.1)' }}>
+          <div style={{ background: '#fff', border: '2px solid #f1f5f9', padding: '12px', boxShadow: '2px 2px 5px rgba(0,0,0,0.1)' }}>
             <h3 style={{ fontSize: '14px', borderBottom: '1px solid #eee', paddingBottom: '4px' }}>👥 Zarządzanie Użytkownikami</h3>
             <table className="swd-table" style={{ marginTop: '10px' }}>
               <thead>
@@ -5293,7 +5334,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           {/* KOMENDY I SERWER */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             
-            <div style={{ background: '#fff', border: '2px groove threedface', padding: '12px', boxShadow: '2px 2px 5px rgba(0,0,0,0.1)' }}>
+            <div style={{ background: '#fff', border: '2px solid #f1f5f9', padding: '12px', boxShadow: '2px 2px 5px rgba(0,0,0,0.1)' }}>
               <h3 style={{ fontSize: '14px', borderBottom: '1px solid #eee', paddingBottom: '4px' }}>🏢 Zarządzanie Komendami (Tenants)</h3>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
@@ -5326,7 +5367,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                           }}>✏️</button>
                           <button className="btn-win" style={{ padding: '2px', fontSize: '10px' }} onClick={async () => {
                             if(window.confirm(`Trwale usunąć komendę ${t.name}?`)) {
-                              const { deleteDoc } = await import('firebase/firestore');
+                              
                               await deleteDoc(doc(db, 'tenants', t.id));
                             }
                           }}>✖</button>
@@ -5338,14 +5379,14 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               </div>
             </div>
 
-            <div style={{ background: '#fff', border: '2px groove threedface', padding: '12px', boxShadow: '2px 2px 5px rgba(0,0,0,0.1)' }}>
+            <div style={{ background: '#fff', border: '2px solid #f1f5f9', padding: '12px', boxShadow: '2px 2px 5px rgba(0,0,0,0.1)' }}>
               <h3 style={{ fontSize: '14px', borderBottom: '1px solid #eee', paddingBottom: '4px' }}>🚨 Narzędzia Systemowe</h3>
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                 <button className="btn-win" style={{ color: '#d13438', fontWeight: 'bold' }} onClick={async () => {
                   if(window.confirm('UWAGA! To usunie wszystkie archiwalne zdarzenia (Status: processed / isArchived) ze wszystkich komend! Kontynuować?')) {
                     if(window.confirm('Na pewno? Operacja jest nieodwracalna.')) {
                       try {
-                        const { writeBatch } = await import('firebase/firestore');
+                        
                         const batch = writeBatch(db);
                         incidents.filter(i => i.isArchived || i.status === 'processed').forEach(i => {
                           batch.delete(doc(db, 'incidents', i.id));
@@ -5358,7 +5399,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   }
                 }}>🗑️ Purge Archive</button>
 
-                <button className="btn-win" style={{ color: '#005fb8', fontWeight: 'bold' }} onClick={async () => {
+                <button className="btn-win" style={{ color: 'var(--win-blue)', fontWeight: 'bold' }} onClick={async () => {
                   const msg = window.prompt("Wpisz globalny komunikat systemowy (Broadcast):");
                   if (msg) {
                     await addDoc(collection(db, 'messages'), {
@@ -5389,7 +5430,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
       <div style={{ padding: '16px', overflowY: 'auto', height: '100%', backgroundColor: '#ffffff', color: '#000' }} className="border-inset fade-in">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '15px' }}>
           <div>
-            <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: '#005fb8', borderBottom: '1.5px solid #d1d1d1', paddingBottom: '5px', marginBottom: '15px' }}>
+            <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--win-blue)', borderBottom: '1.5px solid var(--win-shadow)', paddingBottom: '5px', marginBottom: '15px' }}>
               🏆 RANKING SPRAWNOŚCI I LOGISTYKI JEDNOSTEK (KATOWICE)
             </h3>
             
@@ -5421,15 +5462,15 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
           {/* Right Column: Game Mode Stats & Instructions */}
           <div className="border-outset" style={{ padding: '10px', background: 'var(--win-face)', height: 'fit-content' }}>
-            <h4 style={{ fontSize: '11px', fontWeight: 'bold', color: '#005fb8', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', marginBottom: '8px' }}>
+            <h4 style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--win-blue)', borderBottom: '1px solid var(--win-shadow)', paddingBottom: '3px', marginBottom: '8px' }}>
               🎮 GRA DYSPONOWANIA
             </h4>
             <div style={{ fontSize: '10px', color: '#000', marginBottom: '10px' }}>
               Stan gry: <strong style={{ color: isGameModeActive ? '#2b8a3e' : '#d13438' }}>{isGameModeActive ? 'AKTYWNY (Ćwiczenia)' : 'WYŁĄCZONY'}</strong><br />
-              Aktualny wynik: <strong style={{ fontSize: '13px', color: '#005fb8' }}>{gameScore} pkt</strong>
+              Aktualny wynik: <strong style={{ fontSize: '13px', color: 'var(--win-blue)' }}>{gameScore} pkt</strong>
             </div>
 
-            <div style={{ border: '1px inset #d1d1d1', background: '#fff', padding: '6px', fontSize: '9px', color: '#333', marginBottom: '10px', maxHeight: '180px', overflowY: 'auto' }}>
+            <div style={{ border: '1px inset var(--win-shadow)', background: '#fff', padding: '6px', fontSize: '9px', color: '#333', marginBottom: '10px', maxHeight: '180px', overflowY: 'auto' }}>
               <div style={{ fontWeight: 'bold', color: '#000', borderBottom: '1px dashed #ccc', marginBottom: '3px' }}>SYSTEM OCENY AKCJI:</div>
               🟢 <strong>+50 pkt</strong> - Przejście zastępu do kolejnej fazy akcji (Wyjazd, Dojazd, Lokalizacja)<br />
               🟢 <strong>+100 pkt</strong> - Skuteczne ugaszenie / rozwiązanie akcji przez boty<br />
@@ -5467,7 +5508,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             <span>☎️ Aparat Zgłoszeniowy CPR (Symulator Pozoranta)</span>
           </div>
           <form onSubmit={handleSendSimulatedCall} className="win-dialog-body" style={{ background: 'var(--win-face)' }}>
-            <div style={{ fontSize: '10px', color: '#444', marginBottom: '8px', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px' }}>
+            <div style={{ fontSize: '10px', color: '#444', marginBottom: '8px', borderBottom: '1px solid var(--win-shadow)', paddingBottom: '3px' }}>
               Wprowadź zgłoszenie, aby wysłać sygnał alarmowy do dyspozytora na żywo
             </div>
 
@@ -5504,7 +5545,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             </div>
 
             {callStatusMessage && (
-              <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#005fb8', background: '#ffffff', padding: '6px', border: '1px solid #d1d1d1', textAlign: 'center' }}>
+              <div style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--win-blue)', background: '#ffffff', padding: '6px', border: '1px solid var(--win-shadow)', textAlign: 'center' }}>
                 📞 {callStatusMessage}
               </div>
             )}
@@ -5627,27 +5668,27 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
     const sectionStyle = {
       background: 'var(--win-face)',
-      border: '1px solid #d1d1d1',
+      border: '1px solid var(--win-shadow)',
       borderRadius: '2px',
       padding: '10px',
       marginBottom: '10px'
     };
 
-    const tdStyle = { padding: '4px 8px', fontSize: '10px', borderBottom: '1px solid #e0e0e0', verticalAlign: 'middle' };
-    const thStyle = { padding: '5px 8px', fontSize: '10px', background: '#005fb8', color: '#fff', fontWeight: 'bold', textAlign: 'left' };
+    const tdStyle = { padding: '4px 8px', fontSize: '10px', borderBottom: '1px solid var(--win-bg)', verticalAlign: 'middle' };
+    const thStyle = { padding: '5px 8px', fontSize: '10px', background: 'var(--win-blue)', color: '#fff', fontWeight: 'bold', textAlign: 'left' };
 
     return (
       <div style={{ padding: '14px', overflowY: 'auto', height: '100%', backgroundColor: '#ffffff', color: '#000000' }} className="border-inset fade-in">
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #005fb8', paddingBottom: '10px', marginBottom: '10px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid var(--win-blue)', paddingBottom: '10px', marginBottom: '10px' }}>
           <div>
-            <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#005fb8', margin: 0 }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--win-blue)', margin: 0 }}>
               📦 KATALOG SIŁ I ŚRODKÓW (SiS) — SWD-ST 2.5
             </h3>
             <p style={{ fontSize: '10px', color: '#555', marginTop: '3px', margin: '3px 0 0 0' }}>
               Ewidencja pojazdów, sprzętu specjalistycznego i środków gaśniczych wg. rozdz. 8.5 Podręcznika SWD-ST 2.5
             </p>
-            <button className="btn-win" style={{ marginTop: '5px', fontWeight: 'bold', color: '#005fb8' }} onClick={() => setIsSisEditorOpen(true)}>🔧 Edytor SiS (Jednostki, Pojazdy i Współrzędne dojazdowe)</button>
+            <button className="btn-win" style={{ marginTop: '5px', fontWeight: 'bold', color: 'var(--win-blue)' }} onClick={() => setIsSisEditorOpen(true)}>🔧 Edytor SiS (Jednostki, Pojazdy i Współrzędne dojazdowe)</button>
           </div>
           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <div style={{ fontSize: '9px', background: '#d4edda', color: '#155724', border: '1px solid #c3e6cb', padding: '3px 8px', borderRadius: '2px', fontWeight: 'bold' }}>
@@ -5665,7 +5706,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             <button 
               key={tab}
               className={`btn-win ${ksisTab === tab ? 'active' : ''}`}
-              style={{ padding: '4px 12px', fontSize: '11px', background: ksisTab === tab ? '#fff' : '#e0e0e0', border: '1px solid #999', borderBottom: ksisTab === tab ? '1px solid #fff' : '1px solid #999', marginBottom: '-1px', fontWeight: ksisTab === tab ? 'bold' : 'normal', color: ksisTab === tab ? '#000' : '#444' }}
+              style={{ padding: '4px 12px', fontSize: '11px', background: ksisTab === tab ? '#fff' : 'var(--win-bg)', border: '1px solid var(--win-shadow)', borderBottom: ksisTab === tab ? '1px solid #fff' : '1px solid var(--win-shadow)', marginBottom: '-1px', fontWeight: ksisTab === tab ? 'bold' : 'normal', color: ksisTab === tab ? '#000' : '#444' }}
               onClick={() => setKsisTab(tab)}
             >
               {tab === 'PSP' ? '🚒 ' : tab === 'OSP' ? '🏠 ' : ''}{tab}
@@ -5677,8 +5718,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         {/* SWD ST 2.5 - Widok Drzewa i Szczegółów */}
         <div style={{ display: 'flex', gap: '4px', height: 'calc(100% - 70px)' }}>
           {/* Drzewo jednostek (LEWA KOLUMNA) */}
-          <div style={{ width: '280px', display: 'flex', flexDirection: 'column', border: '2px groove threedface', borderRadius: '4px', background: '#fff' }}>
-            <div style={{ padding: '2px 4px', background: '#005fb8', color: '#fff', fontSize: '11px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
+          <div style={{ width: '280px', display: 'flex', flexDirection: 'column', border: '2px solid #f1f5f9', borderRadius: '4px', background: '#fff' }}>
+            <div style={{ padding: '2px 4px', background: 'var(--win-blue)', color: '#fff', fontSize: '11px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
               <span>Drzewo jednostek</span>
               <span>{ksisTab}</span>
             </div>
@@ -5718,7 +5759,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   Object.keys(ospGroups).sort().map(gmina => (
                     <div key={gmina} style={{ marginBottom: '4px' }}>
                       <div 
-                        style={{ cursor: 'pointer', fontWeight: 'bold', background: ksisOspGmina === gmina ? '#e0e0e0' : 'transparent', padding: '2px 0' }}
+                        style={{ cursor: 'pointer', fontWeight: 'bold', background: ksisOspGmina === gmina ? 'var(--win-bg)' : 'transparent', padding: '2px 0' }}
                         onClick={() => setKsisOspGmina(ksisOspGmina === gmina ? '' : gmina)}
                       >
                         {ksisOspGmina === gmina ? '[-]' : '[+]'} Gmina {gmina}
@@ -5782,13 +5823,13 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
 
           {/* Siły i środki wybranej jednostki (PRAWA KOLUMNA) */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', border: '2px groove threedface', borderRadius: '4px', background: 'var(--win-face)' }}>
-            <div style={{ padding: '2px 4px', background: '#005fb8', color: '#fff', fontSize: '11px', fontWeight: 'bold' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', border: '2px solid #f1f5f9', borderRadius: '4px', background: 'var(--win-face)' }}>
+            <div style={{ padding: '2px 4px', background: 'var(--win-blue)', color: '#fff', fontSize: '11px', fontWeight: 'bold' }}>
               Dane o jednostce — {parseOsp(currentUnit).name}
             </div>
             
             {/* Wewnętrzne zakładki */}
-            <div style={{ display: 'flex', borderBottom: '1px solid #d1d1d1', background: 'var(--win-face)', padding: '4px 4px 0 4px', gap: '2px' }}>
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--win-shadow)', background: 'var(--win-face)', padding: '4px 4px 0 4px', gap: '2px' }}>
               {['jednostka', 'vehicles', 'obsada', 'kierownictwo', 'magazyn'].map(tab => (
                 <div
                   key={tab}
@@ -5796,8 +5837,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   style={{
                     padding: '4px 12px',
                     background: sisActiveTab === tab ? '#fff' : '#f3f3f3',
-                    border: '1px solid #d1d1d1',
-                    borderBottom: sisActiveTab === tab ? '1px solid #fff' : '1px solid #d1d1d1',
+                    border: '1px solid var(--win-shadow)',
+                    borderBottom: sisActiveTab === tab ? '1px solid #fff' : '1px solid var(--win-shadow)',
                     borderTopLeftRadius: '3px',
                     borderTopRightRadius: '3px',
                     cursor: 'pointer',
@@ -5816,8 +5857,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
             {sisActiveTab === 'vehicles' && (
               <>
-                <div style={{ padding: '4px', background: 'var(--win-face)', borderBottom: '1px solid #d1d1d1', display: 'flex', gap: '4px' }}>
-                   <button className="btn-win" style={{ fontSize: '11px', fontWeight: 'bold', color: '#005fb8' }} onClick={() => { if (!currentUnit) return; setSisIsAddingVehicle(true); setSisEditingVehicle(null); }}>
+                <div style={{ padding: '4px', background: 'var(--win-face)', borderBottom: '1px solid var(--win-shadow)', display: 'flex', gap: '4px' }}>
+                   <button className="btn-win" style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--win-blue)' }} onClick={() => { if (!currentUnit) return; setSisIsAddingVehicle(true); setSisEditingVehicle(null); }}>
                      ➕ Dopis sprzętu
                    </button>
                 </div>
@@ -5842,7 +5883,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             {/* Add new vehicle form */}
             {sisIsAddingVehicle && (
               <div style={{ ...sectionStyle, background: '#e8f4fd', border: '2px solid #0a6ece', marginBottom: '10px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#005fb8', marginBottom: '8px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--win-blue)', marginBottom: '8px' }}>
                   ➕ DODAJ NOWY POJAZD — {sisSelectedUnit}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
@@ -5915,7 +5956,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             )}
 
             {/* Vehicles table */}
-            <div style={{ border: '1px solid #d1d1d1', overflowX: 'auto' }}>
+            <div style={{ border: '1px solid var(--win-shadow)', overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
                 <thead>
                   <tr>
@@ -6012,7 +6053,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                           </>
                         ) : (
                           <>
-                            <td style={{ ...tdStyle, fontWeight: 'bold', color: v.outOfService ? '#888' : '#005fb8', textDecoration: v.outOfService ? 'line-through' : 'none' }}>
+                            <td style={{ ...tdStyle, fontWeight: 'bold', color: v.outOfService ? '#888' : 'var(--win-blue)', textDecoration: v.outOfService ? 'line-through' : 'none' }}>
                               {v.name}
                             </td>
                             <td style={{ ...tdStyle, fontWeight: 'bold', color: '#333' }}>
@@ -6104,9 +6145,9 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 <div style={{ fontWeight: 'bold', marginBottom: '10px', fontSize: '12px' }}>Dane teleadresowe jednostki: {currentUnit}</div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
                   <tbody>
-                    <tr><td style={{ width: '120px', padding: '4px', border: '2px groove threedface' }}>Kryptonim</td><td style={{ padding: '4px', border: '2px groove threedface', fontWeight: 'bold' }}>{currentUnit}</td></tr>
-                    <tr><td style={{ width: '120px', padding: '4px', border: '2px groove threedface' }}>Miejscowość</td><td style={{ padding: '4px', border: '2px groove threedface' }}>{tenantName}</td></tr>
-                    <tr><td style={{ width: '120px', padding: '4px', border: '2px groove threedface' }}>Typ</td><td style={{ padding: '4px', border: '2px groove threedface' }}>{currentUnit.includes('JRG') ? 'Jednostka Ratowniczo-Gaśnicza PSP' : 'Ochotnicza Straż Pożarna'}</td></tr>
+                    <tr><td style={{ width: '120px', padding: '4px', border: '2px solid #f1f5f9' }}>Kryptonim</td><td style={{ padding: '4px', border: '2px solid #f1f5f9', fontWeight: 'bold' }}>{currentUnit}</td></tr>
+                    <tr><td style={{ width: '120px', padding: '4px', border: '2px solid #f1f5f9' }}>Miejscowość</td><td style={{ padding: '4px', border: '2px solid #f1f5f9' }}>{tenantName}</td></tr>
+                    <tr><td style={{ width: '120px', padding: '4px', border: '2px solid #f1f5f9' }}>Typ</td><td style={{ padding: '4px', border: '2px solid #f1f5f9' }}>{currentUnit.includes('JRG') ? 'Jednostka Ratowniczo-Gaśnicza PSP' : 'Ochotnicza Straż Pożarna'}</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -6115,7 +6156,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             {sisActiveTab === 'obsada' && (
               <div style={{ padding: '10px', fontSize: '11px', background: 'var(--win-face)', flex: 1 }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '10px', fontSize: '12px' }}>Obsada osobowa (System zmianowy 24/48)</div>
-                <div style={{ padding: '10px', background: '#fff', border: '1px inset #d1d1d1', color: '#888' }}>
+                <div style={{ padding: '10px', background: '#fff', border: '1px inset var(--win-shadow)', color: '#888' }}>
                   Tutaj dyspozytor SWD zarządza zmianami służbowymi (Zmiana 1, Zmiana 2, Zmiana 3) i przypisuje obsadę do poszczególnych wozów. Moduł w przygotowaniu.
                 </div>
               </div>
@@ -6124,7 +6165,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             {sisActiveTab === 'kierownictwo' && (
               <div style={{ padding: '10px', fontSize: '11px', background: 'var(--win-face)', flex: 1 }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '10px', fontSize: '12px' }}>Kierownictwo jednostki</div>
-                <div style={{ padding: '10px', background: '#fff', border: '1px inset #d1d1d1', color: '#888' }}>
+                <div style={{ padding: '10px', background: '#fff', border: '1px inset var(--win-shadow)', color: '#888' }}>
                   Wykaz kadry dowódczej (Dowódca JRG, Zastępca Dowódcy, Naczelnik OSP, Prezes OSP). Moduł w przygotowaniu.
                 </div>
               </div>
@@ -6133,7 +6174,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             {sisActiveTab === 'magazyn' && (
               <div style={{ padding: '10px', fontSize: '11px', background: 'var(--win-face)', flex: 1 }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '10px', fontSize: '12px' }}>Magazyn Sprzętu i Środków Gaśniczych</div>
-                <div style={{ padding: '10px', background: '#fff', border: '1px inset #d1d1d1', color: '#888' }}>
+                <div style={{ padding: '10px', background: '#fff', border: '1px inset var(--win-shadow)', color: '#888' }}>
                   Ewidencja węży tłocznych, aparatów ODO, pił spalinowych oraz środków gaśniczych (piana). Moduł w przygotowaniu.
                 </div>
               </div>
@@ -6150,19 +6191,19 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
     const buforIncidents = incidents.filter(inc => !inc.isArchived && (inc.reportNumber || inc.reportWorkflowState));
     return (
       <div className="tab-content" style={{ padding: '10px', height: '100%', overflowY: 'auto' }}>
-        <div className="section-header" style={{ marginBottom: '10px', background: '#005fb8', color: 'white', padding: '5px' }}>
+        <div className="section-header" style={{ marginBottom: '10px', background: 'var(--win-blue)', color: 'white', padding: '5px' }}>
           <span style={{ fontWeight: 'bold' }}>BUFOR MELDUNKÓW REJESTRU WYJAZDÓW</span>
         </div>
-        <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', border: '1px solid #d1d1d1' }}>
+        <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', border: '1px solid var(--win-shadow)' }}>
           <thead style={{ background: 'var(--win-face)', color: '#000' }}>
             <tr>
-              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Numer zdarzenia</th>
-              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Zdarzenie</th>
-              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Miejscowość, Ulica</th>
-              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Data pow.</th>
-              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Częśc.</th>
-              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Status meldunku w Buforze</th>
-              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Akcje</th>
+              <th style={{ border: '1px solid var(--win-shadow)', padding: '4px' }}>Numer zdarzenia</th>
+              <th style={{ border: '1px solid var(--win-shadow)', padding: '4px' }}>Zdarzenie</th>
+              <th style={{ border: '1px solid var(--win-shadow)', padding: '4px' }}>Miejscowość, Ulica</th>
+              <th style={{ border: '1px solid var(--win-shadow)', padding: '4px' }}>Data pow.</th>
+              <th style={{ border: '1px solid var(--win-shadow)', padding: '4px' }}>Częśc.</th>
+              <th style={{ border: '1px solid var(--win-shadow)', padding: '4px' }}>Status meldunku w Buforze</th>
+              <th style={{ border: '1px solid var(--win-shadow)', padding: '4px' }}>Akcje</th>
             </tr>
           </thead>
           <tbody>
@@ -6174,17 +6215,17 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 const isCzesciowy = inc.times?.isPartialReport !== false;
                 return (
                   <tr key={inc.id} style={{ background: '#fff' }}>
-                    <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>{inc.customId}</td>
-                    <td style={{ border: '1px solid #d1d1d1', padding: '4px' }}>{inc.type === 'pozar' ? 'Pożar' : inc.type === 'mz' ? 'Miejscowe Zagrożenie' : 'Alarm Fałszywy'}</td>
-                    <td style={{ border: '1px solid #d1d1d1', padding: '4px' }}>{userProfile?.role === 'admin' && inc.tenantId ? `[${inc.tenantId}] ` : ''}{inc.location}</td>
-                    <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>{inc.date} {inc.time}</td>
-                    <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center', color: isCzesciowy ? '#d13438' : '#2b8a3e', fontWeight: 'bold' }}>
+                    <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center', fontWeight: 'bold' }}>{inc.customId}</td>
+                    <td style={{ border: '1px solid var(--win-shadow)', padding: '4px' }}>{inc.type === 'pozar' ? 'Pożar' : inc.type === 'mz' ? 'Miejscowe Zagrożenie' : 'Alarm Fałszywy'}</td>
+                    <td style={{ border: '1px solid var(--win-shadow)', padding: '4px' }}>{userProfile?.role === 'admin' && inc.tenantId ? `[${inc.tenantId}] ` : ''}{inc.location}</td>
+                    <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center' }}>{inc.date} {inc.time}</td>
+                    <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center', color: isCzesciowy ? '#d13438' : '#2b8a3e', fontWeight: 'bold' }}>
                       {isCzesciowy ? 'TAK' : 'NIE'}
                     </td>
-                    <td style={{ border: '1px solid #d1d1d1', padding: '4px', fontWeight: 'bold' }}>
+                    <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', fontWeight: 'bold' }}>
                       [{inc.reportWorkflowState || "1"}] {statusName}
                     </td>
-                    <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>
+                    <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center' }}>
                       <button className="btn-win" onClick={() => {
                         setSelectedIncidentId(inc.id);
                         setIsEwidReportModalOpen(true);
@@ -6207,66 +6248,66 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
   const renderMonitorTransmisji = () => {
     return (
       <div className="tab-content" style={{ padding: '10px', height: '100%', overflowY: 'auto' }}>
-        <div className="section-header" style={{ marginBottom: '10px', background: '#005fb8', color: 'white', padding: '5px' }}>
+        <div className="section-header" style={{ marginBottom: '10px', background: 'var(--win-blue)', color: 'white', padding: '5px' }}>
           <span style={{ fontWeight: 'bold' }}>MONITOR TRANSMISJI (Zgodnie z rozdz. 15.4)</span>
         </div>
         
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-          <div style={{ border: '1px solid #d1d1d1', background: '#fff' }}>
-            <div style={{ background: 'var(--win-face)', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>Stan Połączeń Węzła (KM/KP)</div>
+          <div style={{ border: '1px solid var(--win-shadow)', background: '#fff' }}>
+            <div style={{ background: 'var(--win-face)', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid var(--win-shadow)' }}>Stan Połączeń Węzła (KM/KP)</div>
             <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
-              <thead style={{ background: '#e0e0e0' }}>
+              <thead style={{ background: 'var(--win-bg)' }}>
                 <tr>
-                  <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'left' }}>Węzeł Docelowy</th>
-                  <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>Status</th>
-                  <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>Ostatnia synchronizacja</th>
+                  <th style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'left' }}>Węzeł Docelowy</th>
+                  <th style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center' }}>Status</th>
+                  <th style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center' }}>Ostatnia synchronizacja</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', fontWeight: 'bold' }}>KW PSP</td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center', color: '#155724', background: '#d4edda', fontWeight: 'bold' }}>ONLINE</td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>{systemTime.toLocaleTimeString('pl-PL')}</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', fontWeight: 'bold' }}>KW PSP</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center', color: '#155724', background: '#d4edda', fontWeight: 'bold' }}>ONLINE</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center' }}>{systemTime.toLocaleTimeString('pl-PL')}</td>
                 </tr>
                 <tr>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', fontWeight: 'bold' }}>KG PSP Warszawa</td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center', color: '#155724', background: '#d4edda', fontWeight: 'bold' }}>ONLINE</td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>{new Date(systemTime.getTime() - 15000).toLocaleTimeString('pl-PL')}</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', fontWeight: 'bold' }}>KG PSP Warszawa</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center', color: '#155724', background: '#d4edda', fontWeight: 'bold' }}>ONLINE</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center' }}>{new Date(systemTime.getTime() - 15000).toLocaleTimeString('pl-PL')}</td>
                 </tr>
                 <tr>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', fontWeight: 'bold' }}>CWA (Centralna Baza WCPR)</td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center', color: '#856404', background: '#fff3cd', fontWeight: 'bold' }}>SYNCHRONIZACJA</td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>W toku...</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', fontWeight: 'bold' }}>CWA (Centralna Baza WCPR)</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center', color: '#856404', background: '#fff3cd', fontWeight: 'bold' }}>SYNCHRONIZACJA</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center' }}>W toku...</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          <div style={{ border: '1px solid #d1d1d1', background: '#fff' }}>
-            <div style={{ background: 'var(--win-face)', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>Statystyki Replikacji Danych (EWID/Rejestr)</div>
+          <div style={{ border: '1px solid var(--win-shadow)', background: '#fff' }}>
+            <div style={{ background: 'var(--win-face)', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid var(--win-shadow)' }}>Statystyki Replikacji Danych (EWID/Rejestr)</div>
             <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
-              <thead style={{ background: '#e0e0e0' }}>
+              <thead style={{ background: 'var(--win-bg)' }}>
                 <tr>
-                  <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'left' }}>Tabela / Obiekt</th>
-                  <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>Rekordy Oczekujące</th>
-                  <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>Błędy (Konflikty)</th>
+                  <th style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'left' }}>Tabela / Obiekt</th>
+                  <th style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center' }}>Rekordy Oczekujące</th>
+                  <th style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center' }}>Błędy (Konflikty)</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Zdarzenia (Incident)</td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>0</td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>0</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px' }}>Zdarzenia (Incident)</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center' }}>0</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center' }}>0</td>
                 </tr>
                 <tr>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Meldunki (EWID)</td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>0</td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>0</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px' }}>Meldunki (EWID)</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center' }}>0</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center' }}>0</td>
                 </tr>
                 <tr>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Katalog SiS / Statusy</td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>{animationTick % 10 < 3 ? '1 (w toku)' : '0'}</td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>0</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px' }}>Katalog SiS / Statusy</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center' }}>{animationTick % 10 < 3 ? '1 (w toku)' : '0'}</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center' }}>0</td>
                 </tr>
               </tbody>
             </table>
@@ -6274,8 +6315,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         </div>
 
         <div style={{ marginTop: '15px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-          <div style={{ border: '1px solid #d1d1d1', background: '#fff' }}>
-            <div style={{ background: 'var(--win-face)', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>Logi Agenta Transmisji (AT)</div>
+          <div style={{ border: '1px solid var(--win-shadow)', background: '#fff' }}>
+            <div style={{ background: 'var(--win-face)', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid var(--win-shadow)' }}>Logi Agenta Transmisji (AT)</div>
             <div style={{ padding: '5px', height: '150px', overflowY: 'auto', background: '#000', color: '#0f0', fontFamily: 'monospace', fontSize: '10px' }}>
               {operationalLogs.map((log, idx) => (
                 <div key={idx}>[{new Date().toLocaleDateString('pl-PL')}] {log}</div>
@@ -6287,8 +6328,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             </div>
           </div>
 
-          <div style={{ border: '1px solid #d1d1d1', background: '#fff' }}>
-            <div style={{ background: 'var(--win-face)', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>Bramka SMS / Terminale MDT (Statusy)</div>
+          <div style={{ border: '1px solid var(--win-shadow)', background: '#fff' }}>
+            <div style={{ background: 'var(--win-face)', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid var(--win-shadow)' }}>Bramka SMS / Terminale MDT (Statusy)</div>
             <div style={{ padding: '5px', height: '150px', overflowY: 'auto', background: '#e8f0fe', color: '#000', fontFamily: 'monospace', fontSize: '10px' }}>
               {operationalLogs.filter(log => log.includes('Status') || log.includes('ST ') || log.includes('DSP') || log.includes('Syrena') || log.includes('SMS')).map((log, idx) => (
                 <div key={idx} style={{ padding: '2px 0', borderBottom: '1px solid #f3f3f3' }}>{log}</div>
@@ -6307,22 +6348,22 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
   const renderKatalogObiektow = () => {
     return (
 <div className="tab-content" style={{ padding: '10px', height: '100%', overflowY: 'auto' }}>
-        <div className="section-header" style={{ marginBottom: '10px', background: '#005fb8', color: 'white', padding: '5px' }}>
+        <div className="section-header" style={{ marginBottom: '10px', background: 'var(--win-blue)', color: 'white', padding: '5px' }}>
           <span style={{ fontWeight: 'bold' }}>KATALOG OBIEKTÓW (Zgodnie z rozdz. 15.1)</span>
         </div>
         <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-          <input type="text" placeholder="Szukaj obiektu (nazwa, miejscowość, ulica)..." style={{ padding: '4px', width: '300px', border: '1px solid #d1d1d1' }} />
+          <input type="text" placeholder="Szukaj obiektu (nazwa, miejscowość, ulica)..." style={{ padding: '4px', width: '300px', border: '1px solid var(--win-shadow)' }} />
           <button className="btn-win">Szukaj</button>
           <button className="btn-win">Dodaj Nowy</button>
         </div>
-        <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', border: '1px solid #d1d1d1' }}>
+        <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', border: '1px solid var(--win-shadow)' }}>
           <thead style={{ background: 'var(--win-face)', color: '#000' }}>
             <tr>
-              <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'left' }}>Kategoria (wg Słownika KSRG)</th>
-              <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'left' }}>Nazwa Obiektu</th>
-              <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'left' }}>Miejscowość</th>
-              <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'left' }}>Ulica</th>
-              <th style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>Monitoring Pożarowy (TSG)</th>
+              <th style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'left' }}>Kategoria (wg Słownika KSRG)</th>
+              <th style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'left' }}>Nazwa Obiektu</th>
+              <th style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'left' }}>Miejscowość</th>
+              <th style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'left' }}>Ulica</th>
+              <th style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center' }}>Monitoring Pożarowy (TSG)</th>
             </tr>
           </thead>
           <tbody>
@@ -6330,11 +6371,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               const [city, streetPart] = ob.address.split(', ');
               return (
                 <tr key={ob.id} style={{ background: idx % 2 === 0 ? '#fff' : '#f8f8f8' }}>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Inne</td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', fontWeight: 'bold' }}>{ob.name}</td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px' }}>{city}</td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px' }}>{streetPart}</td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center', color: '#155724', fontWeight: 'bold', background: '#d4edda' }}>TAK</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px' }}>Inne</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', fontWeight: 'bold' }}>{ob.name}</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px' }}>{city}</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px' }}>{streetPart}</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center', color: '#155724', fontWeight: 'bold', background: '#d4edda' }}>TAK</td>
                 </tr>
               );
             })}
@@ -6351,12 +6392,12 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
   const renderProcedury = () => {
     return (
       <div className="tab-content" style={{ padding: '10px', height: '100%', overflowY: 'auto' }}>
-        <div className="section-header" style={{ marginBottom: '10px', background: '#005fb8', color: 'white', padding: '5px' }}>
+        <div className="section-header" style={{ marginBottom: '10px', background: 'var(--win-blue)', color: 'white', padding: '5px' }}>
           <span style={{ fontWeight: 'bold' }}>PROCEDURY POSTĘPOWANIA (Zgodnie z rozdz. 15.3)</span>
         </div>
         <div style={{ display: 'flex', gap: '15px' }}>
-          <div style={{ width: '250px', border: '1px solid #d1d1d1', background: '#fff' }}>
-            <div style={{ background: 'var(--win-face)', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>Grupy Zdarzeń</div>
+          <div style={{ width: '250px', border: '1px solid var(--win-shadow)', background: '#fff' }}>
+            <div style={{ background: 'var(--win-face)', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid var(--win-shadow)' }}>Grupy Zdarzeń</div>
             <ul style={{ listStyleType: 'none', padding: '0', margin: '0', fontSize: '11px' }}>
               <li style={{ padding: '5px', borderBottom: '1px solid #e9ecef', background: '#0a6ece', color: '#fff', cursor: 'pointer' }}>Pożary</li>
               <li style={{ padding: '5px', borderBottom: '1px solid #e9ecef', cursor: 'pointer' }}>Miejscowe Zagrożenia</li>
@@ -6365,8 +6406,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               <li style={{ padding: '5px', borderBottom: '1px solid #e9ecef', cursor: 'pointer' }}>Ratownictwo Chemiczne i Ekologiczne</li>
             </ul>
           </div>
-          <div style={{ flex: 1, border: '1px solid #d1d1d1', background: '#fff', padding: '10px', fontSize: '11px' }}>
-            <h3 style={{ borderBottom: '1px solid #005fb8', color: '#005fb8', paddingBottom: '4px', marginTop: 0 }}>Zasady dysponowania sił i środków do pożarów (wyciąg z procedury)</h3>
+          <div style={{ flex: 1, border: '1px solid var(--win-shadow)', background: '#fff', padding: '10px', fontSize: '11px' }}>
+            <h3 style={{ borderBottom: '1px solid var(--win-blue)', color: 'var(--win-blue)', paddingBottom: '4px', marginTop: 0 }}>Zasady dysponowania sił i środków do pożarów (wyciąg z procedury)</h3>
             <p><strong>1. Pożar mały (np. śmietnik, trawa):</strong><br />
             Wymagane dysponowanie: 1 zastęp (GBA lub GCBA).</p>
             <p><strong>2. Pożar średni (np. samochód, pojedyncze pomieszczenie):</strong><br />
@@ -6375,7 +6416,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             Wymagane dysponowanie: min. 3 zastępy gaśnicze, podnośnik/drabina (SHD/SCD), Dowódca JRG (SLRk).</p>
             <p><strong>4. Obiekty szczególne (Szpitale, ZDR, obiekty wysokościowe):</strong><br />
             Wymagane dysponowanie: Zwiększony pierwszy rzut o +1 zastęp względem kategorii pożaru. Obowiązkowe powiadomienie KM/KP oraz WSKR/KW.</p>
-            <div style={{ marginTop: '20px', padding: '10px', background: '#f8f8f8', border: '2px groove threedface', fontStyle: 'italic' }}>
+            <div style={{ marginTop: '20px', padding: '10px', background: '#f8f8f8', border: '2px solid #f1f5f9', fontStyle: 'italic' }}>
               * Wskazówka dla dyspozytora: W przypadku zgłoszeń z Monitoringu Pożarowego (TSG) bez potwierdzenia z innego źródła, domyślnie dysponuje się 2 zastępy gaśnicze w celu weryfikacji alarmu w chronionym obiekcie.
             </div>
           </div>
@@ -6387,14 +6428,13 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
   // Render Mapa GIS
   const renderMapaGIS = () => {
     return (
-      <div className="tab-content" style={{ padding: '0', height: '100%', overflow: 'hidden', background: '#e0e0e0', position: 'relative', border: '2px solid #d1d1d1' }}>
-        <div className="section-header" style={{ marginBottom: '0', background: '#005fb8', color: 'white', padding: '5px', position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1000 }}>
+      <div className="tab-content" style={{ padding: '0', height: '100%', overflow: 'hidden', background: 'var(--win-bg)', position: 'relative', border: '2px solid var(--win-shadow)' }}>
+        <div className="section-header" style={{ marginBottom: '0', background: 'var(--win-blue)', color: 'white', padding: '5px', position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1000 }}>
           <span style={{ fontWeight: 'bold' }}>SYSTEM WSPOMAGANIA DECYZJI - MODUŁ GEOGRAFICZNY (GIS)</span>
         </div>
         
         <div style={{ width: '100%', height: '100%', position: 'relative', paddingTop: '24px' }}>
-          const mapCenter = getCityBaseCoords(tenantName || "Katowice");
-<MapContainer key={tenantName} center={[mapCenter.lat, mapCenter.lng]} zoom={12} style={{ width: '100%', height: '100%' }}>
+<MapContainer key={tenantName} center={[getCityBaseCoords(tenantName || "Katowice").lat, getCityBaseCoords(tenantName || "Katowice").lng]} zoom={12} style={{ width: '100%', height: '100%' }}>
             <MapCenterUpdater selectedIncidentId={selectedIncidentId} incidents={incidents} getCoordinatesForLocation={getCoordinatesForLocation} />
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -6458,7 +6498,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
     return (
       <div className="tab-content" style={{ padding: '10px', height: '100%', overflowY: 'auto' }}>
-        <div className="section-header" style={{ marginBottom: '10px', background: '#005fb8', color: 'white', padding: '5px' }}>
+        <div className="section-header" style={{ marginBottom: '10px', background: 'var(--win-blue)', color: 'white', padding: '5px' }}>
           <span style={{ fontWeight: 'bold' }}>TABLICA KONTROLI CZASU PRACY W SPRZĘCIE ODO</span>
         </div>
         
@@ -6480,15 +6520,15 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
         </div>
 
-        <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', border: '1px solid #d1d1d1' }}>
+        <table className="data-table" style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', border: '1px solid var(--win-shadow)' }}>
           <thead style={{ background: 'var(--win-face)', color: '#000' }}>
             <tr>
-              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Rota / Strażak</th>
-              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Wejście</th>
-              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Ciśnienie (bar)</th>
-              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Czas pracy</th>
-              <th style={{ border: '1px solid #d1d1d1', padding: '4px', color: '#c00000' }}>NAGŁY ODWROT (Gwizdek)</th>
-              <th style={{ border: '1px solid #d1d1d1', padding: '4px' }}>Akcja</th>
+              <th style={{ border: '1px solid var(--win-shadow)', padding: '4px' }}>Rota / Strażak</th>
+              <th style={{ border: '1px solid var(--win-shadow)', padding: '4px' }}>Wejście</th>
+              <th style={{ border: '1px solid var(--win-shadow)', padding: '4px' }}>Ciśnienie (bar)</th>
+              <th style={{ border: '1px solid var(--win-shadow)', padding: '4px' }}>Czas pracy</th>
+              <th style={{ border: '1px solid var(--win-shadow)', padding: '4px', color: '#c00000' }}>NAGŁY ODWROT (Gwizdek)</th>
+              <th style={{ border: '1px solid var(--win-shadow)', padding: '4px' }}>Akcja</th>
             </tr>
           </thead>
           <tbody>
@@ -6501,14 +6541,14 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               const isAlert = remainingMs < 300000; // < 5 min
               return (
                 <tr key={e.id} style={{ background: isAlert ? '#f8d7da' : '#fff' }}>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', fontWeight: 'bold' }}>{e.name}</td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>{e.entryTime.toLocaleTimeString()}</td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>{e.pressure} bar</td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>{e.minutesTotal} min</td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center', color: isAlert ? 'red' : 'black', fontWeight: 'bold' }}>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', fontWeight: 'bold' }}>{e.name}</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center' }}>{e.entryTime.toLocaleTimeString()}</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center' }}>{e.pressure} bar</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center' }}>{e.minutesTotal} min</td>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center', color: isAlert ? 'red' : 'black', fontWeight: 'bold' }}>
                     {e.exitTime.toLocaleTimeString()}
                   </td>
-                  <td style={{ border: '1px solid #d1d1d1', padding: '4px', textAlign: 'center' }}>
+                  <td style={{ border: '1px solid var(--win-shadow)', padding: '4px', textAlign: 'center' }}>
                     <button className="btn-win" style={{ padding: '2px 5px', fontSize: '9px' }} onClick={() => setOdoEntries(odoEntries.filter(x => x.id !== e.id))}>Wyjście (Koniec)</button>
                   </td>
                 </tr>
@@ -6535,14 +6575,14 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
     return (
       <div className="tab-content" style={{ padding: '10px', height: '100%', overflowY: 'auto' }}>
-        <div className="section-header" style={{ marginBottom: '10px', background: '#005fb8', color: 'white', padding: '5px' }}>
+        <div className="section-header" style={{ marginBottom: '10px', background: 'var(--win-blue)', color: 'white', padding: '5px' }}>
           <span style={{ fontWeight: 'bold' }}>BRAMKA SMS - KOMUNIKATOR (Zgodnie z rozdz. 11.1)</span>
         </div>
         
         <div style={{ display: 'flex', gap: '10px', height: '400px' }}>
           {/* Odbiorcy / Grupy */}
-          <div style={{ width: '250px', border: '1px solid #d1d1d1', background: '#fff', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ background: 'var(--win-face)', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>
+          <div style={{ width: '250px', border: '1px solid var(--win-shadow)', background: '#fff', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ background: 'var(--win-face)', padding: '5px', fontWeight: 'bold', borderBottom: '1px solid var(--win-shadow)' }}>
               Grupy odbiorców
             </div>
             <div style={{ padding: '5px', flex: 1, overflowY: 'auto' }}>
@@ -6554,8 +6594,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
 
           {/* Konwersacja */}
-          <div style={{ flex: 1, border: '1px solid #d1d1d1', background: '#fff', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ background: 'var(--win-face)', padding: '5px 10px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>
+          <div style={{ flex: 1, border: '1px solid var(--win-shadow)', background: '#fff', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ background: 'var(--win-face)', padding: '5px 10px', fontWeight: 'bold', borderBottom: '1px solid var(--win-shadow)' }}>
               Wiadomości do: {smsRecipient}
             </div>
             <div style={{ flex: 1, padding: '10px', overflowY: 'auto', background: 'var(--win-face)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -6566,7 +6606,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   padding: '8px',
                   borderRadius: '4px',
                   maxWidth: '70%',
-                  border: '2px groove threedface',
+                  border: '2px solid #f1f5f9',
                   boxShadow: '1px 1px 2px rgba(0,0,0,0.1)'
                 }}>
                   <div style={{ fontSize: '9px', color: '#888', marginBottom: '4px' }}>
@@ -6576,7 +6616,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 </div>
               ))}
             </div>
-            <div style={{ padding: '10px', background: 'var(--win-face)', borderTop: '1px solid #d1d1d1', display: 'flex', gap: '5px' }}>
+            <div style={{ padding: '10px', background: 'var(--win-face)', borderTop: '1px solid var(--win-shadow)', display: 'flex', gap: '5px' }}>
               <input 
                 type="text" 
                 value={smsInput}
@@ -6603,7 +6643,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
       <div style={{ padding: '16px', overflowY: 'auto', height: '100%', backgroundColor: '#ffffff', color: '#000000' }} className="border-inset fade-in">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid var(--win-shadow)', paddingBottom: '10px', marginBottom: '15px' }}>
           <div>
-            <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: '#005fb8' }}>
+            <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--win-blue)' }}>
               DZIENNIK PRZEBIEGU SŁUŻBY SKKM/PSK
             </h3>
             <p style={{ fontSize: '10px', color: '#555', marginTop: '2px' }}>Automatyczna ewidencja chronologiczna wydarzeń bieżących</p>
@@ -6622,7 +6662,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
         {/* SKKM Shift crew roster form */}
         <div className="border-inset" style={{ padding: '10px', background: 'var(--win-face)', marginBottom: '15px' }}>
-          <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#005fb8', marginBottom: '8px', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--win-blue)', marginBottom: '8px', textTransform: 'uppercase' }}>
             Obsada Służbowa Dyspozytornia (Dzisiejsza Zmiana)
           </div>
           <div className="form-grid-3">
@@ -6649,7 +6689,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         {/* JRG Shift Roster Details */}
         <div className="border-inset" style={{ padding: '10px', background: 'var(--win-face)', marginBottom: '15px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#005fb8', textTransform: 'uppercase' }}>
+            <span style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--win-blue)', textTransform: 'uppercase' }}>
               Stany Osobowe Zmian Bojowych JRG (Dyspozytornia)
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -6664,7 +6704,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
             {/* JRG 1 */}
-            <div style={{ background: '#ffffff', padding: '6px', border: '1px solid #d1d1d1' }}>
+            <div style={{ background: '#ffffff', padding: '6px', border: '1px solid var(--win-shadow)' }}>
               <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#ff4b4b', marginBottom: '4px' }}>JRG 1</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '4px' }}>
                 <label style={{ fontSize: '8px' }}>Stan podziału:<input type="number" className="input-field" style={{ fontSize: '8px', padding: '1px' }} value={shiftJrg1Staff.active} onChange={(e) => setShiftJrg1Staff({ ...shiftJrg1Staff, active: parseInt(e.target.value, 10) })} /></label>
@@ -6674,7 +6714,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             </div>
 
             {/* JRG 2 */}
-            <div style={{ background: '#ffffff', padding: '6px', border: '1px solid #d1d1d1' }}>
+            <div style={{ background: '#ffffff', padding: '6px', border: '1px solid var(--win-shadow)' }}>
               <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#ff4b4b', marginBottom: '4px' }}>JRG 2</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '4px' }}>
                 <label style={{ fontSize: '8px' }}>Stan podziału:<input type="number" className="input-field" style={{ fontSize: '8px', padding: '1px' }} value={shiftJrg2Staff.active} onChange={(e) => setShiftJrg2Staff({ ...shiftJrg2Staff, active: parseInt(e.target.value, 10) })} /></label>
@@ -6684,7 +6724,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             </div>
 
             {/* JRG 3 */}
-            <div style={{ background: '#ffffff', padding: '6px', border: '1px solid #d1d1d1' }}>
+            <div style={{ background: '#ffffff', padding: '6px', border: '1px solid var(--win-shadow)' }}>
               <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#ff4b4b', marginBottom: '4px' }}>JRG 3</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '4px' }}>
                 <label style={{ fontSize: '8px' }}>Stan podziału:<input type="number" className="input-field" style={{ fontSize: '8px', padding: '1px' }} value={shiftJrg3Staff.active} onChange={(e) => setShiftJrg3Staff({ ...shiftJrg3Staff, active: parseInt(e.target.value, 10) })} /></label>
@@ -6716,7 +6756,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         <div className="border-inset" style={{ background: '#ffffff', padding: '12px', minHeight: '260px', fontFamily: 'var(--font-mono)', fontSize: '11px', lineHeight: '1.6', overflowY: 'auto' }}>
           {dailyLogs.map((log, idx) => (
             <div key={idx} style={{ borderBottom: '1px solid #f3f3f3', padding: '4px 0', display: 'flex', gap: '15px' }}>
-              <span style={{ color: '#005fb8', fontWeight: 'bold', minWidth: '45px' }}>[{log.time}]</span>
+              <span style={{ color: 'var(--win-blue)', fontWeight: 'bold', minWidth: '45px' }}>[{log.time}]</span>
               <span style={{ color: '#000000' }}>{log.text}</span>
             </div>
           ))}
@@ -6735,7 +6775,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         <div style={{ display: 'flex', gap: '10px', flex: 1, height: 'calc(100% - 40px)' }}>
           
           <div className="border-inset" style={{ width: '250px', background: '#fff', padding: '10px' }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '10px', color: '#005fb8' }}>Adresaci i Grupy</div>
+            <div style={{ fontWeight: 'bold', marginBottom: '10px', color: 'var(--win-blue)' }}>Adresaci i Grupy</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
               <button className="btn-win" style={{ textAlign: 'left', fontWeight: 'bold' }} onClick={() => setMsgRecipient('Wszyscy')}>Wszyscy użytkownicy</button>
               {ALL_UNITS.filter(u => u !== 'KM/KP PSP').map(u => (
@@ -6747,7 +6787,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
 
           <div className="border-inset" style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#e9ecef' }}>
-            <div style={{ background: 'var(--win-face)', padding: '5px 10px', fontWeight: 'bold', borderBottom: '1px solid #d1d1d1' }}>
+            <div style={{ background: 'var(--win-face)', padding: '5px 10px', fontWeight: 'bold', borderBottom: '1px solid var(--win-shadow)' }}>
               Bieżące komunikaty (Kierunek: {msgRecipient === 'Wszyscy' ? 'Ogólny' : msgRecipient})
             </div>
             
@@ -6761,7 +6801,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   color: '#000000',
                   boxShadow: '1px 1px 3px rgba(0,0,0,0.1)'
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: m.priority === 'urgent' ? '#d13438' : '#005fb8', fontWeight: 'bold', borderBottom: '1px dotted #ccc', paddingBottom: '4px', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: m.priority === 'urgent' ? '#d13438' : 'var(--win-blue)', fontWeight: 'bold', borderBottom: '1px dotted #ccc', paddingBottom: '4px', marginBottom: '8px' }}>
                     <span style={{ fontSize: '13px' }}>Nadawca: {m.sender} ({m.senderUnit}) {m.recipient && m.recipient !== 'Wszyscy' ? `➔ Do: ${m.recipient}` : ''}</span>
                     <span style={{ color: '#495057' }}>
                       {m.createdAt ? (m.createdAt.toDate ? m.createdAt.toDate().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '') : ''}
@@ -6786,7 +6826,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               ))}
             </div>
 
-            <form onSubmit={handleSendMessage} style={{ display: 'flex', flexDirection: 'column', padding: '15px', gap: '10px', background: 'var(--win-face)', borderTop: '2px solid #d1d1d1' }}>
+            <form onSubmit={handleSendMessage} style={{ display: 'flex', flexDirection: 'column', padding: '15px', gap: '10px', background: 'var(--win-face)', borderTop: '2px solid var(--win-shadow)' }}>
               <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
                 <div style={{ fontWeight: 'bold' }}>Wyślij do:</div>
                 <select 
@@ -6847,67 +6887,91 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
   if (!user) {
     return (
-      <div className="app-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'transparent' }}>
-        <div className="win-dialog border-outset" style={{ width: '400px' }}>
-          <div className="win-dialog-header">
-            <span>Logowanie do SWD-ST 2.5 (Tryb sieciowy)</span>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', width: '100vw', backgroundColor: '#008080', fontFamily: 'var(--font-sans)' }}>
+        <div className="win-dialog border-outset" style={{ width: '450px', backgroundColor: 'var(--win-face)' }}>
+          <div className="win-dialog-header" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px' }}>
+            <span style={{ fontWeight: 'bold' }}>System Wspomagania Dowodzenia - Autoryzacja</span>
           </div>
-          <div className="win-dialog-body" style={{ background: 'var(--win-face)', padding: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {error && <div style={{ color: 'red', fontWeight: 'bold' }}>{error}</div>}
+          <div className="win-dialog-body" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '2px solid #a0a0a0', paddingBottom: '15px', marginBottom: '5px' }}>
+              <div style={{ fontSize: '40px' }}>🔐</div>
+              <div>
+                <h2 style={{ margin: '0 0 5px 0', fontSize: '16px' }}>Krajowy System Ratowniczo-Gaśniczy</h2>
+                <p style={{ margin: 0, fontSize: '11px', color: '#555' }}>Wprowadź poświadczenia dostępu dla stanowiska kierowania.</p>
+              </div>
+            </div>
+
+            {error && (
+              <div style={{ color: 'red', fontWeight: 'bold', backgroundColor: '#ffe6e6', border: '1px solid red', padding: '5px', fontSize: '11px' }}>
+                Błąd: {error}
+              </div>
+            )}
             
             {authMode === 'login' ? (
-              <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div>
-                  <label style={{ fontSize: '12px' }}>Adres e-mail:</label>
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="input-field" style={{ width: '100%', padding: '3px' }} />
+              <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <label style={{ fontSize: '12px', width: '120px', fontWeight: 'bold' }}>Identyfikator (E-mail):</label>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="input-field" style={{ flex: 1, padding: '4px' }} />
                 </div>
-                <div>
-                  <label style={{ fontSize: '12px' }}>Hasło:</label>
-                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="input-field" style={{ width: '100%', padding: '3px' }} />
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <label style={{ fontSize: '12px', width: '120px', fontWeight: 'bold' }}>Hasło dostępu:</label>
+                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="input-field" style={{ flex: 1, padding: '4px' }} />
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px' }}>
-                  <button type="submit" disabled={formLoading} className="btn-win" style={{ padding: '4px 20px', fontWeight: 'bold' }}>
-                    {formLoading ? 'Logowanie...' : 'Zaloguj'}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '15px' }}>
+                  <button type="button" onClick={() => setAuthMode('register')} className="btn-win" style={{ padding: '6px 15px' }}>
+                    Zarejestruj nową Komendę
                   </button>
-                  <button type="button" onClick={() => setAuthMode('register')} className="btn-win" style={{ padding: '4px 20px' }}>
-                    Rejestracja nowej KM/KP
+                  <button type="submit" disabled={formLoading} className="btn-win" style={{ padding: '6px 20px', fontWeight: 'bold', minWidth: '100px' }}>
+                    {formLoading ? 'Weryfikacja...' : 'Zaloguj'}
                   </button>
                 </div>
               </form>
             ) : (
               <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div>
-                  <label style={{ fontSize: '12px' }}>Adres e-mail:</label>
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="input-field" style={{ width: '100%', padding: '3px' }} />
+                <div style={{ backgroundColor: '#e4e4e4', padding: '10px', border: '1px inset #a0a0a0', marginBottom: '5px' }}>
+                  <h3 style={{ margin: '0 0 10px 0', fontSize: '12px', color: 'var(--win-blue)' }}>Dane logowania dyspozytora:</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                    <label style={{ fontSize: '11px', width: '100px' }}>E-mail:</label>
+                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="input-field" style={{ flex: 1, padding: '2px 4px' }} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <label style={{ fontSize: '11px', width: '100px' }}>Hasło:</label>
+                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="input-field" style={{ flex: 1, padding: '2px 4px' }} />
+                  </div>
                 </div>
-                <div>
-                  <label style={{ fontSize: '12px' }}>Hasło:</label>
-                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="input-field" style={{ width: '100%', padding: '3px' }} />
+
+                <div style={{ backgroundColor: '#e4e4e4', padding: '10px', border: '1px inset #a0a0a0' }}>
+                  <h3 style={{ margin: '0 0 10px 0', fontSize: '12px', color: 'var(--win-blue)' }}>Rejestracja nowej Jednostki Samorządu (KM/KP):</h3>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                    <label style={{ fontSize: '11px', width: '100px' }}>Województwo:</label>
+                    <select value={selectedWojewodztwo} onChange={e => { setSelectedWojewodztwo(e.target.value); setSelectedPowiat(''); }} required className="input-field" style={{ flex: 1, padding: '2px 4px' }}>
+                      <option value="">-- Wybierz województwo --</option>
+                      {Object.keys(polandData).map(woj => <option key={woj} value={woj}>{woj}</option>)}
+                    </select>
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                    <label style={{ fontSize: '11px', width: '100px' }}>Powiat:</label>
+                    <select value={selectedPowiat} onChange={e => setSelectedPowiat(e.target.value)} required disabled={!selectedWojewodztwo} className="input-field" style={{ flex: 1, padding: '2px 4px' }}>
+                      <option value="">-- Wybierz powiat --</option>
+                      {selectedWojewodztwo && polandData[selectedWojewodztwo].map(pow => <option key={pow} value={pow}>{pow}</option>)}
+                    </select>
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <label style={{ fontSize: '11px', width: '100px' }}>Nazwa Komendy:</label>
+                    <input type="text" value={customKomendaName} onChange={e => setCustomKomendaName(e.target.value)} required className="input-field" style={{ flex: 1, padding: '2px 4px' }} placeholder="np. KM PSP Wrocław" />
+                  </div>
                 </div>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#005fb8' }}>Województwo:</label>
-                  <select value={selectedWojewodztwo} onChange={e => { setSelectedWojewodztwo(e.target.value); setSelectedPowiat(''); }} required className="input-field" style={{ width: '100%', padding: '3px' }}>
-                    <option value="">-- Wybierz województwo --</option>
-                    {Object.keys(polandData).map(woj => <option key={woj} value={woj}>{woj}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#005fb8' }}>Powiat:</label>
-                  <select value={selectedPowiat} onChange={e => setSelectedPowiat(e.target.value)} required disabled={!selectedWojewodztwo} className="input-field" style={{ width: '100%', padding: '3px' }}>
-                    <option value="">-- Wybierz powiat --</option>
-                    {selectedWojewodztwo && polandData[selectedWojewodztwo].map(pow => <option key={pow} value={pow}>{pow}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#005fb8' }}>Nazwa Komendy (np. KM PSP Wrocław):</label>
-                  <input type="text" value={customKomendaName} onChange={e => setCustomKomendaName(e.target.value)} required className="input-field" style={{ width: '100%', padding: '3px' }} placeholder="Wpisz nazwę własnej komendy" />
-                </div>
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px' }}>
-                  <button type="submit" disabled={formLoading} className="btn-win" style={{ padding: '4px 20px', fontWeight: 'bold' }}>
-                    {formLoading ? 'Tworzenie...' : 'Zarejestruj'}
+                  <button type="button" onClick={() => setAuthMode('login')} className="btn-win" style={{ padding: '6px 20px' }}>
+                    Anuluj (Wróć)
                   </button>
-                  <button type="button" onClick={() => setAuthMode('login')} className="btn-win" style={{ padding: '4px 20px' }}>
-                    Powrót
+                  <button type="submit" disabled={formLoading} className="btn-win" style={{ padding: '6px 20px', fontWeight: 'bold' }}>
+                    {formLoading ? 'Tworzenie bazy...' : 'Utwórz i zaloguj'}
                   </button>
                 </div>
               </form>
@@ -6928,8 +6992,10 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             <span>SWD ST — {tenantName} ({userProfile?.rankObj ? `[${userProfile.rankObj.short}] ` : ''}{userProfile?.displayName || userProfile?.email || '---'}) — [Rejestr wyjazdów]</span>
             <span style={{ marginLeft: '10px', fontSize: '9px', opacity: 0.6, fontWeight: 'normal' }}>v{APP_VERSION}</span>
           </div>
-          <div style={{ fontWeight: 'bold' }}>
-            {systemTime.toLocaleTimeString('pl-PL')}
+          <div style={{ display: 'flex', gap: '15px', fontWeight: 'bold' }}>
+            <span style={{ color: '#ffd43b', textShadow: '1px 1px 1px #000' }}>⭐ XP: {userProfile?.xp || 0}</span>
+            <span style={{ color: '#69db7c', textShadow: '1px 1px 1px #000' }}>💵 Budżet: {userProfile?.budget || 0} PLN</span>
+            <span>{systemTime.toLocaleTimeString('pl-PL')}</span>
           </div>
         </div>
         <div className="win-controls">
@@ -6944,7 +7010,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
         <div className="menu-item" onClick={() => setIsSystemMenuOpen(!isSystemMenuOpen)} style={{ position: 'relative', background: isSystemMenuOpen ? '#0a6ece' : '', color: isSystemMenuOpen ? '#fff' : '' }}>
           Plik
           {isSystemMenuOpen && (
-            <div style={{ position: 'absolute', top: '100%', left: 0, background: 'var(--win-face)', padding: '2px', zIndex: 10000, display: 'flex', flexDirection: 'column', minWidth: '220px', boxShadow: '2px 2px 5px rgba(0,0,0,0.4)', border: '1.5px solid #d1d1d1' }}>
+            <div style={{ position: 'absolute', top: '100%', left: 0, background: 'var(--win-face)', padding: '2px', zIndex: 10000, display: 'flex', flexDirection: 'column', minWidth: '220px', boxShadow: '2px 2px 5px rgba(0,0,0,0.4)', border: '1.5px solid var(--win-shadow)' }}>
               <div className="menu-item-dropdown" onClick={(e) => { e.stopPropagation(); setIsSystemMenuOpen(false); setIsShiftTransitionModalOpen(true); }} style={{ color: '#000', padding: '4px 10px', fontSize: '11px', textAlign: 'left', cursor: 'pointer' }}>
                 🔑 Rozpocznij nową służbę
               </div>
@@ -6957,7 +7023,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               <div className="menu-item-dropdown" onClick={(e) => { e.stopPropagation(); setIsSystemMenuOpen(false); wipeAndInitializeDb(); }} style={{ color: '#000', padding: '4px 10px', fontSize: '11px', textAlign: 'left', cursor: 'pointer' }}>
                 💣 Wyczyść i zainicjuj bazę danych
               </div>
-              <div style={{ height: '1px', background: '#d1d1d1', margin: '2px 0' }} />
+              <div style={{ height: '1px', background: 'var(--win-shadow)', margin: '2px 0' }} />
               <div className="menu-item-dropdown" onClick={(e) => { e.stopPropagation(); setIsSystemMenuOpen(false); handleLogout(); }} style={{ color: '#000', padding: '4px 10px', fontSize: '11px', textAlign: 'left', cursor: 'pointer' }}>
                 ✕ Wyjście z programu (Wyloguj)
               </div>
@@ -6995,12 +7061,12 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           🎮 Tryb Gry {isGameModeActive ? 'ON' : 'OFF'}
         </div>
         {isGameModeActive && (
-          <div className="menu-item" style={{ color: '#005fb8', fontWeight: 'bold', borderLeft: '1px solid #d1d1d1' }}>
+          <div className="menu-item" style={{ color: 'var(--win-blue)', fontWeight: 'bold', borderLeft: '1px solid var(--win-shadow)' }}>
             🏆 Wynik: {gameScore} pkt
           </div>
         )}
         {isGameModeActive && (
-          <div className="menu-item" style={{ borderLeft: '1px solid #d1d1d1', padding: '0 8px' }}>
+          <div className="menu-item" style={{ borderLeft: '1px solid var(--win-shadow)', padding: '0 8px' }}>
             <input 
               type="text" 
               placeholder="Miasta powiatu (np. Będzin, Czeladź)" 
@@ -7009,7 +7075,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 setGameModeCities(e.target.value);
                 localStorage.setItem('swd_game_cities', e.target.value);
               }}
-              style={{ fontSize: '10px', width: '200px', border: '1px solid #d1d1d1' }}
+              style={{ fontSize: '10px', width: '200px', border: '1px solid var(--win-shadow)' }}
             />
           </div>
         )}
@@ -7024,8 +7090,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 const newTenantId = e.target.value;
                 if (!newTenantId) return;
                 try {
-                  const { doc, updateDoc } = await import('firebase/firestore');
-                  const { db } = await import('./firebase');
+                  
+                  
                   await updateDoc(doc(db, 'users', auth.currentUser.uid), {
                     tenantId: newTenantId,
                   });
@@ -7035,7 +7101,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   alert('Nie udało się zmienić obszaru chronionego.');
                 }
               }}
-              style={{ fontSize: '10px', background: '#0a6ece', color: '#fff', border: '1px inset #d1d1d1', padding: '0 2px', cursor: 'pointer', outline: 'none', height: '18px', fontWeight: 'bold' }}
+              style={{ fontSize: '10px', background: '#0a6ece', color: '#fff', border: '1px inset var(--win-shadow)', padding: '0 2px', cursor: 'pointer', outline: 'none', height: '18px', fontWeight: 'bold' }}
               title="Zmień obszar chroniony (WSKR)"
             >
               <option value="120000">120000 - KW PSP KATOWICE</option>
@@ -7256,10 +7322,12 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 }}>
                     <MapContainer center={[50.2587, 19.0175]} zoom={11} style={{ height: '100%', width: '100%' }}>
                       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                      {incidents.filter(i => !i.isArchived && i.coords).map(inc => (
+                      {incidents.filter(i => !i.isArchived && i.status !== 'processed').map(inc => {
+                        const coords = inc.coords || getCoordinatesForLocation(inc.location, inc.tenantId);
+                        return (
                         <CircleMarker 
                           key={inc.id} 
-                          center={[parseFloat(inc.coords.lat), parseFloat(inc.coords.lng)]}
+                          center={[parseFloat(coords.lat), parseFloat(coords.lng)]}
                           radius={8}
                           color={inc.type?.toLowerCase().includes('pozar') ? '#d13438' : '#e67700'}
                           fillColor={inc.type?.toLowerCase().includes('pozar') ? '#f03e3e' : '#f59f00'}
@@ -7270,7 +7338,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                         >
                           <Popup>
                             <div style={{ fontSize: '11px', minWidth: '150px' }}>
-                              <strong style={{ color: '#005fb8' }}>{inc.customId}</strong><br/>
+                              <strong style={{ color: 'var(--win-blue)' }}>{inc.customId}</strong><br/>
                               Rodzaj: <strong>{inc.type}</strong><br/>
                               Adres: {inc.location}<br/>
                               Zastępy: {inc.vehicles?.length || 0}<br/>
@@ -7285,14 +7353,14 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             <span style={{ fontSize: '10px' }}>{inc.customId}</span>
                           </Tooltip>
                         </CircleMarker>
-                      ))}
+                      );
+                      })}
                     </MapContainer>
                   </div>
                 )}
 
                 <div style={{ display: incidentView === 'list' ? 'block' : 'none', height: '100%' }}>
-
-                <table className="swd-table-dark">
+                <table className="swd-table-incidents">
                   <thead>
                     <tr>
                       <th style={{ width: '40px', textAlign: 'center' }}>STAN</th>
@@ -7420,7 +7488,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                           <td>
                             {timeString}
                           </td>
-                          <td>{incident.tenantId === "Bedzin" ? "KP PSP Będzin" : (incident.tenantId ? `KM PSP ${incident.tenantId}` : "KM PSP")}</td>
+                          <td>{allTenants.find(t => t.id === incident.tenantId)?.name || (incident.tenantId === '120000' ? 'KW PSP KATOWICE' : (incident.tenantId ? `KM PSP ${incident.tenantId}` : "KM PSP"))}</td>
                           <td>{incident.targetJrg ? incident.targetJrg : (incident.location?.includes('Szopienice') || incident.location?.includes('Zawodzie') ? 'JRG 3' : (incident.location?.includes('Piotrowice') || incident.location?.includes('Ligota') ? 'JRG 2' : 'JRG 1'))}</td>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
@@ -7436,7 +7504,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                                   masowe: { color: '#e67700', bg: '#fff3e0', label: 'MAS.' },
                                   hbzn: { color: '#7c3aed', bg: '#f0e6ff', label: 'HBZN' },
                                   wielopow: { color: '#0c8599', bg: '#e3fafc', label: 'WP.' },
-                                  interwenc: { color: '#005fb8', bg: '#d0ebff', label: 'INT.' },
+                                  interwenc: { color: 'var(--win-blue)', bg: '#d0ebff', label: 'INT.' },
                                   katastrofa: { color: '#f03e3e', bg: '#fff5f5', label: 'KAT.' },
                                 };
                                 const fc = flagColors[flag] || { color: '#555', bg: '#f8f9fa', label: flag };
@@ -7451,7 +7519,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                               )}
                               {actionTypeLabel && <span style={{ fontSize: '7.5px', color: '#1864ab', border: '1px solid #1864ab', padding: '0 2px', borderRadius: '2px', fontWeight: 'bold' }}>{actionTypeLabel}</span>}
                               {incident.linkedCalls && incident.linkedCalls.length > 0 && (
-                                <span style={{ color: '#005fb8', fontSize: '8.5px', fontWeight: 'bold' }} title={`Zgłoszenia wtórne: ${incident.linkedCalls.length}`}>
+                                <span style={{ color: 'var(--win-blue)', fontSize: '8.5px', fontWeight: 'bold' }} title={`Zgłoszenia wtórne: ${incident.linkedCalls.length}`}>
                                   📞{incident.linkedCalls.length}
                                 </span>
                               )}
@@ -7492,10 +7560,10 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             <div className="forces-pane border-inset" style={{ position: 'relative' }}>
               
               {/* Tab selector */}
-              <div style={{ display: 'flex', background: 'var(--win-face)', borderBottom: '1.5px solid #d1d1d1', userSelect: 'none' }}>
+              <div style={{ display: 'flex', background: 'var(--win-face)', borderBottom: '1.5px solid var(--win-shadow)', userSelect: 'none' }}>
                 <button 
                   onClick={() => setRightPanelTab('sis')}
-                  style={{ flex: 1, fontSize: '9.5px', padding: '5px 4px', border: '1px solid transparent', borderBottom: 'none', background: rightPanelTab === 'sis' ? '#ffffff' : '#f3f3f3', color: '#000000', fontWeight: rightPanelTab === 'sis' ? 'bold' : 'normal', cursor: 'pointer', outline: 'none', borderTopLeftRadius: '2px', borderTopRightRadius: '2px', marginTop: '2px', borderTop: rightPanelTab === 'sis' ? '1.5px solid #d1d1d1' : 'none', borderLeft: rightPanelTab === 'sis' ? '1.5px solid #d1d1d1' : 'none', borderRight: rightPanelTab === 'sis' ? '1.5px solid #d1d1d1' : 'none' }}
+                  style={{ flex: 1, fontSize: '9.5px', padding: '5px 4px', border: '1px solid transparent', borderBottom: 'none', background: rightPanelTab === 'sis' ? '#ffffff' : '#f3f3f3', color: '#000000', fontWeight: rightPanelTab === 'sis' ? 'bold' : 'normal', cursor: 'pointer', outline: 'none', borderTopLeftRadius: '2px', borderTopRightRadius: '2px', marginTop: '2px', borderTop: rightPanelTab === 'sis' ? '1.5px solid var(--win-shadow)' : 'none', borderLeft: rightPanelTab === 'sis' ? '1.5px solid var(--win-shadow)' : 'none', borderRight: rightPanelTab === 'sis' ? '1.5px solid var(--win-shadow)' : 'none' }}
                 >
                   Wszystkie ({activeIncident?.vehicles?.length || 0})
                 </button>
@@ -7507,7 +7575,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 </button>
                 <button 
                   onClick={() => setRightPanelTab('sop')}
-                  style={{ flex: 1, fontSize: '9.5px', padding: '5px 4px', border: '1px solid transparent', borderBottom: 'none', background: rightPanelTab === 'sop' ? '#ffffff' : '#f3f3f3', color: '#000000', fontWeight: rightPanelTab === 'sop' ? 'bold' : 'normal', cursor: 'pointer', outline: 'none', borderTopLeftRadius: '2px', borderTopRightRadius: '2px', marginTop: '2px', borderTop: rightPanelTab === 'sop' ? '1.5px solid #d1d1d1' : 'none', borderLeft: rightPanelTab === 'sop' ? '1.5px solid #d1d1d1' : 'none', borderRight: rightPanelTab === 'sop' ? '1.5px solid #d1d1d1' : 'none' }}
+                  style={{ flex: 1, fontSize: '9.5px', padding: '5px 4px', border: '1px solid transparent', borderBottom: 'none', background: rightPanelTab === 'sop' ? '#ffffff' : '#f3f3f3', color: '#000000', fontWeight: rightPanelTab === 'sop' ? 'bold' : 'normal', cursor: 'pointer', outline: 'none', borderTopLeftRadius: '2px', borderTopRightRadius: '2px', marginTop: '2px', borderTop: rightPanelTab === 'sop' ? '1.5px solid var(--win-shadow)' : 'none', borderLeft: rightPanelTab === 'sop' ? '1.5px solid var(--win-shadow)' : 'none', borderRight: rightPanelTab === 'sop' ? '1.5px solid var(--win-shadow)' : 'none' }}
                 >
                   Algorytmy SOP
                 </button>
@@ -7522,20 +7590,20 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                         <span>🔒 <b>Zdarzenie Zablokowane</b> (prowadzi: inny dyspozytor)</span>
                         <button className="btn-win" style={{ padding: '2px 5px', color: 'red', fontWeight: 'bold' }} onClick={async () => {
                            if(window.confirm('Czy na pewno chcesz siłowo przejąć to zdarzenie? Zrób to tylko, jeśli poprzedni dyspozytor jest AFK.')) {
-                             const { updateDoc, doc } = await import('firebase/firestore');
+                             
                              await updateDoc(doc(db, 'incidents', activeIncident.id), { ownerId: userProfile.uid });
                              alert('Przejąłeś dowodzenie nad zdarzeniem.');
                            }
                         }}>Przejmij Zdarzenie</button>
                       </div>
                     )}
-                    <div style={{ display: 'flex', gap: '2px', padding: '2px 4px', background: 'var(--win-face)', borderBottom: '1px solid #d1d1d1' }}>
+                    <div style={{ display: 'flex', gap: '2px', padding: '2px 4px', background: 'var(--win-face)', borderBottom: '1px solid var(--win-shadow)' }}>
                       <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Wyjazd do akcji (ST 1)" onClick={() => { if(selectedSisVehicle) handleSetVehicleStatus(selectedSisVehicle, 1); else alert('Zaznacz zastęp na liście poniżej!'); }}>▶️</button>
                       <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px', opacity: (activeIncident?.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') ? 0.5 : 1 }} title="Na miejscu (ST 2)" onClick={() => { if (activeIncident?.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') { alert('Tylko komenda dowodząca (wysyłająca żądanie) może sterować tym statusem!'); return; } if(selectedSisVehicle) handleSetVehicleStatus(selectedSisVehicle, 2); else alert('Zaznacz zastęp na liście poniżej!'); }}>📍</button>
                       <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px', opacity: (activeIncident?.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') ? 0.5 : 1 }} title="Powrót / Zakończenie (ST 3)" onClick={() => { if (activeIncident?.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') { alert('Tylko komenda dowodząca (wysyłająca żądanie) może sterować tym statusem!'); return; } if(selectedSisVehicle) handleSetVehicleStatus(selectedSisVehicle, 3); else alert('Zaznacz zastęp na liście poniżej!'); }}>◀️</button>
                       <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px', opacity: (activeIncident?.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') ? 0.5 : 1 }} title="W koszarach (ST 4)" onClick={() => { if (activeIncident?.tenantId !== userProfile?.tenantId && userProfile?.role !== 'admin') { alert('Tylko komenda dowodząca (wysyłająca żądanie) może sterować tym statusem!'); return; } if(selectedSisVehicle) handleSetVehicleStatus(selectedSisVehicle, 4); else alert('Zaznacz zastęp na liście poniżej!'); }}>🏠</button>
                       <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px' }} title="Drukuj" onClick={() => setPrintPreviewMode('karta_manipulacyjna')}>🖨️</button>
-                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px', marginLeft: '5px', background: '#dbeafe', border: '1px solid #005fb8' }} title="Żądanie dysponowania KSiS" onClick={() => { setIsKsisSendModalOpen(true); setKsisSendFormData({ targetTenant: '', equipment: '', comment: '', incidentId: activeIncident?.id }); }}>Żądanie KSiS</button>
+                      <button className="btn-win" style={{ padding: '2px 6px', fontSize: '10px', marginLeft: '5px', background: '#dbeafe', border: '1px solid var(--win-blue)' }} title="Żądanie dysponowania KSiS" onClick={() => { setIsKsisSendModalOpen(true); setKsisSendFormData({ targetTenant: '', equipment: '', comment: '', incidentId: activeIncident?.id }); }}>Żądanie KSiS</button>
                     </div>
 
                     {/* SiS Table */}
@@ -7572,7 +7640,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                             
                             const isSelected = selectedSisVehicle === vStr;
                             if (isSelected) {
-                              statusBg = '#005fb8';
+                              statusBg = 'var(--win-blue)';
                               statusColor = '#ffffff';
                             }
                             
@@ -7607,7 +7675,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                         </tbody>
                       </table>
                     ) : (
-                      <div style={{ textAlign: 'center', color: '#d1d1d1', padding: '20px', fontSize: '10px' }}>
+                      <div style={{ textAlign: 'center', color: 'var(--win-shadow)', padding: '20px', fontSize: '10px' }}>
                         Brak przypisanych sił i środków.
                       </div>
                     )}
@@ -7617,7 +7685,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   <div style={{ padding: '8px', color: '#000000' }}>
                     {activeIncident ? (
                       <>
-                        <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#005fb8', borderBottom: '1px dashed #f3f3f3', paddingBottom: '3px', marginBottom: '8px', textTransform: 'uppercase' }}>
+                        <div style={{ fontSize: '9px', fontWeight: 'bold', color: 'var(--win-blue)', borderBottom: '1px dashed #f3f3f3', paddingBottom: '3px', marginBottom: '8px', textTransform: 'uppercase' }}>
                           Standardowa procedura (Str. 54): {activeIncident.type === 'pozar' ? 'POŻAR' : activeIncident.type === 'mz' ? 'MIEJSCOWE ZAGROŻENIE' : 'ALARM FAŁSZYWY'}
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -7675,7 +7743,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                         </div>
                       </>
                     ) : (
-                      <div style={{ textAlign: 'center', color: '#d1d1d1', padding: '20px', fontSize: '10px' }}>
+                      <div style={{ textAlign: 'center', color: 'var(--win-shadow)', padding: '20px', fontSize: '10px' }}>
                         Zaznacz aktywne zdarzenie w rejestrze, aby otworzyć procedury SOP.
                       </div>
                     )}
@@ -7712,10 +7780,10 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: '#8b008b', fontWeight: 'bold' }} onClick={() => handleSetVehicleStatus(activeContextMenuVehicle, 2)}>L Lokalizacja zagrożenia</button>
                   <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: '#2b8a3e', fontWeight: 'bold' }} onClick={() => handleSetVehicleStatus(activeContextMenuVehicle, 3)}>◀️ Zakończenie działań</button>
                   <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: '#2b8a3e', fontWeight: 'bold' }} onClick={() => handleSetVehicleStatus(activeContextMenuVehicle, 4)}>🏠 Powrót do bazy</button>
-                  <div style={{ height: '1px', backgroundColor: '#d1d1d1', margin: '2px 0' }} />
+                  <div style={{ height: '1px', backgroundColor: 'var(--win-shadow)', margin: '2px 0' }} />
                   
                   {activeIncident && activeIncident.type === 'pzr' && (
-                    <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: '#005fb8' }} onClick={() => handleReturnPzrVehicle(activeContextMenuVehicle)}>↩️ Zwróć sprzęt (Koniec zabezpiecz.)</button>
+                    <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: 'var(--win-blue)' }} onClick={() => handleReturnPzrVehicle(activeContextMenuVehicle)}>↩️ Zwróć sprzęt (Koniec zabezpiecz.)</button>
                   )}
 
                   <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none' }} onClick={() => {
@@ -7737,9 +7805,9 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   {activeContextMenuVehicle.includes('JRG') && (
                     <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: '#0b7285' }} onClick={() => triggerDwaPrinter(activeContextMenuVehicle.split(' | ')[0])}>🖨️ Formatka DWA</button>
                   )}
-                  <div style={{ height: '1px', backgroundColor: '#d1d1d1', margin: '2px 0' }} />
+                  <div style={{ height: '1px', backgroundColor: 'var(--win-shadow)', margin: '2px 0' }} />
                   <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: '#000' }} onClick={() => handleEditKryptonim(activeContextMenuVehicle)}>✏️ Edytuj Kryptonim</button>
-                  <div style={{ height: '1px', backgroundColor: '#d1d1d1', margin: '2px 0' }} />
+                  <div style={{ height: '1px', backgroundColor: 'var(--win-shadow)', margin: '2px 0' }} />
                   <button className="btn-win" style={{ justifyContent: 'flex-start', padding: '3px 8px', border: 'none', boxShadow: 'none', color: '#d13438' }} onClick={() => removeVehicleFromActiveIncident(activeContextMenuVehicle)}>❌ Wycofaj zastęp (Błąd)</button>
                 </div>
               )}
@@ -7747,7 +7815,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               {/* Ewidencja Hydrantow Nearby Search Display */}
               {activeIncident && (
                 <div className="border-inset" style={{ padding: '6px', background: 'var(--win-face)', borderRadius: '4px', margin: '4px' }}>
-                  <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#005fb8', textTransform: 'uppercase', marginBottom: '4px' }}>
+                  <div style={{ fontSize: '9px', fontWeight: 'bold', color: 'var(--win-blue)', textTransform: 'uppercase', marginBottom: '4px' }}>
                     💧 Zaopatrzenie Wodne (Ewidencja Hydr-ST)
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -7773,7 +7841,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 <div style={{ flex: 1, overflowY: 'auto', padding: '6px', background: '#ffffff', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {messages.map((m, idx) => (
                     <div key={idx} style={{ fontSize: '10px', background: m.priority === 'urgent' ? '#ffe3e3' : m.priority === 'confirm' ? '#fff9db' : '#f8f9fa', border: m.priority === 'urgent' ? '1.5px solid #e03131' : '1px solid #f3f3f3', padding: '5px 8px', borderRadius: '3px', color: '#000000' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: m.priority === 'urgent' ? '#d13438' : '#005fb8', fontWeight: 'bold', marginBottom: '2px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: m.priority === 'urgent' ? '#d13438' : 'var(--win-blue)', fontWeight: 'bold', marginBottom: '2px' }}>
                         <span>{m.sender} ({m.senderUnit}) {m.recipient && m.recipient !== 'Wszyscy' ? `➔ ${m.recipient.replace("JRG nr ", "JRG ").replace("OSP ", "")}` : ''}</span>
                         <span style={{ color: '#868e96' }}>
                           {m.createdAt ? (m.createdAt.toDate ? m.createdAt.toDate().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }) : '') : ''}
@@ -7879,7 +7947,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 {/* --- OLD DZIENNIK RADIOWY REMOVED --- */}
 {/* --- DZIENNIK RADIOWY WIDGET --- */}
         <div style={{ position: 'fixed', bottom: '26px', right: '5px', width: '320px', zIndex: 9999, display: 'flex', flexDirection: 'column', pointerEvents: 'none' }}>
-          <div style={{ pointerEvents: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#e0e0e0', border: '1px solid #a0a0a0', padding: '2px 5px', cursor: 'pointer', borderTopLeftRadius: '3px', borderTopRightRadius: '3px' }} onClick={() => setIsRadioLogOpen(!isRadioLogOpen)}>
+          <div style={{ pointerEvents: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--win-bg)', border: '1px solid #a0a0a0', padding: '2px 5px', cursor: 'pointer', borderTopLeftRadius: '3px', borderTopRightRadius: '3px' }} onClick={() => setIsRadioLogOpen(!isRadioLogOpen)}>
             <strong style={{ fontSize: '10px' }}>📻 Dziennik Radiowy (KRG/KSW)</strong>
             <button style={{ border: 'none', background: 'none', fontSize: '10px', fontWeight: 'bold' }}>{isRadioLogOpen ? '▼' : '▲'}</button>
           </div>
@@ -7952,11 +8020,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
           <div className="status-bar-cell" style={{ flex: 1, minWidth: 0 }}>
             {activeIncident ? (
-              <span style={{ color: '#005fb8', fontWeight: 'bold', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ color: 'var(--win-blue)', fontWeight: 'bold', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 Zdarzenie: {activeIncident.customId} | {activeIncident.location}
               </span>
             ) : (
-              <span style={{ color: '#d1d1d1' }}>Rejestr wyjazdów PSP — KM/KP PSP</span>
+              <span style={{ color: 'var(--win-shadow)' }}>Rejestr wyjazdów PSP — KM/KP PSP</span>
             )}
           </div>
           <div className="status-bar-cell" style={{ minWidth: '90px' }}>
@@ -7986,17 +8054,17 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               <h3 style={{ fontSize: '14px', marginBottom: '10px' }}>Witaj w symulatorze SWD 2.0!</h3>
               <p>System Wspomagania Decyzji to aplikacja symulująca pracę dyspozytora PSP. Zarządzaj siłami i środkami w swoim powiecie.</p>
               
-              <h4 style={{ marginTop: '15px', color: '#005fb8' }}>Zasady działania dla nowych graczy:</h4>
+              <h4 style={{ marginTop: '15px', color: 'var(--win-blue)' }}>Zasady działania dla nowych graczy:</h4>
               <ul style={{ paddingLeft: '20px', marginBottom: '15px' }}>
                 <li><strong>Rejestracja i Komendy:</strong> Podczas rejestracji wybierasz województwo i powiat, aby utworzyć własną jednostkę lub dołączyć do istniejącej.</li>
                 <li><strong>Dysponowanie Sił:</strong> Kliknij zdarzenie na liście, by zobaczyć szczegóły. Używaj przycisków w dolnej części panelu (Zadysponuj, Dojazd, Na miejscu, Powrót), by sterować zastępami.</li>
                 <li><strong>Meldunki i KSiS:</strong> W prawej kolumnie możesz wpisywać meldunki do Dziennika Radiowego. Moduł KSiS służy do komunikacji tekstowej i wymiany sił z innymi dyspozytorami.</li>
                 <li><strong>Tryb Gry:</strong> Możesz go włączyć w pasku na górze. Wpisz nazwy miast z Twojego powiatu (po przecinku), aby system generował zgłoszenia i wezwania z tych miejscowości.</li>
-                <li><strong style={{color:'#005fb8'}}>Generator AI (Gemini):</strong> Zdarzenia mogą być wymyślane przez Sztuczną Inteligencję! W tym celu wejdź w Ustawienia &gt; Wklej klucz API. Jak go zdobyć? Wejdź na <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{color: 'blue', textDecoration: 'underline'}}>Google AI Studio</a>, zaloguj się kontem Google, kliknij "Create API key" i wklej go do gry. Klucz jest zapisywany w 100% bezpiecznie TYLKO na Twoim dysku (localStorage).</li>
+                <li><strong style={{color:'var(--win-blue)'}}>Generator AI (Gemini):</strong> Zdarzenia mogą być wymyślane przez Sztuczną Inteligencję! W tym celu wejdź w Ustawienia &gt; Wklej klucz API. Jak go zdobyć? Wejdź na <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{color: 'blue', textDecoration: 'underline'}}>Google AI Studio</a>, zaloguj się kontem Google, kliknij "Create API key" i wklej go do gry. Klucz jest zapisywany w 100% bezpiecznie TYLKO na Twoim dysku (localStorage).</li>
               </ul>
 
-              <h4 style={{ marginTop: '20px', color: '#005fb8' }}>Changelog (Ostatnie Zmiany):</h4>
-              <div style={{ background: '#f5f5f5', padding: '10px', border: '1px solid #d1d1d1' }}>
+              <h4 style={{ marginTop: '20px', color: 'var(--win-blue)' }}>Changelog (Ostatnie Zmiany):</h4>
+              <div style={{ background: '#f5f5f5', padding: '10px', border: '1px solid var(--win-shadow)' }}>
                 <p><strong>v0.2.0 beta (Nowy wygląd Tablicy SiS i zabezpieczenie klucza AI)</strong></p><ul><li>Upodobnienie Tablicy SiS (kolumn jednostek) bezpośrednio do rzutu z oryginalnego SWD-ST (kwadratowe ikony, układ tekstu, zmniejszone marginesy).</li><li>Przeniesienie zapisu klucza Gemini API do bezpiecznego localStorage, omijając bazę danych w chmurze.</li></ul><p style={{ marginTop: "10px" }}><strong>v0.1.1 beta (Aktualizacja zabezpieczeń i dynamicznych komend)</strong></p>
                 <ul style={{ paddingLeft: '20px' }}>
                   <li>Zabezpieczenia kont: Auto-wylogowanie po 30 min bezczynności, weryfikacja emaili, zwalczanie brute-force.</li>
@@ -8013,7 +8081,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 </ul>
               </div>
             </div>
-            <div style={{ padding: '10px', textAlign: 'right', borderTop: '1px solid #d1d1d1', backgroundColor: 'var(--win-face)' }}>
+            <div style={{ padding: '10px', textAlign: 'right', borderTop: '1px solid var(--win-shadow)', backgroundColor: 'var(--win-face)' }}>
               <button className="btn-win" onClick={() => setShowHelpModal(false)} style={{ padding: '4px 15px', fontWeight: 'bold' }}>Zamknij</button>
             </div>
           </div>
@@ -8075,7 +8143,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             </div>
             <div className="win-dialog-content" style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ fontSize: '11px', color: '#333', marginBottom: '8px' }}>Edytuj kryptonimy i usuwaj/dodawaj pojazdy w poszczególnych jednostkach.</div>
-              <div style={{ maxHeight: '350px', overflowY: 'auto', border: '1px solid #d1d1d1', background: '#fff', padding: '4px' }}>
+              <div style={{ maxHeight: '350px', overflowY: 'auto', border: '1px solid var(--win-shadow)', background: '#fff', padding: '4px' }}>
                 {Object.keys(tenantVehicles).map(unit => (
                   <div key={unit} style={{ marginBottom: '10px' }}>
                     <div style={{ fontWeight: 'bold', backgroundColor: '#e3e3e3', padding: '4px', fontSize: '11px' }}>{unit}</div>
@@ -8095,7 +8163,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                               <input 
                                 type="text" 
                                 value={veh.kryptonim || ''} 
-                                style={{ width: '100%', fontSize: '10px', border: '2px groove threedface' }}
+                                style={{ width: '100%', fontSize: '10px', border: '2px solid #f1f5f9' }}
                                 onChange={(e) => {
                                   const updatedVehicles = { ...tenantVehicles };
                                   updatedVehicles[unit] = updatedVehicles[unit].map(v => 
@@ -8154,7 +8222,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsShiftTransitionModalOpen(false)}>X</button>
             </div>
             <div className="win-dialog-body">
-              <div style={{ fontSize: '10px', color: '#555', borderBottom: '1px solid #d1d1d1', paddingBottom: '4px', marginBottom: '10px' }}>
+              <div style={{ fontSize: '10px', color: '#555', borderBottom: '1px solid var(--win-shadow)', paddingBottom: '4px', marginBottom: '10px' }}>
                 Zgodnie z Rozdziałem 7.11 instrukcji, rozpoczęcie nowej służby wyzeruje imienne obsady i statusy wozów dla trwających akcji operacyjnych.
               </div>
 
@@ -8167,10 +8235,10 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 </select>
               </div>
 
-              <div style={{ fontSize: '9.5px', fontWeight: 'bold', color: '#005fb8', marginTop: '10px', marginBottom: '6px', textTransform: 'uppercase' }}>
+              <div style={{ fontSize: '9.5px', fontWeight: 'bold', color: 'var(--win-blue)', marginTop: '10px', marginBottom: '6px', textTransform: 'uppercase' }}>
                 Nieobecni na zmianie (Str. 35 instrukcji):
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: '#ffffff', padding: '8px', border: '1px solid #d1d1d1', marginBottom: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: '#ffffff', padding: '8px', border: '1px solid var(--win-shadow)', marginBottom: '12px' }}>
                 <label style={{ fontSize: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   Urlopy:
                   <input type="number" className="input-field" style={{ width: '50px', padding: '1px' }} value={absentUrlop} onChange={(e) => setAbsentUrlop(parseInt(e.target.value, 10))} />
@@ -8243,12 +8311,12 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsMergeModalOpen(false)}>X</button>
             </div>
             <div className="win-dialog-body">
-              <div style={{ fontSize: '10px', color: '#555', borderBottom: '1px solid #d1d1d1', paddingBottom: '4px', marginBottom: '10px' }}>
+              <div style={{ fontSize: '10px', color: '#555', borderBottom: '1px solid var(--win-shadow)', paddingBottom: '4px', marginBottom: '10px' }}>
                 Wybierz aktywne zdarzenie z bufora, które chcesz scalić z obecnie wybranym zdarzeniem <strong>{activeIncident.customId}</strong>.
                 Wszystkie zadysponowane wozy, logi radiowe oraz zgłoszenia wtórne zostaną przeniesione. Proces ten jest nieodwracalny.
               </div>
 
-              <div style={{ maxHeight: '160px', overflowY: 'auto', background: '#ffffff', border: '1px solid #d1d1d1', padding: '4px' }}>
+              <div style={{ maxHeight: '160px', overflowY: 'auto', background: '#ffffff', border: '1px solid var(--win-shadow)', padding: '4px' }}>
                 {incidents.filter(inc => inc.id !== activeIncident.id && inc.status !== 'processed' && !inc.isArchived).map(inc => (
                   <div 
                     key={inc.id} 
@@ -8269,7 +8337,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   </div>
                 ))}
                 {incidents.filter(inc => inc.id !== activeIncident.id && inc.status !== 'processed' && !inc.isArchived).length === 0 && (
-                  <div style={{ color: '#d1d1d1', textAlign: 'center', padding: '20px', fontSize: '10px' }}>Brak innych aktywnych zdarzeń w buforze.</div>
+                  <div style={{ color: 'var(--win-shadow)', textAlign: 'center', padding: '20px', fontSize: '10px' }}>Brak innych aktywnych zdarzeń w buforze.</div>
                 )}
               </div>
 
@@ -8292,12 +8360,12 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsTransferModalOpen(false)}>X</button>
             </div>
             <div className="win-dialog-body">
-              <div style={{ fontSize: '10px', color: '#555', borderBottom: '1px solid #d1d1d1', paddingBottom: '4px', marginBottom: '10px' }}>
+              <div style={{ fontSize: '10px', color: '#555', borderBottom: '1px solid var(--win-shadow)', paddingBottom: '4px', marginBottom: '10px' }}>
                 Wybierz jednostkę dyspozytorską (innego Gracza), której chcesz przekazać obsługę zdarzenia <strong>{activeIncident.customId}</strong>.
                 Zdarzenie zniknie z Twojego bufora i pojawi się w buforze docelowej jednostki. (Rozdz. 8.9)
               </div>
 
-              <div style={{ maxHeight: '160px', overflowY: 'auto', background: '#ffffff', border: '1px solid #d1d1d1', padding: '4px' }}>
+              <div style={{ maxHeight: '160px', overflowY: 'auto', background: '#ffffff', border: '1px solid var(--win-shadow)', padding: '4px' }}>
                 <div 
                   style={{ padding: '4px 8px', borderBottom: '1px solid #e9ecef', cursor: 'pointer', fontSize: '11px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                   onClick={() => handleTransferIncident('KM_Tychy')}
@@ -8407,8 +8475,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   boxShadow: '3px 3px 10px rgba(0,0,0,0.5)'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', marginBottom: '6px' }}>
-                  <strong style={{ fontSize: '9px', color: isUrgent ? '#d13438' : '#005fb8' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--win-shadow)', paddingBottom: '3px', marginBottom: '6px' }}>
+                  <strong style={{ fontSize: '9px', color: isUrgent ? '#d13438' : 'var(--win-blue)' }}>
                     {isUrgent ? '🚨 PILNY KOMUNIKAT' : '✉️ NOWA WIADOMOŚĆ'}
                   </strong>
                   <button 
@@ -8441,7 +8509,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
       {activeKsisPopups.length > 0 && (
         <div style={{ position: 'fixed', bottom: '400px', right: '15px', zIndex: 99999, display: 'flex', flexDirection: 'column', gap: '8px', width: '300px' }}>
           {activeKsisPopups.map((popup) => (
-            <div key={popup.id} className="border-outset" style={{ background: '#ffffe0', border: '2px solid #f3f3f3', padding: '8px', boxShadow: '3px 3px 10px rgba(0,0,0,0.5)', cursor: 'pointer' }} onClick={() => {
+            <div key={popup.id} className="border-outset" style={{ background: 'var(--win-face)', padding: '8px', cursor: 'pointer', border: '1px solid #000' }} onClick={() => {
                 setActiveKsisPopups(prev => prev.filter(p => p.id !== popup.id));
                 const fakeCall = {
                   id: popup.id,
@@ -8458,8 +8526,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 setSelectedWcprCallForModal(fakeCall);
                 setIsWcprCallModalOpen(true);
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', marginBottom: '6px' }}>
-                <strong style={{ fontSize: '9px', color: '#005fb8' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--win-shadow)', paddingBottom: '3px', marginBottom: '6px' }}>
+                <strong style={{ fontSize: '9px', color: 'var(--win-blue)' }}>
                   ✉️ Żądanie zadysponowania (KSiS)
                 </strong>
                 <button 
@@ -8486,17 +8554,17 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
       {/* KSiS Send Modal */}
       {isKsisSendModalOpen && (
         <div className="win-dialog-overlay" style={{ zIndex: 100000 }}>
-          <div className="win-dialog border-outset" style={{ width: '400px' }}>
-            <div className="win-dialog-header">
+          <div className="win-dialog border-outset" style={{ width: '400px', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--win-face)' }}>
+            <div className="win-titlebar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>Żądanie dyspozycji KSiS</span>
-              <button className="btn-win" style={{ padding: '1px 5px', fontSize: '9px', fontWeight: 'bold' }} onClick={() => setIsKsisSendModalOpen(false)}>X</button>
+              <button className="win-titlebar-close" onClick={() => setIsKsisSendModalOpen(false)}>X</button>
             </div>
-            <div className="win-dialog-body" style={{ background: 'var(--win-face)', padding: '15px' }}>
+            <div className="border-inset" style={{ margin: '8px', padding: '12px', flex: 1, backgroundColor: '#fff', fontSize: '11px' }}>
               <div style={{ marginBottom: '10px' }}>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Do kogo wysłać? (Wybierz adresata):</label>
                 <select 
-                  className="win-input"
-                  style={{ width: '100%', fontSize: '11px', padding: '3px' }} 
+                  className="input-field"
+                  style={{ width: '100%' }} 
                   value={ksisSendFormData.targetTenant} 
                   onChange={(e) => setKsisSendFormData(prev => ({ ...prev, targetTenant: e.target.value }))}
                 >
@@ -8533,7 +8601,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               </div>
               <div style={{ textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                 <button className="btn-win" style={{ padding: '4px 12px', fontSize: '11px' }} onClick={() => setIsKsisSendModalOpen(false)}>Anuluj</button>
-                <button className="btn-win" style={{ padding: '4px 12px', fontSize: '11px', fontWeight: 'bold', color: '#005fb8' }} onClick={async () => {
+                <button className="btn-win" style={{ padding: '4px 12px', fontSize: '11px', fontWeight: 'bold', color: 'var(--win-blue)' }} onClick={async () => {
                   if (!ksisSendFormData.targetTenant) return alert("Wybierz jednostkę docelową!");
                   if (!ksisSendFormData.equipment) return alert("Wpisz sprzęt do zadysponowania!");
                   if (!ksisSendFormData.incidentId) return alert("Brak aktywnego zdarzenia do którego chcesz zadysponować siły!");
@@ -8580,18 +8648,18 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               
               {/* Tabs */}
               <div style={{ display: 'flex', gap: '2px', borderBottom: '1px solid #ccc', paddingLeft: '4px' }}>
-                <div style={{ background: '#fff', padding: '6px 15px', border: '2px groove threedface', borderBottom: 'none', borderTopLeftRadius: '4px', borderTopRightRadius: '4px', fontWeight: 'bold', fontSize: '12px' }}>Nowe zgłoszenie</div>
-                <div style={{ background: '#e0e0e0', padding: '6px 15px', border: '2px groove threedface', borderBottom: 'none', borderTopLeftRadius: '4px', borderTopRightRadius: '4px', fontSize: '12px', color: '#666', marginTop: '2px' }}>SI WCPR {selectedWcprCallForModal.id?.substring(0, 4)}</div>
+                <div style={{ background: '#fff', padding: '6px 15px', border: '2px solid #f1f5f9', borderBottom: 'none', borderTopLeftRadius: '4px', borderTopRightRadius: '4px', fontWeight: 'bold', fontSize: '12px' }}>Nowe zgłoszenie</div>
+                <div style={{ background: 'var(--win-bg)', padding: '6px 15px', border: '2px solid #f1f5f9', borderBottom: 'none', borderTopLeftRadius: '4px', borderTopRightRadius: '4px', fontSize: '12px', color: '#666', marginTop: '2px' }}>SI WCPR {selectedWcprCallForModal.id?.substring(0, 4)}</div>
               </div>
 
               {/* Main Content Area */}
-              <div style={{ display: 'flex', flex: 1, border: '2px groove threedface', borderTop: 'none', background: '#fff', padding: '10px', borderRadius: '0 0 4px 4px', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', flex: 1, border: '2px solid #f1f5f9', borderTop: 'none', background: '#fff', padding: '10px', borderRadius: '0 0 4px 4px', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.05)' }}>
                 
                 {/* Left Column - Zgłoszenia */}
                 <div style={{ width: '150px', borderRight: '1px solid #ccc', paddingRight: '10px', display: 'flex', flexDirection: 'column', marginRight: '10px' }}>
                   <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '4px', color: '#333' }}>Lista zgłoszeń SI WCPR</div>
-                  <div style={{ flex: 1, background: '#f9f9f9', border: '2px groove threedface', borderRadius: '4px', overflowY: 'auto', padding: '2px' }}>
-                    <div style={{ padding: '6px', fontSize: '11px', background: '#005fb8', color: '#fff', borderRadius: '2px' }}>ZG/{selectedWcprCallForModal.id?.substring(0, 4)}</div>
+                  <div style={{ flex: 1, background: '#f9f9f9', border: '2px solid #f1f5f9', borderRadius: '4px', overflowY: 'auto', padding: '2px' }}>
+                    <div style={{ padding: '6px', fontSize: '11px', background: 'var(--win-blue)', color: '#fff', borderRadius: '2px' }}>ZG/{selectedWcprCallForModal.id?.substring(0, 4)}</div>
                   </div>
                 </div>
 
@@ -8601,8 +8669,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   {/* Top Section */}
                   <div style={{ display: 'flex', gap: '4px' }}>
                     {/* Lokalizacja zgłaszającego */}
-                    <fieldset style={{ flex: 1, border: '2px groove threedface', padding: '8px', margin: 0, borderRadius: '4px', background: '#fafafa' }}>
-                      <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#005fb8' }}>Lokalizacja zgłaszającego</legend>
+                    <fieldset style={{ flex: 1, border: '2px solid #f1f5f9', padding: '8px', margin: 0, borderRadius: '4px', background: '#fafafa' }}>
+                      <legend style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--win-blue)' }}>Lokalizacja zgłaszającego</legend>
                       <div style={{ fontSize: '10px', color: '#666', marginBottom: '8px' }}>WOJ. ŚLĄSKIE / POWIAT / gm.</div>
                       
                       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
@@ -8633,8 +8701,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     </fieldset>
 
                     {/* Zgłaszający */}
-                    <fieldset style={{ width: '220px', border: '2px groove threedface', padding: '8px', margin: 0, borderRadius: '4px', background: '#fafafa' }}>
-                      <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#005fb8' }}>Zgłaszający</legend>
+                    <fieldset style={{ width: '220px', border: '2px solid #f1f5f9', padding: '8px', margin: 0, borderRadius: '4px', background: '#fafafa' }}>
+                      <legend style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--win-blue)' }}>Zgłaszający</legend>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                           <span style={{ fontSize: '11px', width: '60px', fontWeight: '500' }}>Imię</span>
@@ -8659,8 +8727,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   {/* Middle/Bottom Split */}
                   <div style={{ display: 'flex', gap: '8px', flex: 1, marginTop: '8px' }}>
                     {/* Left: Zdarzenie */}
-                    <fieldset style={{ flex: 1, border: '2px groove threedface', padding: '8px', margin: 0, display: 'flex', flexDirection: 'column', borderRadius: '4px', background: '#fafafa' }}>
-                      <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#005fb8' }}>Zdarzenie: ZD/{selectedWcprCallForModal.id?.substring(0, 4)}</legend>
+                    <fieldset style={{ flex: 1, border: '2px solid #f1f5f9', padding: '8px', margin: 0, display: 'flex', flexDirection: 'column', borderRadius: '4px', background: '#fafafa' }}>
+                      <legend style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--win-blue)' }}>Zdarzenie: ZD/{selectedWcprCallForModal.id?.substring(0, 4)}</legend>
                       
                       <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
                         <span style={{ fontSize: '11px', width: '40px', fontWeight: '500' }}>Data</span>
@@ -8716,6 +8784,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                       <div style={{ display: 'flex', gap: '6px', marginTop: '6px', alignItems: 'center' }}>
                         <span style={{ fontSize: '11px', width: '70px', fontWeight: 'bold', color: '#b91c1c' }}>Rejon JRG</span>
                         <select className="win-input" style={{ flex: 1, background: '#fff', border: '1px solid #b91c1c', fontWeight: 'bold' }} value={wcprTargetJrg} onChange={(e) => setWcprTargetJrg(e.target.value)}>
+                          <option value="" disabled>-- Wybierz Rejon JRG --</option>
                           {JRG_UNITS.map(j => <option key={j} value={j}>{j}</option>)}
                         </select>
                       </div>
@@ -8724,8 +8793,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
                     {/* Right: Opisy & Table */}
                     <div style={{ width: '270px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <fieldset style={{ flex: 1, border: '2px groove threedface', padding: '8px', margin: 0, display: 'flex', flexDirection: 'column', borderRadius: '4px', background: '#fafafa' }}>
-                        <legend style={{ fontSize: '11px', fontWeight: 'bold', color: '#005fb8' }}>Opis zdarzenia</legend>
+                      <fieldset style={{ flex: 1, border: '2px solid #f1f5f9', padding: '8px', margin: 0, display: 'flex', flexDirection: 'column', borderRadius: '4px', background: '#fafafa' }}>
+                        <legend style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--win-blue)' }}>Opis zdarzenia</legend>
                         <textarea 
                           className="win-input" 
                           style={{ flex: 1, resize: 'none', fontSize: '11px', fontFamily: 'var(--font-mono)', background: '#fff' }} 
@@ -8734,7 +8803,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                         />
                       </fieldset>
                       
-                      <div style={{ border: '2px groove threedface', background: '#fff', height: '90px', overflowY: 'auto', borderRadius: '4px' }}>
+                      <div style={{ border: '2px solid #f1f5f9', background: '#fff', height: '90px', overflowY: 'auto', borderRadius: '4px' }}>
                         <table style={{ width: '100%', fontSize: '10px', borderCollapse: 'collapse' }}>
                           <thead style={{ background: 'var(--win-face)', borderBottom: '1px solid #ccc' }}>
                             <tr>
@@ -8770,7 +8839,8 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '10px' }}>
                 <button 
                   className="btn-win" 
-                  style={{ width: '100px', fontWeight: 'bold', background: '#2b8a3e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                  disabled={!wcprTargetJrg}
+                  style={{ width: '100px', fontWeight: 'bold', background: wcprTargetJrg ? '#2b8a3e' : '#cbd5e1', color: wcprTargetJrg ? '#fff' : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', cursor: wcprTargetJrg ? 'pointer' : 'not-allowed' }}
                   onClick={() => proceedWithCallAccept(selectedWcprCallForModal)}
                 >
                   <span style={{ fontSize: '14px' }}>✔️</span> Przyjmij
@@ -8817,7 +8887,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               </div>
               <div className="win-dialog-body" style={{ background: 'var(--win-face)', padding: '12px' }}>
                 <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '6px' }}>Otrzymano formatkę zgłoszeniową z CPR:</div>
-                <div style={{ background: '#fff', border: '1px solid #d1d1d1', padding: '10px', fontSize: '11px', fontFamily: 'var(--font-mono)', minHeight: '120px', whiteSpace: 'pre-wrap', marginBottom: '12px' }}>
+                <div style={{ background: '#fff', border: '1px solid var(--win-shadow)', padding: '10px', fontSize: '11px', fontFamily: 'var(--font-mono)', minHeight: '120px', whiteSpace: 'pre-wrap', marginBottom: '12px' }}>
                   {activeIncident.description}
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
@@ -8851,21 +8921,21 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               
               {/* ZAKŁADKI KARTY ZDARZENIA */}
               <div style={{ display: 'flex', borderBottom: '1px solid #ccc', marginBottom: '5px', background: '#e1e1e1', paddingTop: '2px', paddingLeft: '4px' }}>
-                <div style={{ padding: '2px 8px', border: '1px solid #999', borderBottom: 'none', background: '#fff', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'default' }}>
+                <div style={{ padding: '2px 8px', border: '1px solid var(--win-shadow)', borderBottom: 'none', background: '#fff', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'default' }}>
                    <img src="https://img.icons8.com/color/48/000000/google-logo.png" style={{width: 12, height: 12}} alt="G"/> ZG{activeIncident?.customId?.replace('-', '/') || ''}
                 </div>
-                <div style={{ padding: '2px 8px', border: '1px solid #999', borderBottom: 'none', background: 'var(--win-face)', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'default', color: '#555' }}>
+                <div style={{ padding: '2px 8px', border: '1px solid var(--win-shadow)', borderBottom: 'none', background: 'var(--win-face)', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'default', color: '#555' }}>
                    <img src="https://img.icons8.com/color/48/000000/c-key.png" style={{width: 12, height: 12}} alt="C"/> SI WCPR ZD/{activeIncident?.id?.substring(0,4).toUpperCase() || 'NOWE'}/{activeIncident?.tenantId?.substring(0,3).toUpperCase() || 'KAT'}/{new Date().getFullYear()}
                 </div>
               </div>
-              <div style={{ display: 'flex', borderBottom: '1px solid #999', marginBottom: '5px' }}>
+              <div style={{ display: 'flex', borderBottom: '1px solid var(--win-shadow)', marginBottom: '5px' }}>
                 <button 
                   onClick={() => setIncidentModalTab('formatka')}
-                  style={{ padding: '5px 15px', fontWeight: incidentModalTab === 'formatka' ? 'bold' : 'normal', background: incidentModalTab === 'formatka' ? '#fff' : '#f0f0f0', border: '1px solid #999', borderBottom: incidentModalTab === 'formatka' ? '1px solid #fff' : '1px solid #999', marginBottom: '-1px', zIndex: incidentModalTab === 'formatka' ? 1 : 0, borderRadius: '3px 3px 0 0', borderLeft: '1px solid #f3f3f3', marginLeft: '4px' }}
+                  style={{ padding: '5px 15px', fontWeight: incidentModalTab === 'formatka' ? 'bold' : 'normal', background: incidentModalTab === 'formatka' ? '#fff' : 'var(--win-face)', border: '1px solid var(--win-shadow)', borderBottom: incidentModalTab === 'formatka' ? '1px solid #fff' : '1px solid var(--win-shadow)', marginBottom: '-1px', zIndex: incidentModalTab === 'formatka' ? 1 : 0, borderRadius: '3px 3px 0 0', borderLeft: '1px solid #f3f3f3', marginLeft: '4px' }}
                 >Karta Zdarzenia PSP</button>
                 <button 
                   onClick={() => setIncidentModalTab('dziennik')}
-                  style={{ padding: '5px 15px', fontWeight: incidentModalTab === 'dziennik' ? 'bold' : 'normal', background: incidentModalTab === 'dziennik' ? '#fff' : '#f0f0f0', border: '1px solid #999', borderBottom: incidentModalTab === 'dziennik' ? '1px solid #fff' : '1px solid #999', marginBottom: '-1px', zIndex: incidentModalTab === 'dziennik' ? 1 : 0, marginLeft: '2px', borderRadius: '3px 3px 0 0' }}
+                  style={{ padding: '5px 15px', fontWeight: incidentModalTab === 'dziennik' ? 'bold' : 'normal', background: incidentModalTab === 'dziennik' ? '#fff' : 'var(--win-face)', border: '1px solid var(--win-shadow)', borderBottom: incidentModalTab === 'dziennik' ? '1px solid #fff' : '1px solid var(--win-shadow)', marginBottom: '-1px', zIndex: incidentModalTab === 'dziennik' ? 1 : 0, marginLeft: '2px', borderRadius: '3px 3px 0 0' }}
                 >Dziennik Działań (Log)</button>
               </div>
 
@@ -8873,7 +8943,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
               
               {/* TOP SECTION: ZGŁOSZENIE */}
-              <fieldset style={{ border: '2px groove threedface', borderRadius: '4px', padding: '6px', margin: 0, position: 'relative' }}>
+              <fieldset style={{ border: '2px solid #f1f5f9', borderRadius: '4px', padding: '6px', margin: 0, position: 'relative' }}>
                 <legend style={{ fontSize: '11px', fontWeight: 'bold', marginLeft: '10px' }}>Karta Zdarzenia</legend>
                 
                 <div style={{ display: 'flex', gap: '10px' }}>
@@ -8943,7 +9013,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                           <button className="btn-win" style={{ fontSize: '8px', padding: '1px 3px', background: '#ffe3e3', color: '#c92a2a', fontWeight: 'bold' }} onClick={(e) => {
                             e.preventDefault();
                             if(window.confirm('Pobieranie lokalizacji telefonu z bazy UKE. Może być bardzo niedokładne. Kontynuować?')) {
-                               setCallerAddressStr(cityPool?.[0] || 'Warszawa');
+                               setCallerAddressStr(gameModeCities?.[0] || 'Warszawa');
                                document.getElementById('caller_street').value = 'BTS MAszt ' + Math.floor(Math.random()*900);
                             }
                           }}>PLI CBD</button>
@@ -9066,10 +9136,10 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               </fieldset>
 
               {/* BOTTOM SECTION: ZDARZENIA */}
-              <div style={{ border: '2px groove threedface', borderRadius: '4px', position: 'relative', marginTop: '10px' }}>
+              <div style={{ border: '2px solid #f1f5f9', borderRadius: '4px', position: 'relative', marginTop: '10px' }}>
                 <div style={{ position: 'absolute', top: '-18px', left: '0', display: 'flex' }}>
                   <div style={{ background: '#fff', border: '2px outset #f3f3f3', borderBottom: 'none', padding: '2px 10px', fontSize: '10px', fontWeight: 'bold', zIndex: 1 }}>Nowe zdarzenie</div>
-                  <div style={{ background: 'var(--win-face)', border: '1px solid #d1d1d1', borderBottom: 'none', padding: '2px 10px', fontSize: '10px', marginTop: '2px' }}>Zdarzenia</div>
+                  <div style={{ background: 'var(--win-face)', border: '1px solid var(--win-shadow)', borderBottom: 'none', padding: '2px 10px', fontSize: '10px', marginTop: '2px' }}>Zdarzenia</div>
                 </div>
                 
                 <div style={{ padding: '8px', background: '#d0d8e0', minHeight: '200px' }}>
@@ -9176,7 +9246,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                         <button className="btn-win" style={{ padding: '0 4px', fontSize: '10px' }}>📁</button>
                       </div>
 
-                      <div style={{ position: 'relative', flex: 1, border: '1px inset #d1d1d1', background: '#fff', marginTop: '4px', padding: '2px', overflowY: 'auto', maxHeight: '100px' }}>
+                      <div style={{ position: 'relative', flex: 1, border: '1px inset var(--win-shadow)', background: '#fff', marginTop: '4px', padding: '2px', overflowY: 'auto', maxHeight: '100px' }}>
                         <div style={{ position: 'absolute', top: '-6px', left: '10px', background: '#d0d8e0', fontSize: '9px', fontWeight: 'bold', padding: '0 4px' }}>Flagi zdarzeń</div>
                         <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                           <label style={{ fontSize: '9px', display: 'flex', alignItems: 'center', gap: '4px' }}><input type="checkbox" checked={incidentFlags.length===0} readOnly /> Brak flag</label>
@@ -9203,7 +9273,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               </div>
               
               {/* ZAKŁADKA: DZIENNIK */}
-              <div style={{ flex: 1, overflowY: 'auto', display: incidentModalTab === 'dziennik' ? 'block' : 'none', background: '#fff', border: '1px solid #999', padding: '5px' }}>
+              <div style={{ flex: 1, overflowY: 'auto', display: incidentModalTab === 'dziennik' ? 'block' : 'none', background: '#fff', border: '1px solid var(--win-shadow)', padding: '5px' }}>
                 <h4 style={{ margin: '0 0 10px 0', fontSize: '12px' }}>Dziennik Działań Zdarzenia</h4>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: '10px' }}>
                   {(activeIncident?.eventHistory || []).map((ev, i) => (
@@ -9260,7 +9330,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                   <p style={{ color: '#555', fontSize: '10px', marginTop: '2px' }}>Adres: {activeIncident.location}</p>
                 </div>
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#ffffff', padding: '4px 8px', border: '1px solid #d1d1d1' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#ffffff', padding: '4px 8px', border: '1px solid var(--win-shadow)' }}>
                   <input 
                     type="checkbox" 
                     id="partial_checkbox" 
@@ -9302,12 +9372,12 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               {/* Real-time Obieg Meldunku steps timeline bar (Page 74/77 of manual) */}
               <div className="border-inset" style={{ padding: '8px', background: '#eeeeee', marginBottom: '8px' }}>
                 <div style={{ fontSize: '9.5px', fontWeight: 'bold', color: '#444', marginBottom: '4px', textTransform: 'uppercase' }}>Przebieg Akceptacji Wojewódzkiej (Obieg)</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', background: '#ffffff', border: '2px groove threedface' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', background: '#ffffff', border: '2px solid #f1f5f9' }}>
                   <span style={{ fontSize: '10px', color: '#000', fontWeight: reportWorkflowState === '1' ? 'bold' : 'normal' }}>
                     {reportWorkflowState === '1' ? '▶️ JRG Szkic' : '✓ JRG Szkic'}
                   </span>
                   <span style={{ fontSize: '10px', color: '#888' }}>➔</span>
-                  <span style={{ fontSize: '10px', color: reportWorkflowState === '2' ? '#005fb8' : '#444', fontWeight: reportWorkflowState === '2' ? 'bold' : 'normal' }}>
+                  <span style={{ fontSize: '10px', color: reportWorkflowState === '2' ? 'var(--win-blue)' : '#444', fontWeight: reportWorkflowState === '2' ? 'bold' : 'normal' }}>
                     {reportWorkflowState === '2' ? '▶️ KM Zatwierdzony' : parseInt(reportWorkflowState, 10) > 2 ? '✓ KM Zatwierdzony' : 'KM Zatwierdzony'}
                   </span>
                   <span style={{ fontSize: '10px', color: '#888' }}>➔</span>
@@ -9322,7 +9392,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
               {/* Operational times fields */}
               <div className="border-inset" style={{ padding: '0', background: '#ffffff' }}>
-                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#fff', background: '#005fb8', padding: '2px 4px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#fff', background: 'var(--win-blue)', padding: '2px 4px' }}>
                   Czasy Operacyjne Akcji
                 </div>
                 <table style={{ width: '100%', fontSize: '10px', borderCollapse: 'collapse' }}>
@@ -9374,7 +9444,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                     <label className="input-label" style={{ fontSize: '9px', color: '#000' }}>Opis obrażeń ratownika (Imię, nazwisko, jednostka, typ urazu):</label>
                     <textarea 
                       className="textarea-field" 
-                      style={{ minHeight: '40px', background: '#ffffff', color: '#000000', border: '1px solid #d1d1d1' }}
+                      style={{ minHeight: '40px', background: '#ffffff', color: '#000000', border: '1px solid var(--win-shadow)' }}
                       placeholder="np. asp. Jan Kowalski z JRG 2 - skręcenie lewego stawu skokowego..."
                       value={injuriesDescription}
                       onChange={(e) => setInjuriesDescription(e.target.value)}
@@ -9385,7 +9455,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               </div>
 
               {/* Geocoding precision selector */}
-              <div style={{ display: 'flex', alignItems: 'center', background: '#ffffff', padding: '8px', border: '1px solid #d1d1d1', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', background: '#ffffff', padding: '8px', border: '1px solid var(--win-shadow)', justifyContent: 'space-between' }}>
                 <span style={{ fontWeight: 'bold', fontSize: '10px', color: '#000' }}>SPA Geokodowanie:</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   {getGeocodingDot(geocodingStatus)}
@@ -9433,7 +9503,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
               {/* Obieg meldunku simulation trigger panel */}
               <div className="border-inset" style={{ padding: '8px', background: '#ffffff' }}>
                 <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#000', marginBottom: '6px' }}>
-                  Status obiegu meldunku w województwie: <span style={{ color: '#005fb8' }}>[{reportWorkflowState}] ({WORKFLOW_STATES[reportWorkflowState]})</span>
+                  Status obiegu meldunku w województwie: <span style={{ color: 'var(--win-blue)' }}>[{reportWorkflowState}] ({WORKFLOW_STATES[reportWorkflowState]})</span>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
                   <button className="btn-win" style={{ fontSize: '9px', padding: '2px 5px' }} onClick={() => handleWorkflowTransition('2')}>KM PSP Zatw.</button>
@@ -9467,7 +9537,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
             </div>
             
             <div className="win-dialog-body">
-              <div style={{ fontSize: '9.5px', fontWeight: 'bold', color: '#005fb8', marginBottom: '8px', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', textTransform: 'uppercase' }}>
+              <div style={{ fontSize: '9.5px', fontWeight: 'bold', color: 'var(--win-blue)', marginBottom: '8px', borderBottom: '1px solid var(--win-shadow)', paddingBottom: '3px', textTransform: 'uppercase' }}>
                 Ewidencja Załogi Zastępu
               </div>
               <div className="input-group">
@@ -9503,7 +9573,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
                 />
               </div>
 
-              <div style={{ fontSize: '9.5px', fontWeight: 'bold', color: '#005fb8', marginTop: '12px', marginBottom: '8px', borderBottom: '1px solid #d1d1d1', paddingBottom: '3px', textTransform: 'uppercase' }}>
+              <div style={{ fontSize: '9.5px', fontWeight: 'bold', color: 'var(--win-blue)', marginTop: '12px', marginBottom: '8px', borderBottom: '1px solid var(--win-shadow)', paddingBottom: '3px', textTransform: 'uppercase' }}>
                 Przejechana trasa i zużycie (Logistyka)
               </div>
               <div className="form-grid-2" style={{ marginBottom: '10px' }}>
@@ -9877,7 +9947,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
           <div 
             className="menu-item" 
-            style={{ padding: '4px 20px 4px 5px', cursor: 'pointer', color: contextMenu.incidentStatus === 'processed' ? '#d1d1d1' : '#000' }}
+            style={{ padding: '4px 20px 4px 5px', cursor: 'pointer', color: contextMenu.incidentStatus === 'processed' ? 'var(--win-shadow)' : '#000' }}
             onClick={() => { 
               if(contextMenu.incidentStatus !== 'processed') {
                 setIsCrewModalOpen(true); 
@@ -9889,11 +9959,11 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
 
 
-          <div className="menu-separator" style={{ margin: '3px 0', borderBottom: '1px solid #d1d1d1', borderTop: '1px solid #fff' }} />
+          <div className="menu-separator" style={{ margin: '3px 0', borderBottom: '1px solid var(--win-shadow)', borderTop: '1px solid #fff' }} />
           
           <div 
             className="menu-item" 
-            style={{ padding: '4px 20px 4px 5px', cursor: 'pointer', color: contextMenu.incidentStatus === 'processed' ? '#d1d1d1' : '#000' }}
+            style={{ padding: '4px 20px 4px 5px', cursor: 'pointer', color: contextMenu.incidentStatus === 'processed' ? 'var(--win-shadow)' : '#000' }}
             onClick={() => { 
               if(contextMenu.incidentStatus !== 'processed') {
                 setIsMergeModalOpen(true);
@@ -9905,7 +9975,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           </div>
           <div 
             className="menu-item" 
-            style={{ padding: '4px 20px 4px 5px', cursor: 'pointer', color: contextMenu.incidentStatus === 'processed' ? '#d1d1d1' : '#000' }}
+            style={{ padding: '4px 20px 4px 5px', cursor: 'pointer', color: contextMenu.incidentStatus === 'processed' ? 'var(--win-shadow)' : '#000' }}
             onClick={() => { 
               if(contextMenu.incidentStatus !== 'processed') {
                 setIsTransferModalOpen(true);
@@ -9983,7 +10053,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
 
       {isSisEditorOpen && (
         <div className="modal-overlay" style={{ zIndex: 9999 }}>
-          <div className="modal-content" style={{ width: '90%', height: '90vh', overflow: 'auto', background: '#e0e0e0', padding: 0 }}>
+          <div className="modal-content" style={{ width: '90%', height: '90vh', overflow: 'auto', background: 'var(--win-bg)', padding: 0 }}>
             <SisEditor
               db={db}
               userProfile={userProfile}
