@@ -8808,7 +8808,7 @@ CPR: Dobrze. Rejestruję zgłoszenie. Karta zostaje przesłana elektronicznie do
           DIALOG MODAL: CREATE / EDIT INCIDENT (KDR OSP Form)
           ------------------------------------------------------------- */}
       {isNewIncidentModalOpen && (
-        <div className="win-dialog-overlay" style={{ pointerEvents: 'none' }}>
+        <div className="win-dialog-overlay">
           {activeIncident && activeIncident.status === 'new' ? (
             <div className="win-dialog border-outset" style={{ width: '450px' }}>
               <div className="win-dialog-header" style={{ background: '#0a246a', color: '#fff' }}>

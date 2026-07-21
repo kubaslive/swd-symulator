@@ -21,8 +21,8 @@ export const SettingsModal = ({ isOpen, onClose, settingsData, setSettingsData, 
   const [selectedGeoJson, setSelectedGeoJson] = useState(null);
   const [mapBounds, setMapBounds] = useState(null);
 
-  // Initialize generatorAreas if missing
-  const generatorAreas = settingsData.generatorAreas || [];
+  const safeSettingsData = settingsData || {};
+  const generatorAreas = safeSettingsData.generatorAreas || [];
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
@@ -115,7 +115,7 @@ export const SettingsModal = ({ isOpen, onClose, settingsData, setSettingsData, 
                 <input 
                   type="text" 
                   className="input-field" 
-                  value={settingsData.kmkpName || ''} 
+                  value={safeSettingsData.kmkpName || ''} 
                   onChange={e => setSettingsData({...settingsData, kmkpName: e.target.value})}
                   placeholder="Domyślna nazwa zostanie użyta, jeśli puste"
                   style={{ width: '100%' }}
@@ -126,7 +126,7 @@ export const SettingsModal = ({ isOpen, onClose, settingsData, setSettingsData, 
                 <input 
                   type="text" 
                   className="input-field" 
-                  value={settingsData.incidentFormat || ''} 
+                  value={safeSettingsData.incidentFormat || ''} 
                   onChange={e => setSettingsData({...settingsData, incidentFormat: e.target.value})}
                   placeholder="{prefix}-{nr}"
                   style={{ width: '100%' }}
@@ -137,7 +137,7 @@ export const SettingsModal = ({ isOpen, onClose, settingsData, setSettingsData, 
                 <input 
                   type="text" 
                   className="input-field" 
-                  value={settingsData.reportFormat || ''} 
+                  value={safeSettingsData.reportFormat || ''} 
                   onChange={e => setSettingsData({...settingsData, reportFormat: e.target.value})}
                   placeholder="EWID/{nr}/{rok}"
                   style={{ width: '100%' }}
@@ -149,7 +149,7 @@ export const SettingsModal = ({ isOpen, onClose, settingsData, setSettingsData, 
                   <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Poziom Trudności (częstość zgłoszeń WCPR)</label>
                   <select 
                     className="input-field" 
-                    value={settingsData.difficulty || 'normal'} 
+                    value={safeSettingsData.difficulty || 'normal'} 
                     onChange={e => setSettingsData({...settingsData, difficulty: e.target.value})}
                     style={{ width: '100%' }}
                   >
@@ -162,7 +162,7 @@ export const SettingsModal = ({ isOpen, onClose, settingsData, setSettingsData, 
                   <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>Dźwięk nowej formatki WCPR</label>
                   <select 
                     className="input-field" 
-                    value={settingsData.customSound || 'buzzer'} 
+                    value={safeSettingsData.customSound || 'buzzer'} 
                     onChange={e => setSettingsData({...settingsData, customSound: e.target.value})}
                     style={{ width: '100%' }}
                   >
@@ -185,7 +185,7 @@ export const SettingsModal = ({ isOpen, onClose, settingsData, setSettingsData, 
                 <input 
                   type="password" 
                   className="input-field" 
-                  value={settingsData.geminiApiKey || ''} 
+                  value={safeSettingsData.geminiApiKey || ''} 
                   onChange={e => setSettingsData({...settingsData, geminiApiKey: e.target.value})}
                   placeholder="AIzaSy..."
                   style={{ width: '100%' }}
@@ -199,7 +199,7 @@ export const SettingsModal = ({ isOpen, onClose, settingsData, setSettingsData, 
                 <input 
                   type="password" 
                   className="input-field" 
-                  value={settingsData.discordWebhookUrl || ''} 
+                  value={safeSettingsData.discordWebhookUrl || ''} 
                   onChange={e => setSettingsData({...settingsData, discordWebhookUrl: e.target.value})}
                   placeholder="https://discord.com/api/webhooks/..."
                   style={{ width: '100%' }}
