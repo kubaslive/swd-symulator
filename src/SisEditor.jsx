@@ -103,7 +103,7 @@ const SisEditor = ({ db, userProfile, onClose, tenantJrgUnits, tenantOspUnits, t
   const handleAddVehicle = () => {
     if (!selectedUnit || !vehName.trim()) return;
     const unitVehicles = vehicles[selectedUnit] || [];
-    const newVeh = { name: vehName, obsada: Number(vehObsada), type: vehType };
+    const newVeh = { name: vehName, obsada: Number(vehObsada), type: vehType, sgr: vehSgr || '' };
     setVehicles({
       ...vehicles,
       [selectedUnit]: [...unitVehicles, newVeh]
